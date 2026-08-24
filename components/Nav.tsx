@@ -6,6 +6,7 @@ const links = [
   { href: "/movimientos", label: "Movimientos" },
   { href: "/inversiones", label: "Inversión" },
   { href: "/deudas", label: "Deuda" },
+  { href: "/prevision", label: "Previsión" },
 ];
 
 export function Nav() {
