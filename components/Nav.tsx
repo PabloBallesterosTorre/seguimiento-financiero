@@ -4,6 +4,7 @@ const links = [
   { href: "/dashboard", label: "Patrimonio" },
   { href: "/cuentas", label: "Cuentas" },
   { href: "/movimientos", label: "Movimientos" },
+  { href: "/inversiones", label: "Inversión" },
   { href: "/deudas", label: "Deuda" },
 ];
 
