@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { normalizarDescripcion, sugerirCategoria } from "@/lib/categorizacion";
+import { sugerirCategoria } from "@/lib/categorizacion";
+import { reforzarRegla } from "@/lib/reglas";
 
 export async function crearMovimiento(formData: FormData) {
   const supabase = createClient();
@@ -56,33 +57,8 @@ export async function crearMovimiento(formData: FormData) {
       .eq("id", cuenta_id);
   }
 
-  // Aprendizaje: refuerza o crea la regla de categorización para esta descripción.
   if (categoria_id) {
-    const patron = normalizarDescripcion(descripcion);
-
-    const { data: reglaExistente } = await supabase
-      .from("reglas_categorizacion")
-      .select("id, veces_usada")
-      .eq("usuario_id", user.id)
-      .eq("patron_descripcion", patron)
-      .maybeSingle();
-
-    if (reglaExistente) {
-      await supabase
-        .from("reglas_categorizacion")
-        .update({
-          categoria_id,
-          veces_usada: reglaExistente.veces_usada + 1,
-          ultima_fecha_uso: new Date().toISOString(),
-        })
-        .eq("id", reglaExistente.id);
-    } else {
-      await supabase.from("reglas_categorizacion").insert({
-        usuario_id: user.id,
-        patron_descripcion: patron,
-        categoria_id,
-      });
-    }
+    await reforzarRegla(supabase, user.id, descripcion, categoria_id);
   }
 
   revalidatePath("/movimientos");

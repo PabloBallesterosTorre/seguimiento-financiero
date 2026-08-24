@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { crearMovimiento, eliminarMovimiento } from "./actions";
@@ -43,7 +44,15 @@ export default async function MovimientosPage() {
     <>
       <Nav />
       <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
-        <h1 className="text-xl font-semibold">Movimientos</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold">Movimientos</h1>
+          <Link
+            href="/movimientos/importar"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Importar CSV
+          </Link>
+        </div>
 
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           <table className="w-full text-sm">
