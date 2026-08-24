@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { eliminarAmortizacionExtra } from "../actions";
-import { SimuladorAmortizacion } from "./SimuladorAmortizacion";
+import { eliminarAmortizacionExtra, marcarAmortizacionAplicada, registrarAmortizacionExtra } from "../actions";
+import { CuadroAmortizacion } from "./CuadroAmortizacion";
 import { simularAmortizacion } from "@/lib/amortizacion";
 
 function formatEUR(value: number) {
@@ -45,15 +45,27 @@ export default async function DeudaDetallePage({ params }: { params: { id: strin
       )
     : null;
 
+  const hoy = new Date().toISOString().slice(0, 10);
+
   return (
     <>
       <Nav />
       <main className="mx-auto max-w-4xl px-4 py-8 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">{deuda.nombre}</h1>
-          <Link href="/deudas" className="text-sm text-slate-500 hover:text-slate-900">
-            ← Volver a deudas
-          </Link>
+          <div className="flex items-center gap-4">
+            {tieneInteres && (
+              <Link
+                href={`/deudas/${deuda.id}/simular`}
+                className="text-sm text-slate-500 hover:text-slate-900"
+              >
+                Simular amortización →
+              </Link>
+            )}
+            <Link href="/deudas" className="text-sm text-slate-500 hover:text-slate-900">
+              ← Volver a deudas
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -68,8 +80,8 @@ export default async function DeudaDetallePage({ params }: { params: { id: strin
 
         {!tieneInteres && (
           <p className="text-sm text-amber-600">
-            Falta el tipo de interés (o la cuota es 0) para poder calcular el cuadro de amortización y el
-            simulador. Puedes añadirlo desde Supabase mientras no haya edición en la UI.
+            Falta el tipo de interés (o la cuota es 0) para poder calcular el cuadro de amortización.
+            Puedes añadirlo desde Supabase mientras no haya edición en la UI.
           </p>
         )}
 
@@ -90,43 +102,75 @@ export default async function DeudaDetallePage({ params }: { params: { id: strin
                   intereses
                 </p>
               </div>
-              <div className="max-h-80 overflow-y-auto overflow-x-auto rounded-md border border-slate-100">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-slate-50 text-left text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">Mes</th>
-                      <th className="px-3 py-2 font-medium text-right">Interés</th>
-                      <th className="px-3 py-2 font-medium text-right">Amortizado</th>
-                      <th className="px-3 py-2 font-medium text-right">Pendiente</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {simulacion.filas.map((f) => (
-                      <tr key={f.mes} className="border-t border-slate-100">
-                        <td className="px-3 py-2 text-slate-500">{f.mes}</td>
-                        <td className="px-3 py-2 text-right">{formatEUR(f.interes)}</td>
-                        <td className="px-3 py-2 text-right">{formatEUR(f.principal)}</td>
-                        <td className="px-3 py-2 text-right">{formatEUR(f.saldo)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <CuadroAmortizacion filas={simulacion.filas} />
             </div>
-
-            <SimuladorAmortizacion
-              deudaId={deuda.id}
-              capitalPendiente={Number(deuda.capital_pendiente)}
-              tasaAnual={Number(deuda.tipo_interes)}
-              cuotaActual={Number(deuda.cuota)}
-              valorResidual={Number(deuda.valor_residual ?? 0)}
-            />
           </>
         )}
 
+        <div className="rounded-lg border border-slate-200 bg-white p-6 space-y-4">
+          <h2 className="text-sm font-medium text-slate-700">Registrar amortización</h2>
+          <p className="text-xs text-slate-400">
+            Elige la fecha libremente: si es hoy o pasada se aplica al capital pendiente al guardar; si
+            es futura, queda como plan pendiente hasta que la marques como aplicada.
+          </p>
+          <form action={registrarAmortizacionExtra} className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+            <input type="hidden" name="deuda_id" value={deuda.id} />
+            <div>
+              <label className="block text-xs text-slate-500">Fecha</label>
+              <input
+                name="fecha"
+                type="date"
+                required
+                defaultValue={hoy}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500">Importe</label>
+              <input
+                name="importe"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500">Efecto</label>
+              <select
+                name="tipo_reduccion"
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="reducir_plazo">Reducir plazo</option>
+                <option value="reducir_cuota">Reducir cuota</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500">Etiqueta (informativa)</label>
+              <select
+                name="recurrencia"
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="puntual">Puntual</option>
+                <option value="mensual">Parte de un plan mensual</option>
+                <option value="anual">Parte de un plan anual</option>
+              </select>
+            </div>
+            <div className="sm:col-span-4">
+              <button
+                type="submit"
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+              >
+                Registrar
+              </button>
+            </div>
+          </form>
+        </div>
+
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-4 py-3">
-            <h2 className="text-sm font-medium text-slate-700">Amortizaciones anticipadas aplicadas</h2>
+            <h2 className="text-sm font-medium text-slate-700">Amortizaciones extra</h2>
           </div>
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-slate-500">
@@ -134,7 +178,7 @@ export default async function DeudaDetallePage({ params }: { params: { id: strin
                 <th className="px-4 py-2 font-medium">Fecha</th>
                 <th className="px-4 py-2 font-medium text-right">Importe</th>
                 <th className="px-4 py-2 font-medium">Efecto</th>
-                <th className="px-4 py-2 font-medium">Recurrencia</th>
+                <th className="px-4 py-2 font-medium">Estado</th>
                 <th className="px-4 py-2"></th>
               </tr>
             </thead>
@@ -144,9 +188,33 @@ export default async function DeudaDetallePage({ params }: { params: { id: strin
                   <td className="px-4 py-2 text-slate-500">{formatFecha(a.fecha)}</td>
                   <td className="px-4 py-2 text-right">{formatEUR(Number(a.importe))}</td>
                   <td className="px-4 py-2 capitalize">{a.tipo_reduccion.replace("_", " ")}</td>
-                  <td className="px-4 py-2 capitalize">{a.recurrencia}</td>
-                  <td className="px-4 py-2 text-right">
-                    <form action={eliminarAmortizacionExtra}>
+                  <td className="px-4 py-2">
+                    {a.aplicado ? (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                        Aplicada
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        Pendiente
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-right whitespace-nowrap">
+                    {!a.aplicado && (
+                      <form action={marcarAmortizacionAplicada} className="inline">
+                        <input type="hidden" name="id" value={a.id} />
+                        <input type="hidden" name="deuda_id" value={deuda.id} />
+                        <input type="hidden" name="importe" value={a.importe} />
+                        <input type="hidden" name="tipo_reduccion" value={a.tipo_reduccion} />
+                        <button
+                          className="mr-3 text-slate-500 hover:text-slate-900"
+                          type="submit"
+                        >
+                          Marcar como aplicado
+                        </button>
+                      </form>
+                    )}
+                    <form action={eliminarAmortizacionExtra} className="inline">
                       <input type="hidden" name="id" value={a.id} />
                       <input type="hidden" name="deuda_id" value={deuda.id} />
                       <button className="text-slate-400 hover:text-red-600" type="submit">
@@ -159,7 +227,7 @@ export default async function DeudaDetallePage({ params }: { params: { id: strin
               {(amortizacionesExtra ?? []).length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                    Todavía no has aplicado ninguna amortización anticipada.
+                    Todavía no has registrado ninguna amortización extra.
                   </td>
                 </tr>
               )}

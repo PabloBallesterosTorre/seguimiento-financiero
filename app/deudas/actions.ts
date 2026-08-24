@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { Recurrencia, TipoReduccion } from "@/lib/amortizacion";
+import { calcularCuota, simularAmortizacion, type Recurrencia, type TipoReduccion } from "@/lib/amortizacion";
+
+type SupabaseServerClient = ReturnType<typeof createClient>;
 
 export async function crearDeuda(formData: FormData) {
   const supabase = createClient();
@@ -56,63 +58,114 @@ export async function eliminarDeuda(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
-export async function aplicarAmortizacionExtra(params: {
-  deuda_id: string;
-  importe: number;
-  tipo_reduccion: TipoReduccion;
-  recurrencia: Recurrencia;
-  cuota_nueva: number | null;
-  meses_restantes_nuevos: number;
-}) {
+// Descuenta `importe` del capital pendiente de la deuda, recalcula la cuota si el
+// efecto es "reducir_cuota" y actualiza la fecha de fin estimada — usado tanto al
+// registrar una amortización con fecha pasada/hoy como al confirmar una planificada.
+async function aplicarFilaAmortizacion(
+  supabase: SupabaseServerClient,
+  filaId: string,
+  deudaId: string,
+  importe: number,
+  tipoReduccion: TipoReduccion
+) {
+  const { data: deuda } = await supabase
+    .from("deudas")
+    .select("capital_pendiente, cuota, tipo_interes, valor_residual")
+    .eq("id", deudaId)
+    .single();
+
+  if (!deuda || deuda.tipo_interes === null) {
+    await supabase
+      .from("amortizaciones_extra")
+      .update({ aplicado: true, aplicado_en: new Date().toISOString() })
+      .eq("id", filaId);
+    return;
+  }
+
+  const tasaAnual = Number(deuda.tipo_interes);
+  const valorResidual = Number(deuda.valor_residual ?? 0);
+  const capitalActual = Number(deuda.capital_pendiente);
+  const cuotaActual = Number(deuda.cuota);
+
+  const antes = simularAmortizacion(capitalActual, tasaAnual, cuotaActual, valorResidual);
+  const nuevoCapital = Math.max(capitalActual - importe, valorResidual);
+
+  let cuotaNueva = cuotaActual;
+  if (tipoReduccion === "reducir_cuota") {
+    cuotaNueva = calcularCuota(nuevoCapital, tasaAnual, antes.mesesRestantes, valorResidual);
+  }
+
+  const despues = simularAmortizacion(nuevoCapital, tasaAnual, cuotaNueva, valorResidual);
+  const nuevaFechaFin = new Date();
+  nuevaFechaFin.setMonth(nuevaFechaFin.getMonth() + despues.mesesRestantes);
+
+  await supabase
+    .from("deudas")
+    .update({
+      capital_pendiente: nuevoCapital,
+      cuota: cuotaNueva,
+      fecha_fin: nuevaFechaFin.toISOString().slice(0, 10),
+    })
+    .eq("id", deudaId);
+
+  await supabase
+    .from("amortizaciones_extra")
+    .update({ aplicado: true, aplicado_en: new Date().toISOString() })
+    .eq("id", filaId);
+}
+
+export async function registrarAmortizacionExtra(formData: FormData) {
   const supabase = createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { ok: false as const, error: "No autenticado." };
+  if (!user) return;
 
-  const { deuda_id, importe, tipo_reduccion, recurrencia, cuota_nueva, meses_restantes_nuevos } = params;
+  const deuda_id = formData.get("deuda_id") as string;
+  const fecha = formData.get("fecha") as string;
+  const importe = Number(formData.get("importe") ?? 0);
+  const tipo_reduccion = formData.get("tipo_reduccion") as TipoReduccion;
+  const recurrencia = (formData.get("recurrencia") as Recurrencia) || "puntual";
 
-  const { error } = await supabase.from("amortizaciones_extra").insert({
-    usuario_id: user.id,
-    deuda_id,
-    fecha: new Date().toISOString().slice(0, 10),
-    importe,
-    tipo_reduccion,
-    recurrencia,
-  });
+  const hoy = new Date().toISOString().slice(0, 10);
 
-  if (error) return { ok: false as const, error: error.message };
+  const { data: fila, error } = await supabase
+    .from("amortizaciones_extra")
+    .insert({
+      usuario_id: user.id,
+      deuda_id,
+      fecha,
+      importe,
+      tipo_reduccion,
+      recurrencia,
+      aplicado: false,
+    })
+    .select("id")
+    .single();
 
-  const nuevaFechaFin = new Date();
-  nuevaFechaFin.setMonth(nuevaFechaFin.getMonth() + meses_restantes_nuevos);
-  const fecha_fin = nuevaFechaFin.toISOString().slice(0, 10);
-
-  if (recurrencia === "puntual") {
-    const { data: deuda } = await supabase
-      .from("deudas")
-      .select("capital_pendiente")
-      .eq("id", deuda_id)
-      .single();
-
-    await supabase
-      .from("deudas")
-      .update({
-        capital_pendiente: deuda ? Number(deuda.capital_pendiente) - importe : undefined,
-        ...(cuota_nueva ? { cuota: cuota_nueva } : {}),
-        fecha_fin,
-      })
-      .eq("id", deuda_id);
-  } else {
-    await supabase.from("deudas").update({ fecha_fin }).eq("id", deuda_id);
+  if (!error && fila && fecha <= hoy) {
+    await aplicarFilaAmortizacion(supabase, fila.id, deuda_id, importe, tipo_reduccion);
   }
 
   revalidatePath(`/deudas/${deuda_id}`);
   revalidatePath("/deudas");
   revalidatePath("/dashboard");
+}
 
-  return { ok: true as const };
+export async function marcarAmortizacionAplicada(formData: FormData) {
+  const supabase = createClient();
+  const id = formData.get("id") as string;
+  const deuda_id = formData.get("deuda_id") as string;
+  const importe = Number(formData.get("importe"));
+  const tipo_reduccion = formData.get("tipo_reduccion") as TipoReduccion;
+
+  await aplicarFilaAmortizacion(supabase, id, deuda_id, importe, tipo_reduccion);
+
+  revalidatePath(`/deudas/${deuda_id}`);
+  revalidatePath("/deudas");
+  revalidatePath("/dashboard");
 }
 
 export async function eliminarAmortizacionExtra(formData: FormData) {

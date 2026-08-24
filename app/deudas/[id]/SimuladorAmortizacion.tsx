@@ -1,32 +1,25 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { simularAmortizacionExtra, type Recurrencia, type TipoReduccion } from "@/lib/amortizacion";
-import { aplicarAmortizacionExtra } from "../actions";
 
 const formatEUR = (v: number) =>
   new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(v);
 
 export function SimuladorAmortizacion({
-  deudaId,
   capitalPendiente,
   tasaAnual,
   cuotaActual,
   valorResidual,
 }: {
-  deudaId: string;
   capitalPendiente: number;
   tasaAnual: number;
   cuotaActual: number;
   valorResidual: number;
 }) {
-  const router = useRouter();
   const [importe, setImporte] = useState(1000);
   const [recurrencia, setRecurrencia] = useState<Recurrencia>("puntual");
   const [tipoReduccion, setTipoReduccion] = useState<TipoReduccion>("reducir_plazo");
-  const [aplicando, setAplicando] = useState(false);
-  const [mensaje, setMensaje] = useState<string | null>(null);
 
   const efectoAplicado: TipoReduccion = recurrencia === "puntual" ? tipoReduccion : "reducir_plazo";
 
@@ -43,33 +36,15 @@ export function SimuladorAmortizacion({
     });
   }, [importe, recurrencia, efectoAplicado, capitalPendiente, tasaAnual, cuotaActual, valorResidual]);
 
-  async function aplicar() {
-    if (!resultado) return;
-    setAplicando(true);
-    setMensaje(null);
-
-    const respuesta = await aplicarAmortizacionExtra({
-      deuda_id: deudaId,
-      importe,
-      tipo_reduccion: efectoAplicado,
-      recurrencia,
-      cuota_nueva: resultado.cuotaNueva,
-      meses_restantes_nuevos: resultado.despues.mesesRestantes,
-    });
-
-    setAplicando(false);
-
-    if (respuesta.ok) {
-      setMensaje("Amortización aplicada. Los datos de la deuda se han actualizado.");
-      router.refresh();
-    } else {
-      setMensaje(`Error: ${respuesta.error}`);
-    }
-  }
-
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-6 space-y-4">
-      <h2 className="text-sm font-medium text-slate-700">Simulador de amortización anticipada</h2>
+      <div>
+        <h2 className="text-sm font-medium text-slate-700">Simulador de amortización anticipada</h2>
+        <p className="text-xs text-slate-400">
+          Solo de consulta — prueba escenarios libremente, nada se guarda aquí. Para registrar una
+          amortización real, hazlo desde el detalle de la deuda.
+        </p>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
@@ -136,27 +111,6 @@ export function SimuladorAmortizacion({
           </div>
         </div>
       )}
-
-      {mensaje && (
-        <p className={`text-sm ${mensaje.startsWith("Error") ? "text-red-600" : "text-emerald-600"}`}>{mensaje}</p>
-      )}
-
-      <button
-        type="button"
-        onClick={aplicar}
-        disabled={!resultado || aplicando}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
-      >
-        {aplicando ? "Aplicando…" : "Aplicar esta amortización"}
-      </button>
-
-      <p className="text-xs text-slate-400">
-        {recurrencia === "puntual"
-          ? `Se registra como pago realizado hoy: se descuenta del capital pendiente${
-              efectoAplicado === "reducir_cuota" ? " y se actualiza la cuota." : "."
-            }`
-          : "Se registra como plan recurrente: no descuenta capital pendiente ahora, solo actualiza la fecha de fin estimada."}
-      </p>
     </div>
   );
 }
