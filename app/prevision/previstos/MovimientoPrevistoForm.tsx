@@ -1,28 +1,24 @@
 "use client";
 
 import { useState } from "react";
+import type { CategoriaJerarquica } from "@/lib/categorias";
 
-type Categoria = { id: string; nombre: string };
 type Cuenta = { id: string; nombre: string; banco_nombre: string };
 
 export function MovimientoPrevistoForm({
   action,
-  categoriasGasto,
-  categoriasIngreso,
+  categorias,
   cuentas,
   hoy,
 }: {
   action: (formData: FormData) => void;
-  categoriasGasto: Categoria[];
-  categoriasIngreso: Categoria[];
+  categorias: CategoriaJerarquica[];
   cuentas: Cuenta[];
   hoy: string;
 }) {
   const [tipo, setTipo] = useState<"gasto" | "ingreso" | "traspaso">("gasto");
   const [tipoRecurrencia, setTipoRecurrencia] = useState<"unica_vez" | "recurrente">("recurrente");
   const [esRango, setEsRango] = useState(false);
-
-  const categoriasDisponibles = tipo === "gasto" ? categoriasGasto : categoriasIngreso;
 
   return (
     <form action={action} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -57,9 +53,9 @@ export function MovimientoPrevistoForm({
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="">Sin categoría</option>
-            {categoriasDisponibles.map((c) => (
+            {categorias.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.nombre}
+                {c.label}
               </option>
             ))}
           </select>

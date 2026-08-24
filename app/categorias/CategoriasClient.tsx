@@ -6,7 +6,6 @@ import { CategoriaForm } from "./CategoriaForm";
 type Categoria = {
   id: string;
   nombre: string;
-  tipo: string;
   categoria_padre_id: string | null;
   es_categoria_inversion: boolean;
 };
@@ -25,17 +24,12 @@ export function CategoriasClient({
   const [abierto, setAbierto] = useState<"nueva" | string | null>(null);
   const padres = categorias.filter((c) => c.categoria_padre_id === null);
 
-  function grupo(tipo: "gasto" | "ingreso", titulo: string) {
-    const principales = categorias.filter((c) => c.tipo === tipo && c.categoria_padre_id === null);
-
-    return (
+  return (
+    <div className="space-y-8">
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 px-4 py-3">
-          <h2 className="text-sm font-medium text-slate-700">{titulo}</h2>
-        </div>
         <table className="w-full text-sm">
           <tbody>
-            {principales.map((cat) => {
+            {padres.map((cat) => {
               const subcategorias = categorias.filter((c) => c.categoria_padre_id === cat.id);
               return (
                 <Fragment key={cat.id}>
@@ -84,23 +78,16 @@ export function CategoriasClient({
                 </Fragment>
               );
             })}
-            {principales.length === 0 && (
+            {padres.length === 0 && (
               <tr>
                 <td colSpan={3} className="px-4 py-6 text-center text-slate-400">
-                  Todavía no hay categorías de {titulo.toLowerCase()}.
+                  Todavía no hay categorías.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
-    );
-  }
-
-  return (
-    <div className="space-y-8">
-      {grupo("gasto", "Gastos")}
-      {grupo("ingreso", "Ingresos")}
 
       {abierto === "nueva" ? (
         <div className="rounded-lg border border-slate-200 bg-white p-6">

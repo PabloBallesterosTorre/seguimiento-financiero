@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { cambiarEstadoPrevisto, crearMovimientoPrevisto, eliminarMovimientoPrevisto } from "../actions";
 import { MovimientoPrevistoForm } from "./MovimientoPrevistoForm";
 import { importeEstimado } from "@/lib/prevision";
+import { ordenarCategoriasJerarquia } from "@/lib/categorias";
 
 function formatEUR(value: number) {
   return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value);
@@ -17,12 +18,11 @@ export default async function PrevistosPage() {
       .from("movimientos_previstos")
       .select("*, categorias!categoria_id(nombre)")
       .order("created_at", { ascending: false }),
-    supabase.from("categorias").select("id, nombre, tipo").is("categoria_padre_id", null).order("nombre"),
+    supabase.from("categorias").select("id, nombre, categoria_padre_id").order("nombre"),
     supabase.from("cuentas").select("id, nombre, banco_nombre").eq("activa", true).order("nombre"),
   ]);
 
-  const categoriasGasto = (categorias ?? []).filter((c) => c.tipo === "gasto");
-  const categoriasIngreso = (categorias ?? []).filter((c) => c.tipo === "ingreso");
+  const categoriasOrdenadas = ordenarCategoriasJerarquia(categorias ?? []);
   const hoy = new Date().toISOString().slice(0, 10);
 
   return (
@@ -105,8 +105,7 @@ export default async function PrevistosPage() {
           <h2 className="mb-4 text-sm font-medium text-slate-700">Añadir previsión</h2>
           <MovimientoPrevistoForm
             action={crearMovimientoPrevisto}
-            categoriasGasto={categoriasGasto}
-            categoriasIngreso={categoriasIngreso}
+            categorias={categoriasOrdenadas}
             cuentas={cuentas ?? []}
             hoy={hoy}
           />

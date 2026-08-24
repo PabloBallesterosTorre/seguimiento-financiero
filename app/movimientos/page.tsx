@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { crearMovimiento, crearTraspaso, eliminarMovimiento, eliminarTraspaso } from "./actions";
 import { MovimientoForm } from "./MovimientoForm";
 import { NuevoTraspaso } from "./NuevoTraspaso";
+import { ordenarCategoriasJerarquia } from "@/lib/categorias";
 
 function formatEUR(value: number) {
   return new Intl.NumberFormat("es-ES", {
@@ -28,16 +29,11 @@ export default async function MovimientosPage() {
         .order("created_at", { ascending: false })
         .limit(100),
       supabase.from("cuentas").select("id, nombre, banco_nombre").eq("activa", true).order("nombre"),
-      supabase
-        .from("categorias")
-        .select("id, nombre, tipo")
-        .is("categoria_padre_id", null)
-        .order("nombre"),
+      supabase.from("categorias").select("id, nombre, categoria_padre_id").order("nombre"),
       supabase.from("reglas_categorizacion").select("patron_descripcion, categoria_id, veces_usada"),
     ]);
 
-  const categoriasIngreso = (categorias ?? []).filter((c) => c.tipo === "ingreso");
-  const categoriasGasto = (categorias ?? []).filter((c) => c.tipo === "gasto");
+  const categoriasOrdenadas = ordenarCategoriasJerarquia(categorias ?? []);
   const hayCuentas = (cuentas ?? []).length > 0;
   const hoy = new Date().toISOString().slice(0, 10);
 
@@ -141,8 +137,7 @@ export default async function MovimientosPage() {
             <MovimientoForm
               action={crearMovimiento}
               cuentas={cuentas ?? []}
-              categoriasGasto={categoriasGasto}
-              categoriasIngreso={categoriasIngreso}
+              categorias={categoriasOrdenadas}
               reglas={reglas ?? []}
               hoy={hoy}
             />

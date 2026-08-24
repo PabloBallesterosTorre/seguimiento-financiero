@@ -7,7 +7,7 @@ export default async function CategoriasPage() {
   const supabase = createClient();
   const { data: categorias } = await supabase
     .from("categorias")
-    .select("id, nombre, tipo, categoria_padre_id, es_categoria_inversion")
+    .select("id, nombre, categoria_padre_id, es_categoria_inversion")
     .order("nombre");
 
   return (

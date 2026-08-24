@@ -2,22 +2,20 @@
 
 import { useRef } from "react";
 import { sugerirCategoria, type ReglaCategorizacion } from "@/lib/categorizacion";
+import type { CategoriaJerarquica } from "@/lib/categorias";
 
 type Cuenta = { id: string; nombre: string; banco_nombre: string };
-type Categoria = { id: string; nombre: string };
 
 export function MovimientoForm({
   action,
   cuentas,
-  categoriasGasto,
-  categoriasIngreso,
+  categorias,
   reglas,
   hoy,
 }: {
   action: (formData: FormData) => void;
   cuentas: Cuenta[];
-  categoriasGasto: Categoria[];
-  categoriasIngreso: Categoria[];
+  categorias: CategoriaJerarquica[];
   reglas: ReglaCategorizacion[];
   hoy: string;
 }) {
@@ -84,24 +82,11 @@ export function MovimientoForm({
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">Sin categoría</option>
-          {categoriasGasto.length > 0 && (
-            <optgroup label="Gastos">
-              {categoriasGasto.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.nombre}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {categoriasIngreso.length > 0 && (
-            <optgroup label="Ingresos">
-              {categoriasIngreso.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.nombre}
-                </option>
-              ))}
-            </optgroup>
-          )}
+          {categorias.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {cat.label}
+            </option>
+          ))}
         </select>
       </div>
       <div className="sm:col-span-2">

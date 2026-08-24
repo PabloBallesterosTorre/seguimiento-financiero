@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { parseCSV, detectarDelimitador } from "@/lib/csv";
 import { parseFechaImportada, parseImporteImportado, type FormatoFecha } from "@/lib/importarCsv";
 import { sugerirCategoria, type ReglaCategorizacion } from "@/lib/categorizacion";
+import type { CategoriaJerarquica } from "@/lib/categorias";
 import { importarMovimientos, type FilaImportar } from "./actions";
 
 type Cuenta = { id: string; nombre: string; banco_nombre: string };
-type Categoria = { id: string; nombre: string };
 type FilaPrevia = FilaImportar & { original: string; valida: boolean };
 
 const DELIMITADORES = [
@@ -33,13 +33,11 @@ const formatFecha = (v: string) => new Intl.DateTimeFormat("es-ES", { dateStyle:
 
 export function ImportarCSV({
   cuentas,
-  categoriasGasto,
-  categoriasIngreso,
+  categorias,
   reglas,
 }: {
   cuentas: Cuenta[];
-  categoriasGasto: Categoria[];
-  categoriasIngreso: Categoria[];
+  categorias: CategoriaJerarquica[];
   reglas: ReglaCategorizacion[];
 }) {
   const router = useRouter();
@@ -111,9 +109,8 @@ export function ImportarCSV({
 
       const valida = fecha !== null && descripcion !== "" && importe !== null && importe !== 0;
       const tipo: "ingreso" | "gasto" = (importe ?? 0) >= 0 ? "ingreso" : "gasto";
-      const categoriasDisponibles = tipo === "gasto" ? categoriasGasto : categoriasIngreso;
       const sugerida = valida ? sugerirCategoria(descripcion, reglas) : null;
-      const categoria_id = sugerida && categoriasDisponibles.some((c) => c.id === sugerida) ? sugerida : null;
+      const categoria_id = sugerida && categorias.some((c) => c.id === sugerida) ? sugerida : null;
 
       return {
         fecha: fecha ?? "",
@@ -416,9 +413,9 @@ export function ImportarCSV({
                           className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
                         >
                           <option value="">Sin categoría</option>
-                          {(fila.tipo === "gasto" ? categoriasGasto : categoriasIngreso).map((cat) => (
+                          {categorias.map((cat) => (
                             <option key={cat.id} value={cat.id}>
-                              {cat.nombre}
+                              {cat.label}
                             </option>
                           ))}
                         </select>

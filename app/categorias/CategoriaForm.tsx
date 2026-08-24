@@ -1,16 +1,13 @@
 "use client";
 
-import { useState } from "react";
-
 type Categoria = {
   id: string;
   nombre: string;
-  tipo: string;
   categoria_padre_id: string | null;
   es_categoria_inversion: boolean;
 };
 
-type CategoriaPadre = { id: string; nombre: string; tipo: string };
+type CategoriaPadre = { id: string; nombre: string };
 
 export function CategoriaForm({
   categoria,
@@ -23,9 +20,7 @@ export function CategoriaForm({
   action: (formData: FormData) => void;
   onCancelar: () => void;
 }) {
-  const [tipo, setTipo] = useState(categoria?.tipo ?? "gasto");
-
-  const padresDisponibles = padres.filter((p) => p.tipo === tipo && p.id !== categoria?.id);
+  const padresDisponibles = padres.filter((p) => p.id !== categoria?.id);
 
   return (
     <form
@@ -33,7 +28,7 @@ export function CategoriaForm({
         await action(formData);
         onCancelar();
       }}
-      className="grid grid-cols-1 gap-4 sm:grid-cols-4"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-3"
     >
       {categoria && <input type="hidden" name="id" value={categoria.id} />}
       <div>
@@ -45,18 +40,6 @@ export function CategoriaForm({
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           placeholder="Alimentación"
         />
-      </div>
-      <div>
-        <label className="block text-xs text-slate-500">Tipo</label>
-        <select
-          name="tipo"
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value)}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-        >
-          <option value="gasto">Gasto</option>
-          <option value="ingreso">Ingreso</option>
-        </select>
       </div>
       <div>
         <label className="block text-xs text-slate-500">Categoría padre (opcional)</label>
@@ -73,20 +56,18 @@ export function CategoriaForm({
           ))}
         </select>
       </div>
-      {tipo === "gasto" && (
-        <div className="flex items-end pb-2">
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              name="es_categoria_inversion"
-              defaultChecked={categoria?.es_categoria_inversion}
-            />
-            Es aportación a inversión
-          </label>
-        </div>
-      )}
+      <div className="flex items-end pb-2">
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            name="es_categoria_inversion"
+            defaultChecked={categoria?.es_categoria_inversion}
+          />
+          Es aportación a inversión
+        </label>
+      </div>
 
-      <div className="flex gap-3 sm:col-span-4">
+      <div className="flex gap-3 sm:col-span-3">
         <button
           type="submit"
           className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"

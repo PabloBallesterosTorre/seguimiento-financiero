@@ -4,14 +4,10 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 function leerCamposCategoria(formData: FormData) {
-  const tipo = formData.get("tipo") as string;
-  const categoria_padre_id = (formData.get("categoria_padre_id") as string) || null;
-
   return {
     nombre: formData.get("nombre") as string,
-    tipo,
-    categoria_padre_id,
-    es_categoria_inversion: tipo === "gasto" && formData.get("es_categoria_inversion") === "on",
+    categoria_padre_id: (formData.get("categoria_padre_id") as string) || null,
+    es_categoria_inversion: formData.get("es_categoria_inversion") === "on",
   };
 }
 
