@@ -1,9 +1,16 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { crearMovimiento, crearTraspaso, eliminarMovimiento, eliminarTraspaso } from "./actions";
+import {
+  actualizarCategoriaMovimiento,
+  crearMovimiento,
+  crearTraspaso,
+  eliminarMovimiento,
+  eliminarTraspaso,
+} from "./actions";
 import { MovimientoForm } from "./MovimientoForm";
 import { NuevoTraspaso } from "./NuevoTraspaso";
+import { CategoriaCelda } from "./CategoriaCelda";
 import { ordenarCategoriasJerarquia } from "@/lib/categorias";
 
 function formatEUR(value: number) {
@@ -81,8 +88,18 @@ export default async function MovimientosPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-slate-500">
-                      {esTraspaso ? "—" : mov.categorias?.nombre ?? "Sin categoría"}
+                    <td className="px-4 py-2">
+                      {esTraspaso ? (
+                        <span className="text-slate-500">—</span>
+                      ) : (
+                        <CategoriaCelda
+                          movimientoId={mov.id}
+                          descripcion={mov.descripcion}
+                          categoriaId={mov.categoria_id}
+                          categorias={categoriasOrdenadas}
+                          action={actualizarCategoriaMovimiento}
+                        />
+                      )}
                     </td>
                     <td
                       className={`px-4 py-2 text-right font-medium ${

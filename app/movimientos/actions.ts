@@ -5,6 +5,28 @@ import { createClient } from "@/lib/supabase/server";
 import { sugerirCategoria } from "@/lib/categorizacion";
 import { reforzarRegla } from "@/lib/reglas";
 
+export async function actualizarCategoriaMovimiento(formData: FormData) {
+  const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const id = formData.get("id") as string;
+  const descripcion = formData.get("descripcion") as string;
+  const categoria_id = (formData.get("categoria_id") as string) || null;
+
+  await supabase.from("movimientos").update({ categoria_id }).eq("id", id);
+
+  if (categoria_id) {
+    await reforzarRegla(supabase, user.id, descripcion, categoria_id);
+  }
+
+  revalidatePath("/movimientos");
+}
+
 export async function crearMovimiento(formData: FormData) {
   const supabase = createClient();
 
