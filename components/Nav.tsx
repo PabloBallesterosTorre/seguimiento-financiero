@@ -3,6 +3,7 @@ import Link from "next/link";
 const links = [
   { href: "/dashboard", label: "Patrimonio" },
   { href: "/cuentas", label: "Cuentas" },
+  { href: "/movimientos", label: "Movimientos" },
 ];
 
 export function Nav() {
