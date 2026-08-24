@@ -26,3 +26,6 @@ next-env.d.ts
 
 # claude code local settings
 .claude/settings.local.json
+
+# extractos bancarios reales (datos personales, no deben subirse al repo)
+/2. Extractos/

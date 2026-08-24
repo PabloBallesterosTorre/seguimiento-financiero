@@ -3,7 +3,13 @@
 import { useMemo, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { parseCSV, detectarDelimitador } from "@/lib/csv";
-import { parseFechaImportada, parseImporteImportado, type FormatoFecha } from "@/lib/importarCsv";
+import {
+  parseFechaImportada,
+  parseImporteImportado,
+  detectarFormatoFecha,
+  detectarSeparadorDecimal,
+  type FormatoFecha,
+} from "@/lib/importarCsv";
 import { sugerirCategoria, type ReglaCategorizacion } from "@/lib/categorizacion";
 import type { CategoriaJerarquica } from "@/lib/categorias";
 import { importarMovimientos, type FilaImportar } from "./actions";
@@ -24,6 +30,8 @@ const FORMATOS_FECHA: { value: FormatoFecha; label: string }[] = [
 ];
 
 function adivinarColumna(cabeceras: string[], palabras: string[]): string {
+  const exacta = cabeceras.find((c) => palabras.includes(c.toLowerCase()));
+  if (exacta) return exacta;
   return cabeceras.find((c) => palabras.some((p) => c.toLowerCase().includes(p))) ?? "";
 }
 
@@ -72,18 +80,83 @@ export function ImportarCSV({
     const texto = await file.text();
     const primeraLinea = texto.split(/\r?\n/)[0] ?? "";
     const delim = detectarDelimitador(primeraLinea);
-    const cab = parseCSV(texto, delim)[0] ?? [];
+    const filas = parseCSV(texto, delim);
+    const cab = filas[0] ?? [];
+    const datos = filas.slice(1, 21);
+
+    const colFechaDetectada = adivinarColumna(cab, ["fecha", "date"]);
+    const colImporteDetectada = adivinarColumna(cab, ["importe", "cantidad", "amount"]);
+    const colCargoDetectada = adivinarColumna(cab, ["cargo", "debe", "debit"]);
+    const colAbonoDetectada = adivinarColumna(cab, ["abono", "haber", "credit"]);
 
     setNombreArchivo(file.name);
     setTextoOriginal(texto);
     setDelimitador(delim);
-    setColFecha(adivinarColumna(cab, ["fecha", "date"]));
+    setColFecha(colFechaDetectada);
     setColDescripcion(adivinarColumna(cab, ["concepto", "descrip", "detalle", "movimiento"]));
-    setColImporte(adivinarColumna(cab, ["importe", "cantidad", "amount"]));
-    setColCargo(adivinarColumna(cab, ["cargo", "debe", "debit"]));
-    setColAbono(adivinarColumna(cab, ["abono", "haber", "credit"]));
+    setColImporte(colImporteDetectada);
+    setColCargo(colCargoDetectada);
+    setColAbono(colAbonoDetectada);
+
+    const idxFecha = cab.indexOf(colFechaDetectada);
+    if (idxFecha >= 0) {
+      const muestraFecha = datos.map((f) => f[idxFecha]).find((v) => v);
+      if (muestraFecha) {
+        const formatoDetectado = detectarFormatoFecha(muestraFecha);
+        if (formatoDetectado) setFormatoFecha(formatoDetectado);
+      }
+    }
+
+    const colImporteParaMuestra = colImporteDetectada || colCargoDetectada || colAbonoDetectada;
+    const idxImporte = cab.indexOf(colImporteParaMuestra);
+    if (idxImporte >= 0) {
+      const muestrasImporte = datos.map((f) => f[idxImporte]).filter((v): v is string => Boolean(v));
+      if (muestrasImporte.length > 0) {
+        setSeparadorDecimal(detectarSeparadorDecimal(muestrasImporte));
+      }
+    }
+
     setResultado(null);
     setPaso("mapear");
+  }
+
+  // Vuelve a sugerir formato de fecha / separador decimal cuando el usuario cambia
+  // manualmente qué columna corresponde a cada cosa (cada banco exporta distinto,
+  // así que el mapeo puede no coincidir con la primera suposición automática).
+  function muestrasColumna(nombreColumna: string): string[] {
+    const idx = cabeceras.indexOf(nombreColumna);
+    if (idx < 0) return [];
+    return filasDatos
+      .slice(0, 20)
+      .map((f) => f[idx])
+      .filter((v): v is string => Boolean(v));
+  }
+
+  function onCambiarColFecha(col: string) {
+    setColFecha(col);
+    const muestra = muestrasColumna(col)[0];
+    if (muestra) {
+      const formato = detectarFormatoFecha(muestra);
+      if (formato) setFormatoFecha(formato);
+    }
+  }
+
+  function onCambiarColImporte(col: string) {
+    setColImporte(col);
+    const muestras = muestrasColumna(col);
+    if (muestras.length > 0) setSeparadorDecimal(detectarSeparadorDecimal(muestras));
+  }
+
+  function onCambiarColCargo(col: string) {
+    setColCargo(col);
+    const muestras = muestrasColumna(col);
+    if (muestras.length > 0) setSeparadorDecimal(detectarSeparadorDecimal(muestras));
+  }
+
+  function onCambiarColAbono(col: string) {
+    setColAbono(col);
+    const muestras = muestrasColumna(col);
+    if (muestras.length > 0) setSeparadorDecimal(detectarSeparadorDecimal(muestras));
   }
 
   function calcularPreview() {
@@ -230,7 +303,7 @@ export function ImportarCSV({
               <label className="block text-xs text-slate-500">Columna fecha</label>
               <select
                 value={colFecha}
-                onChange={(e) => setColFecha(e.target.value)}
+                onChange={(e) => onCambiarColFecha(e.target.value)}
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               >
                 <option value="">— Selecciona —</option>
@@ -306,7 +379,7 @@ export function ImportarCSV({
               <label className="block text-xs text-slate-500">Columna importe</label>
               <select
                 value={colImporte}
-                onChange={(e) => setColImporte(e.target.value)}
+                onChange={(e) => onCambiarColImporte(e.target.value)}
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               >
                 <option value="">— Selecciona —</option>
@@ -323,7 +396,7 @@ export function ImportarCSV({
                 <label className="block text-xs text-slate-500">Columna cargo (gastos)</label>
                 <select
                   value={colCargo}
-                  onChange={(e) => setColCargo(e.target.value)}
+                  onChange={(e) => onCambiarColCargo(e.target.value)}
                   className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                 >
                   <option value="">— Selecciona —</option>
@@ -338,7 +411,7 @@ export function ImportarCSV({
                 <label className="block text-xs text-slate-500">Columna abono (ingresos)</label>
                 <select
                   value={colAbono}
-                  onChange={(e) => setColAbono(e.target.value)}
+                  onChange={(e) => onCambiarColAbono(e.target.value)}
                   className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                 >
                   <option value="">— Selecciona —</option>
