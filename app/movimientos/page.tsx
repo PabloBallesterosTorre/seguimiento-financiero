@@ -1,6 +1,7 @@
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { crearMovimiento, eliminarMovimiento } from "./actions";
+import { MovimientoForm } from "./MovimientoForm";
 
 function formatEUR(value: number) {
   return new Intl.NumberFormat("es-ES", {
@@ -16,20 +17,22 @@ function formatFecha(value: string) {
 export default async function MovimientosPage() {
   const supabase = createClient();
 
-  const [{ data: movimientos }, { data: cuentas }, { data: categorias }] = await Promise.all([
-    supabase
-      .from("movimientos")
-      .select("*, cuentas(nombre, banco_nombre), categorias!categoria_id(nombre)")
-      .order("fecha", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(100),
-    supabase.from("cuentas").select("id, nombre, banco_nombre").eq("activa", true).order("nombre"),
-    supabase
-      .from("categorias")
-      .select("id, nombre, tipo")
-      .is("categoria_padre_id", null)
-      .order("nombre"),
-  ]);
+  const [{ data: movimientos }, { data: cuentas }, { data: categorias }, { data: reglas }] =
+    await Promise.all([
+      supabase
+        .from("movimientos")
+        .select("*, cuentas(nombre, banco_nombre), categorias!categoria_id(nombre)")
+        .order("fecha", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(100),
+      supabase.from("cuentas").select("id, nombre, banco_nombre").eq("activa", true).order("nombre"),
+      supabase
+        .from("categorias")
+        .select("id, nombre, tipo")
+        .is("categoria_padre_id", null)
+        .order("nombre"),
+      supabase.from("reglas_categorizacion").select("patron_descripcion, categoria_id, veces_usada"),
+    ]);
 
   const categoriasIngreso = (categorias ?? []).filter((c) => c.tipo === "ingreso");
   const categoriasGasto = (categorias ?? []).filter((c) => c.tipo === "gasto");
@@ -97,98 +100,14 @@ export default async function MovimientosPage() {
               Antes de añadir movimientos, da de alta una cuenta en la sección Cuentas.
             </p>
           ) : (
-            <form action={crearMovimiento} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div>
-                <label className="block text-xs text-slate-500">Fecha</label>
-                <input
-                  name="fecha"
-                  type="date"
-                  required
-                  defaultValue={hoy}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500">Cuenta</label>
-                <select
-                  name="cuenta_id"
-                  required
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {(cuentas ?? []).map((cuenta) => (
-                    <option key={cuenta.id} value={cuenta.id}>
-                      {cuenta.banco_nombre} — {cuenta.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500">Tipo</label>
-                <select
-                  name="tipo"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="gasto">Gasto</option>
-                  <option value="ingreso">Ingreso</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500">Importe</label>
-                <input
-                  name="importe"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  required
-                  placeholder="0.00"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500">Categoría</label>
-                <select
-                  name="categoria_id"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="">Sin categoría</option>
-                  {categoriasGasto.length > 0 && (
-                    <optgroup label="Gastos">
-                      {categoriasGasto.map((cat) => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.nombre}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {categoriasIngreso.length > 0 && (
-                    <optgroup label="Ingresos">
-                      {categoriasIngreso.map((cat) => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.nombre}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs text-slate-500">Descripción</label>
-                <input
-                  name="descripcion"
-                  required
-                  placeholder="Mercadona"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="sm:col-span-3">
-                <button
-                  type="submit"
-                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-                >
-                  Añadir movimiento
-                </button>
-              </div>
-            </form>
+            <MovimientoForm
+              action={crearMovimiento}
+              cuentas={cuentas ?? []}
+              categoriasGasto={categoriasGasto}
+              categoriasIngreso={categoriasIngreso}
+              reglas={reglas ?? []}
+              hoy={hoy}
+            />
           )}
         </div>
       </main>
