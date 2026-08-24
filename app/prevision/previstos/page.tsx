@@ -31,9 +31,14 @@ export default async function PrevistosPage() {
       <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Movimientos previstos</h1>
-          <Link href="/prevision" className="text-sm text-slate-500 hover:text-slate-900">
-            ← Ver proyección
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/prevision/sugerencias" className="text-sm text-slate-500 hover:text-slate-900">
+              Ver sugerencias →
+            </Link>
+            <Link href="/prevision" className="text-sm text-slate-500 hover:text-slate-900">
+              ← Ver proyección
+            </Link>
+          </div>
         </div>
 
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
