@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { crearMovimiento, eliminarMovimiento } from "./actions";
+import { crearMovimiento, crearTraspaso, eliminarMovimiento, eliminarTraspaso } from "./actions";
 import { MovimientoForm } from "./MovimientoForm";
+import { NuevoTraspaso } from "./NuevoTraspaso";
 
 function formatEUR(value: number) {
   return new Intl.NumberFormat("es-ES", {
@@ -46,12 +47,15 @@ export default async function MovimientosPage() {
       <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Movimientos</h1>
-          <Link
-            href="/movimientos/importar"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Importar CSV
-          </Link>
+          <div className="flex items-center gap-3">
+            <NuevoTraspaso cuentas={cuentas ?? []} action={crearTraspaso} hoy={hoy} />
+            <Link
+              href="/movimientos/importar"
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Importar CSV
+            </Link>
+          </div>
         </div>
 
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
@@ -67,29 +71,54 @@ export default async function MovimientosPage() {
               </tr>
             </thead>
             <tbody>
-              {(movimientos ?? []).map((mov) => (
-                <tr key={mov.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2 whitespace-nowrap text-slate-500">{formatFecha(mov.fecha)}</td>
-                  <td className="px-4 py-2">{mov.cuentas?.nombre ?? "—"}</td>
-                  <td className="px-4 py-2">{mov.descripcion}</td>
-                  <td className="px-4 py-2 text-slate-500">{mov.categorias?.nombre ?? "Sin categoría"}</td>
-                  <td
-                    className={`px-4 py-2 text-right font-medium ${
-                      Number(mov.importe) < 0 ? "text-slate-900" : "text-emerald-600"
-                    }`}
-                  >
-                    {formatEUR(Number(mov.importe))}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <form action={eliminarMovimiento}>
-                      <input type="hidden" name="id" value={mov.id} />
-                      <button className="text-slate-400 hover:text-red-600" type="submit">
-                        Eliminar
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              ))}
+              {(movimientos ?? []).map((mov) => {
+                const esTraspaso = mov.tipo === "traspaso";
+                return (
+                  <tr key={mov.id} className="border-t border-slate-100">
+                    <td className="px-4 py-2 whitespace-nowrap text-slate-500">{formatFecha(mov.fecha)}</td>
+                    <td className="px-4 py-2">{mov.cuentas?.nombre ?? "—"}</td>
+                    <td className="px-4 py-2">
+                      {mov.descripcion}
+                      {esTraspaso && (
+                        <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                          Traspaso
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-slate-500">
+                      {esTraspaso ? "—" : mov.categorias?.nombre ?? "Sin categoría"}
+                    </td>
+                    <td
+                      className={`px-4 py-2 text-right font-medium ${
+                        esTraspaso
+                          ? "text-sky-700"
+                          : Number(mov.importe) < 0
+                            ? "text-slate-900"
+                            : "text-emerald-600"
+                      }`}
+                    >
+                      {formatEUR(Number(mov.importe))}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {esTraspaso ? (
+                        <form action={eliminarTraspaso}>
+                          <input type="hidden" name="traspaso_grupo_id" value={mov.traspaso_grupo_id} />
+                          <button className="text-slate-400 hover:text-red-600" type="submit">
+                            Eliminar
+                          </button>
+                        </form>
+                      ) : (
+                        <form action={eliminarMovimiento}>
+                          <input type="hidden" name="id" value={mov.id} />
+                          <button className="text-slate-400 hover:text-red-600" type="submit">
+                            Eliminar
+                          </button>
+                        </form>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
               {(movimientos ?? []).length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-slate-400">

@@ -54,6 +54,7 @@ export default async function DashboardPage({
   const movimientosDelMes = (movimientosMes ?? []) as unknown as MovimientoMes[];
 
   const ahorroReal = movimientosDelMes.reduce((sum, m) => {
+    if (m.tipo === "traspaso") return sum;
     const esAportacionInversion = m.tipo === "gasto" && m.categorias?.es_categoria_inversion === true;
     return esAportacionInversion ? sum : sum + Number(m.importe);
   }, 0);
