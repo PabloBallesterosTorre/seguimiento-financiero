@@ -14,13 +14,32 @@ export default async function PrevistosPage() {
   const supabase = createClient();
 
   const [{ data: previstos }, { data: categorias }, { data: cuentas }] = await Promise.all([
-    supabase
-      .from("movimientos_previstos")
-      .select("*, categorias!categoria_id(nombre)")
-      .order("created_at", { ascending: false }),
+    supabase.from("movimientos_previstos").select("*").order("created_at", { ascending: false }),
     supabase.from("categorias").select("id, nombre, categoria_padre_id").order("nombre"),
     supabase.from("cuentas").select("id, nombre, banco_nombre").eq("activa", true).order("nombre"),
   ]);
+
+  const idsMovimientosReales = (previstos ?? [])
+    .map((p) => p.movimiento_real_id)
+    .filter((id): id is string => Boolean(id));
+
+  const { data: movimientosReales } =
+    idsMovimientosReales.length > 0
+      ? await supabase.from("movimientos").select("id, categoria_id").in("id", idsMovimientosReales)
+      : { data: [] as { id: string; categoria_id: string | null }[] };
+
+  const categoriaPorMovimientoReal = new Map((movimientosReales ?? []).map((m) => [m.id, m.categoria_id]));
+  const nombrePorCategoria = new Map((categorias ?? []).map((c) => [c.id, c.nombre]));
+
+  // Si la previsión ya está conciliada con un movimiento real, la categoría que manda
+  // es la de ese movimiento real (puede haberse categorizado o corregido después de
+  // crear la previsión), no la que tenía la previsión al crearse.
+  function categoriaMostrada(p: { categoria_id: string | null; movimiento_real_id: string | null }) {
+    const categoriaId = p.movimiento_real_id
+      ? categoriaPorMovimientoReal.get(p.movimiento_real_id) ?? p.categoria_id
+      : p.categoria_id;
+    return categoriaId ? nombrePorCategoria.get(categoriaId) ?? "—" : "—";
+  }
 
   const categoriasOrdenadas = ordenarCategoriasJerarquia(categorias ?? []);
   const hoy = new Date().toISOString().slice(0, 10);
@@ -59,7 +78,7 @@ export default async function PrevistosPage() {
                 <tr key={p.id} className="border-t border-slate-100">
                   <td className="px-4 py-2">{p.descripcion}</td>
                   <td className="px-4 py-2 capitalize">{p.tipo}</td>
-                  <td className="px-4 py-2 text-slate-500">{p.categorias?.nombre ?? "—"}</td>
+                  <td className="px-4 py-2 text-slate-500">{categoriaMostrada(p)}</td>
                   <td className="px-4 py-2 text-right">{formatEUR(importeEstimado(p))}</td>
                   <td className="px-4 py-2 text-slate-500">
                     {p.tipo_recurrencia === "unica_vez" ? "Única vez" : `Recurrente (${p.periodicidad})`}
