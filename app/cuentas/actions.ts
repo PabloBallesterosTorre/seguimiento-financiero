@@ -8,11 +8,14 @@ function leerCamposCuenta(formData: FormData) {
   const tipoInteresRaw = formData.get("tipo_interes") as string;
   const periodicidadRaw = formData.get("periodicidad_pago_interes") as string;
 
+  const ibanRaw = formData.get("iban") as string;
+
   return {
     banco_nombre: formData.get("banco") as string,
     nombre: formData.get("nombre") as string,
     tipo: formData.get("tipo") as string,
     saldo_actual: Number(formData.get("saldo_actual") ?? 0),
+    iban: ibanRaw ? ibanRaw.replace(/\s+/g, "").toUpperCase() : null,
     es_remunerada,
     tipo_interes: es_remunerada && tipoInteresRaw ? Number(tipoInteresRaw) : null,
     periodicidad_pago_interes: es_remunerada && periodicidadRaw ? periodicidadRaw : null,

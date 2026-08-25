@@ -9,6 +9,7 @@ type Cuenta = {
   nombre: string;
   tipo: string;
   saldo_actual: number;
+  iban: string | null;
   es_remunerada: boolean;
   tipo_interes: number | null;
   periodicidad_pago_interes: string | null;
@@ -50,7 +51,10 @@ export function CuentasClient({
               <Fragment key={cuenta.id}>
                 <tr className="border-t border-slate-100">
                   <td className="px-4 py-2">{cuenta.banco_nombre}</td>
-                  <td className="px-4 py-2">{cuenta.nombre}</td>
+                  <td className="px-4 py-2">
+                    {cuenta.nombre}
+                    {cuenta.iban && <p className="text-xs text-slate-400">{cuenta.iban}</p>}
+                  </td>
                   <td className="px-4 py-2 capitalize">{cuenta.tipo}</td>
                   <td className="px-4 py-2 text-slate-500">
                     {cuenta.es_remunerada ? `${cuenta.tipo_interes ?? "—"}%` : "—"}

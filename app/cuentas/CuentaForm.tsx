@@ -8,6 +8,7 @@ type Cuenta = {
   nombre: string;
   tipo: string;
   saldo_actual: number;
+  iban: string | null;
   es_remunerada: boolean;
   tipo_interes: number | null;
   periodicidad_pago_interes: string | null;
@@ -74,6 +75,18 @@ export function CuentaForm({
           defaultValue={cuenta?.saldo_actual ?? 0}
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
+      </div>
+      <div className="sm:col-span-2">
+        <label className="block text-xs text-slate-500">IBAN (opcional)</label>
+        <input
+          name="iban"
+          defaultValue={cuenta?.iban ?? ""}
+          placeholder="ES61 2085 9968 0303 3033 3263"
+          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+        <p className="mt-1 text-xs text-slate-400">
+          Sirve para reconocer traspasos entre tus bancos al importar CSV.
+        </p>
       </div>
 
       <div className="sm:col-span-4">
