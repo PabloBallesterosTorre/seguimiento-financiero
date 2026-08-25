@@ -27,9 +27,17 @@ export type CandidatoCategoria = {
   mesesConDatos: number;
 };
 
-function moda<T>(valores: T[]): T {
-  const conteo = new Map<T, number>();
-  for (const v of valores) conteo.set(v, (conteo.get(v) ?? 0) + 1);
+// Moda de las categorías de un grupo de ocurrencias, ignorando las que todavía no
+// están categorizadas (null): si una sola ocurrencia ya está categorizada, esa
+// categoría debe ganar sobre la mayoría sin categorizar, en vez de que "sin
+// categoría" gane por ser la más repetida mientras el usuario va categorizando
+// poco a poco las apariciones de un mismo patrón recurrente.
+function modaCategoria(valores: (string | null)[]): string | null {
+  const conCategoria = valores.filter((v): v is string => v !== null);
+  if (conCategoria.length === 0) return null;
+
+  const conteo = new Map<string, number>();
+  for (const v of conCategoria) conteo.set(v, (conteo.get(v) ?? 0) + 1);
   return Array.from(conteo.entries()).sort((a, b) => b[1] - a[1])[0][0];
 }
 
@@ -73,7 +81,7 @@ export function detectarPatronesPorDescripcion(movimientos: MovimientoHistorico[
     candidatos.push({
       clave,
       descripcion: ultima.descripcion,
-      categoria_id: moda(ordenado.map((m) => m.categoria_id)),
+      categoria_id: modaCategoria(ordenado.map((m) => m.categoria_id)),
       tipo: ultima.tipo,
       periodicidad,
       importe_estimado: Math.round(importeMedio * 100) / 100,
@@ -86,10 +94,13 @@ export function detectarPatronesPorDescripcion(movimientos: MovimientoHistorico[
 }
 
 // Nivel 2: media mensual por categoría, para el gasto/ingreso variable que no tiene
-// un patrón de descripción único (excluye lo ya cubierto por el nivel 1).
+// un patrón de descripción único (excluye lo ya cubierto por el nivel 1). Se agrega
+// siempre a nivel de categoría padre (vía `categoriaEfectiva`) para que una categoría
+// con subcategorías salga como una única sugerencia, no una por subcategoría.
 export function detectarMediaPorCategoria(
   movimientos: MovimientoHistorico[],
-  clavesYaCubiertas: Set<string>
+  clavesYaCubiertas: Set<string>,
+  categoriaEfectiva: (categoriaId: string) => string = (id) => id
 ): CandidatoCategoria[] {
   const restantes = movimientos.filter(
     (m) => m.categoria_id && !clavesYaCubiertas.has(`${m.tipo}:${normalizarDescripcion(m.descripcion)}`)
@@ -98,7 +109,8 @@ export function detectarMediaPorCategoria(
   const porCategoria = new Map<string, { tipo: "ingreso" | "gasto"; porMes: Map<string, number> }>();
 
   for (const m of restantes) {
-    const clave = `${m.tipo}:${m.categoria_id}`;
+    const categoriaId = categoriaEfectiva(m.categoria_id!);
+    const clave = `${m.tipo}:${categoriaId}`;
     if (!porCategoria.has(clave)) porCategoria.set(clave, { tipo: m.tipo, porMes: new Map() });
     const entrada = porCategoria.get(clave)!;
     const mesKey = m.fecha.slice(0, 7);

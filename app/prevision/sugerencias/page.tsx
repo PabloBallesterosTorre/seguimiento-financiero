@@ -22,7 +22,7 @@ export default async function SugerenciasPage() {
       .select("descripcion, categoria_id, tipo, importe, fecha")
       .in("tipo", ["ingreso", "gasto"])
       .gte("fecha", desde.toISOString().slice(0, 10)),
-    supabase.from("categorias").select("id, nombre"),
+    supabase.from("categorias").select("id, nombre, categoria_padre_id"),
     supabase.from("movimientos_previstos").select("descripcion, categoria_id, tipo, tipo_recurrencia, estado"),
     user ? obtenerConfiguracion(supabase, user.id) : null,
   ]);
@@ -30,6 +30,8 @@ export default async function SugerenciasPage() {
   const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
 
   const nombreCategoria = new Map((categorias ?? []).map((c) => [c.id, c.nombre]));
+  const categoriaPadreId = new Map((categorias ?? []).map((c) => [c.id, c.categoria_padre_id as string | null]));
+  const categoriaEfectiva = (categoriaId: string) => categoriaPadreId.get(categoriaId) ?? categoriaId;
 
   const historico = (movimientos ?? []) as Array<{
     descripcion: string;
@@ -60,7 +62,7 @@ export default async function SugerenciasPage() {
       !(c.categoria_id && clavesExistentesCategoria.has(`${c.tipo}:${c.categoria_id}`))
   );
   const clavesCubiertas = new Set(candidatosDescripcion.map((c) => c.clave));
-  const candidatosCategoria = detectarMediaPorCategoria(historico, clavesCubiertas).filter(
+  const candidatosCategoria = detectarMediaPorCategoria(historico, clavesCubiertas, categoriaEfectiva).filter(
     (c) => !clavesExistentesCategoria.has(c.clave)
   );
 

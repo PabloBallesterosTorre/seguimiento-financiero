@@ -62,6 +62,19 @@ describe("detectarPatronesPorDescripcion", () => {
     const candidatos = detectarPatronesPorDescripcion([mov({ descripcion: "Único" })]);
     expect(candidatos).toHaveLength(0);
   });
+
+  it("usa la categoría real aunque la mayoría de ocurrencias aún estén sin categorizar (bug tanda 4)", () => {
+    const movimientos = [
+      mov({ descripcion: "Operacion Prestamo-Credito-Aval", categoria_id: null, importe: -591.83, fecha: "2026-05-29" }),
+      mov({ descripcion: "Operacion Prestamo-Credito-Aval", categoria_id: null, importe: -591.83, fecha: "2026-06-30" }),
+      mov({ descripcion: "Operacion Prestamo-Credito-Aval", categoria_id: "hipoteca", importe: -591.83, fecha: "2026-07-31" }),
+    ];
+
+    const candidatos = detectarPatronesPorDescripcion(movimientos);
+    const candidato = candidatos.find((c) => c.clave === "gasto:operacion prestamo-credito-aval");
+
+    expect(candidato?.categoria_id).toBe("hipoteca");
+  });
 });
 
 describe("detectarMediaPorCategoria", () => {
@@ -93,5 +106,26 @@ describe("detectarMediaPorCategoria", () => {
   it("no propone nada con menos de 2 meses de histórico", () => {
     const candidatos = detectarMediaPorCategoria([mov({ categoria_id: "ocio" })], new Set());
     expect(candidatos).toHaveLength(0);
+  });
+
+  it("agrega subcategorías bajo su categoría padre en vez de una línea por subcategoría (duda tanda 4)", () => {
+    const padres = new Map([
+      ["restaurantes", "ocio"],
+      ["cine", "ocio"],
+    ]);
+    const categoriaEfectiva = (id: string) => padres.get(id) ?? id;
+
+    const movimientos = [
+      mov({ descripcion: "Mesón", categoria_id: "restaurantes", importe: -40, fecha: "2026-01-15" }),
+      mov({ descripcion: "Marisquería", categoria_id: "restaurantes", importe: -60, fecha: "2026-02-15" }),
+      mov({ descripcion: "Cines Ideal", categoria_id: "cine", importe: -20, fecha: "2026-01-20" }),
+      mov({ descripcion: "Cines Ideal", categoria_id: "cine", importe: -20, fecha: "2026-02-20" }),
+    ];
+
+    const candidatos = detectarMediaPorCategoria(movimientos, new Set(), categoriaEfectiva);
+
+    expect(candidatos).toHaveLength(1);
+    expect(candidatos[0].categoria_id).toBe("ocio");
+    expect(candidatos[0].importe_estimado).toBeCloseTo(70, 0);
   });
 });
