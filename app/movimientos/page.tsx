@@ -7,15 +7,18 @@ import {
   crearTraspaso,
   eliminarMovimiento,
   eliminarTraspaso,
+  vincularComoTraspaso,
 } from "./actions";
 import { NuevoMovimiento } from "./NuevoMovimiento";
 import { NuevoTraspaso } from "./NuevoTraspaso";
 import { CategoriaCelda } from "./CategoriaCelda";
+import { MarcarComoTraspaso } from "./MarcarComoTraspaso";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { ordenarCategoriasJerarquia, type CategoriaJerarquica } from "@/lib/categorias";
 import { sugerirCategoria, type ReglaCategorizacion } from "@/lib/categorizacion";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
+import { encontrarCandidatosTraspaso, type CandidatoTraspaso } from "@/lib/traspasos";
 
 function formatFecha(value: string) {
   return new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(new Date(value));
@@ -23,12 +26,14 @@ function formatFecha(value: string) {
 
 type Movimiento = {
   id: string;
+  cuenta_id: string | null;
   fecha: string;
   descripcion: string;
   importe: number;
   tipo: string;
   categoria_id: string | null;
   traspaso_grupo_id: string | null;
+  tipo_original: string | null;
   cuentas: { nombre: string; banco_nombre: string } | null;
   categorias: { nombre: string } | null;
 };
@@ -36,11 +41,13 @@ type Movimiento = {
 function FilaMovimiento({
   mov,
   categoriasOrdenadas,
+  candidatosTraspaso,
   sugeridaId,
   formatEUR,
 }: {
   mov: Movimiento;
   categoriasOrdenadas: CategoriaJerarquica[];
+  candidatosTraspaso: CandidatoTraspaso[];
   sugeridaId?: string | null;
   formatEUR: (v: number) => string;
 }) {
@@ -64,14 +71,22 @@ function FilaMovimiento({
         {esTraspaso ? (
           <span className="text-slate-500">—</span>
         ) : (
-          <CategoriaCelda
-            movimientoId={mov.id}
-            descripcion={mov.descripcion}
-            categoriaId={mov.categoria_id}
-            categorias={categoriasOrdenadas}
-            action={actualizarCategoriaMovimiento}
-            sugeridaId={sugeridaId}
-          />
+          <>
+            <CategoriaCelda
+              movimientoId={mov.id}
+              descripcion={mov.descripcion}
+              categoriaId={mov.categoria_id}
+              categorias={categoriasOrdenadas}
+              action={actualizarCategoriaMovimiento}
+              sugeridaId={sugeridaId}
+            />
+            <MarcarComoTraspaso
+              movimientoId={mov.id}
+              candidatos={candidatosTraspaso}
+              action={vincularComoTraspaso}
+              formatEUR={formatEUR}
+            />
+          </>
         )}
       </td>
       <td
@@ -85,11 +100,15 @@ function FilaMovimiento({
         {esTraspaso ? (
           <ConfirmForm
             action={eliminarTraspaso}
-            mensaje="¿Seguro que quieres eliminar este traspaso? Se eliminarán los dos movimientos enlazados (origen y destino)."
+            mensaje={
+              mov.tipo_original
+                ? "¿Seguro que quieres desvincular este traspaso? Los dos movimientos volverán a su tipo original (ingreso/gasto) sin categoría; los saldos no cambian."
+                : "¿Seguro que quieres eliminar este traspaso? Se eliminarán los dos movimientos enlazados (origen y destino) y se revertirán ambos saldos."
+            }
           >
             <input type="hidden" name="traspaso_grupo_id" value={mov.traspaso_grupo_id ?? ""} />
             <button className="text-slate-400 hover:text-red-600" type="submit">
-              Eliminar
+              {mov.tipo_original ? "Desvincular" : "Eliminar"}
             </button>
           </ConfirmForm>
         ) : (
@@ -139,6 +158,12 @@ export default async function MovimientosPage() {
   const sinCategorizar = todos.filter((m) => m.tipo !== "traspaso" && !m.categoria_id);
   const categorizados = todos.filter((m) => m.tipo === "traspaso" || m.categoria_id);
 
+  const candidatosPorMovimiento = new Map<string, CandidatoTraspaso[]>(
+    todos
+      .filter((m) => m.tipo !== "traspaso")
+      .map((m) => [m.id, encontrarCandidatosTraspaso(m, todos)])
+  );
+
   return (
     <>
       <Nav />
@@ -180,6 +205,7 @@ export default async function MovimientosPage() {
                     key={mov.id}
                     mov={mov}
                     categoriasOrdenadas={categoriasOrdenadas}
+                    candidatosTraspaso={candidatosPorMovimiento.get(mov.id) ?? []}
                     sugeridaId={sugerirCategoria(mov.descripcion, reglasCategorizacion)}
                     formatEUR={formatEUR}
                   />
@@ -203,7 +229,13 @@ export default async function MovimientosPage() {
             </thead>
             <tbody>
               {categorizados.map((mov) => (
-                <FilaMovimiento key={mov.id} mov={mov} categoriasOrdenadas={categoriasOrdenadas} formatEUR={formatEUR} />
+                <FilaMovimiento
+                  key={mov.id}
+                  mov={mov}
+                  categoriasOrdenadas={categoriasOrdenadas}
+                  candidatosTraspaso={candidatosPorMovimiento.get(mov.id) ?? []}
+                  formatEUR={formatEUR}
+                />
               ))}
               {categorizados.length === 0 && (
                 <tr>

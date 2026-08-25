@@ -130,29 +130,88 @@ export async function crearTraspaso(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function vincularComoTraspaso(formData: FormData) {
+  const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const movimiento_id = formData.get("movimiento_id") as string;
+  const movimiento_contraparte_id = formData.get("movimiento_contraparte_id") as string;
+
+  if (!movimiento_id || !movimiento_contraparte_id || movimiento_id === movimiento_contraparte_id) return;
+
+  const { data: filas } = await supabase
+    .from("movimientos")
+    .select("id, cuenta_id, tipo")
+    .in("id", [movimiento_id, movimiento_contraparte_id]);
+
+  if (!filas || filas.length !== 2) return;
+  if (filas.some((f) => f.tipo === "traspaso")) return;
+  if (filas[0].cuenta_id === filas[1].cuenta_id) return;
+
+  // Ambos movimientos ya existían y ya estaban sumados a sus saldos respectivos:
+  // vincularlos como traspaso solo cambia su tipo/categoría, nunca los saldos.
+  const traspaso_grupo_id = crypto.randomUUID();
+
+  await Promise.all(
+    filas.map((f) =>
+      supabase
+        .from("movimientos")
+        .update({ tipo: "traspaso", categoria_id: null, traspaso_grupo_id, tipo_original: f.tipo })
+        .eq("id", f.id)
+    )
+  );
+
+  revalidatePath("/movimientos");
+  revalidatePath("/dashboard");
+}
+
 export async function eliminarTraspaso(formData: FormData) {
   const supabase = createClient();
   const traspaso_grupo_id = formData.get("traspaso_grupo_id") as string;
 
   const { data: filas } = await supabase
     .from("movimientos")
-    .select("cuenta_id, importe")
+    .select("id, cuenta_id, importe, tipo_original")
     .eq("traspaso_grupo_id", traspaso_grupo_id);
 
-  await supabase.from("movimientos").delete().eq("traspaso_grupo_id", traspaso_grupo_id);
+  if (!filas || filas.length === 0) return;
 
-  for (const fila of filas ?? []) {
-    const { data: cuenta } = await supabase
-      .from("cuentas")
-      .select("saldo_actual")
-      .eq("id", fila.cuenta_id)
-      .single();
+  // Si viene de vincular dos movimientos ya existentes, no se tocó ningún saldo al
+  // crearlo (tipo_original queda guardado) — desvincular tampoco debe tocarlo, solo
+  // devuelve cada fila a su tipo original. Si es un traspaso creado de cero (el botón
+  // "Nuevo traspaso"), sí hay que borrar las filas y revertir el saldo que se sumó.
+  const esVinculado = filas.every((f) => f.tipo_original !== null);
 
-    if (cuenta) {
-      await supabase
+  if (esVinculado) {
+    await Promise.all(
+      filas.map((f) =>
+        supabase
+          .from("movimientos")
+          .update({ tipo: f.tipo_original, tipo_original: null, traspaso_grupo_id: null })
+          .eq("id", f.id)
+      )
+    );
+  } else {
+    await supabase.from("movimientos").delete().eq("traspaso_grupo_id", traspaso_grupo_id);
+
+    for (const fila of filas) {
+      const { data: cuenta } = await supabase
         .from("cuentas")
-        .update({ saldo_actual: Number(cuenta.saldo_actual) - Number(fila.importe) })
-        .eq("id", fila.cuenta_id);
+        .select("saldo_actual")
+        .eq("id", fila.cuenta_id)
+        .single();
+
+      if (cuenta) {
+        await supabase
+          .from("cuentas")
+          .update({ saldo_actual: Number(cuenta.saldo_actual) - Number(fila.importe) })
+          .eq("id", fila.cuenta_id);
+      }
     }
   }
 

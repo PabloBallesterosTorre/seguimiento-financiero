@@ -72,3 +72,45 @@ export async function registrarTraspaso(
       .eq("id", cuentaDestinoId);
   }
 }
+
+export type MovimientoParaEmparejar = {
+  id: string;
+  cuenta_id: string | null;
+  fecha: string;
+  importe: number;
+  tipo: string;
+  descripcion: string;
+  cuentas: { nombre: string; banco_nombre: string } | null;
+};
+
+export type CandidatoTraspaso = {
+  id: string;
+  fecha: string;
+  descripcion: string;
+  importe: number;
+  cuenta: { nombre: string; banco_nombre: string } | null;
+};
+
+// Cuando dos cuentas propias están ambas en la app, un traspaso entre ellas ya
+// aparece como dos movimientos independientes (uno por extracto bancario) en cuanto
+// se importan ambas cuentas. Aquí no se crea nada nuevo: se buscan, para un
+// movimiento dado, los candidatos ya existentes en OTRA cuenta con signo opuesto,
+// mismo importe (en valor absoluto) y fecha cercana, para poder enlazarlos.
+export function encontrarCandidatosTraspaso(
+  actual: MovimientoParaEmparejar,
+  todos: MovimientoParaEmparejar[],
+  ventanaDias = 3
+): CandidatoTraspaso[] {
+  const fechaActual = new Date(actual.fecha).getTime();
+  const ventanaMs = ventanaDias * 24 * 60 * 60 * 1000;
+  const signoActual = Math.sign(Number(actual.importe));
+
+  return todos
+    .filter((m) => m.id !== actual.id)
+    .filter((m) => m.tipo !== "traspaso")
+    .filter((m) => m.cuenta_id !== actual.cuenta_id)
+    .filter((m) => Math.sign(Number(m.importe)) === -signoActual)
+    .filter((m) => Math.abs(Math.abs(Number(m.importe)) - Math.abs(Number(actual.importe))) < 0.01)
+    .filter((m) => Math.abs(new Date(m.fecha).getTime() - fechaActual) <= ventanaMs)
+    .map((m) => ({ id: m.id, fecha: m.fecha, descripcion: m.descripcion, importe: Number(m.importe), cuenta: m.cuentas }));
+}
