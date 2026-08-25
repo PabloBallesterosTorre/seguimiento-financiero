@@ -1,6 +1,7 @@
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { crearInversion, actualizarValorInversion, eliminarInversion } from "./actions";
+import { ConfirmForm } from "@/components/ConfirmForm";
 
 function formatEUR(value: number) {
   return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value);
@@ -69,12 +70,15 @@ export default async function InversionesPage() {
                     {formatFecha(inv.fecha_actualizacion)}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <form action={eliminarInversion}>
+                    <ConfirmForm
+                      action={eliminarInversion}
+                      mensaje={`¿Seguro que quieres eliminar la inversión "${inv.nombre}"? Esta acción no se puede deshacer.`}
+                    >
                       <input type="hidden" name="id" value={inv.id} />
                       <button className="text-slate-400 hover:text-red-600" type="submit">
                         Eliminar
                       </button>
-                    </form>
+                    </ConfirmForm>
                   </td>
                 </tr>
               ))}

@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from "react";
 import { CuentaForm } from "./CuentaForm";
+import { ConfirmForm } from "@/components/ConfirmForm";
 
 type Cuenta = {
   id: string;
@@ -68,12 +69,16 @@ export function CuentasClient({
                     >
                       Editar
                     </button>
-                    <form action={eliminarCuenta} className="inline">
+                    <ConfirmForm
+                      action={eliminarCuenta}
+                      mensaje={`¿Seguro que quieres eliminar la cuenta "${cuenta.banco_nombre} — ${cuenta.nombre}"? Se borrarán también todos sus movimientos. Esta acción no se puede deshacer.`}
+                      className="inline"
+                    >
                       <input type="hidden" name="id" value={cuenta.id} />
                       <button className="text-slate-400 hover:text-red-600" type="submit">
                         Eliminar
                       </button>
-                    </form>
+                    </ConfirmForm>
                   </td>
                 </tr>
                 {abierto === cuenta.id && (

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { crearDeuda, eliminarDeuda } from "./actions";
+import { ConfirmForm } from "@/components/ConfirmForm";
 
 function formatEUR(value: number) {
   return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value);
@@ -47,12 +48,15 @@ export default async function DeudasPage() {
                     {deuda.tipo_interes !== null ? `${deuda.tipo_interes}%` : "—"}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <form action={eliminarDeuda}>
+                    <ConfirmForm
+                      action={eliminarDeuda}
+                      mensaje={`¿Seguro que quieres eliminar la deuda "${deuda.nombre}"? Esta acción no se puede deshacer.`}
+                    >
                       <input type="hidden" name="id" value={deuda.id} />
                       <button className="text-slate-400 hover:text-red-600" type="submit">
                         Eliminar
                       </button>
-                    </form>
+                    </ConfirmForm>
                   </td>
                 </tr>
               ))}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { cambiarEstadoPrevisto, crearMovimientoPrevisto, eliminarMovimientoPrevisto } from "../actions";
+import { ConfirmForm } from "@/components/ConfirmForm";
 import { MovimientoPrevistoForm } from "./MovimientoPrevistoForm";
 import { importeEstimado } from "@/lib/prevision";
 import { ordenarCategoriasJerarquia } from "@/lib/categorias";
@@ -100,12 +101,15 @@ export default async function PrevistosPage() {
                     </form>
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <form action={eliminarMovimientoPrevisto}>
+                    <ConfirmForm
+                      action={eliminarMovimientoPrevisto}
+                      mensaje={`¿Seguro que quieres eliminar la previsión "${p.descripcion}"? Esta acción no se puede deshacer.`}
+                    >
                       <input type="hidden" name="id" value={p.id} />
                       <button className="text-slate-400 hover:text-red-600" type="submit">
                         Eliminar
                       </button>
-                    </form>
+                    </ConfirmForm>
                   </td>
                 </tr>
               ))}

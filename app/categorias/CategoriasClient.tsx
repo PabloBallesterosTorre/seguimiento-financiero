@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from "react";
 import { CategoriaForm } from "./CategoriaForm";
+import { ConfirmForm } from "@/components/ConfirmForm";
 
 type Categoria = {
   id: string;
@@ -138,12 +139,16 @@ function FilaCategoria({
         >
           Editar
         </button>
-        <form action={eliminarCategoria} className="inline">
+        <ConfirmForm
+          action={eliminarCategoria}
+          mensaje={`¿Seguro que quieres eliminar la categoría "${categoria.nombre}"? Los movimientos que la usaban se quedarán sin categoría.`}
+          className="inline"
+        >
           <input type="hidden" name="id" value={categoria.id} />
           <button className="text-slate-400 hover:text-red-600" type="submit">
             Eliminar
           </button>
-        </form>
+        </ConfirmForm>
       </td>
     </tr>
   );

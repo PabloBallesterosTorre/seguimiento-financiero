@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { eliminarAmortizacionExtra, marcarAmortizacionAplicada, registrarAmortizacionExtra } from "../actions";
+import { ConfirmForm } from "@/components/ConfirmForm";
 import { CuadroAmortizacion } from "./CuadroAmortizacion";
 import { simularAmortizacion } from "@/lib/amortizacion";
 
@@ -214,7 +215,11 @@ export default async function DeudaDetallePage({ params }: { params: { id: strin
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
                     {!a.aplicado && (
-                      <form action={marcarAmortizacionAplicada} className="inline">
+                      <ConfirmForm
+                        action={marcarAmortizacionAplicada}
+                        mensaje={`¿Confirmas que esta amortización de ${formatEUR(Number(a.importe))} ya se ha pagado? Se descontará del capital pendiente y no se puede deshacer.`}
+                        className="inline"
+                      >
                         <input type="hidden" name="id" value={a.id} />
                         <input type="hidden" name="deuda_id" value={deuda.id} />
                         <input type="hidden" name="importe" value={a.importe} />
@@ -225,15 +230,19 @@ export default async function DeudaDetallePage({ params }: { params: { id: strin
                         >
                           Marcar como aplicado
                         </button>
-                      </form>
+                      </ConfirmForm>
                     )}
-                    <form action={eliminarAmortizacionExtra} className="inline">
+                    <ConfirmForm
+                      action={eliminarAmortizacionExtra}
+                      mensaje={`¿Seguro que quieres eliminar esta amortización de ${formatEUR(Number(a.importe))}?`}
+                      className="inline"
+                    >
                       <input type="hidden" name="id" value={a.id} />
                       <input type="hidden" name="deuda_id" value={deuda.id} />
                       <button className="text-slate-400 hover:text-red-600" type="submit">
                         Eliminar
                       </button>
-                    </form>
+                    </ConfirmForm>
                   </td>
                 </tr>
               ))}

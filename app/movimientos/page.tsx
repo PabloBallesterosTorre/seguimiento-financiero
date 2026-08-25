@@ -11,6 +11,7 @@ import {
 import { MovimientoForm } from "./MovimientoForm";
 import { NuevoTraspaso } from "./NuevoTraspaso";
 import { CategoriaCelda } from "./CategoriaCelda";
+import { ConfirmForm } from "@/components/ConfirmForm";
 import { ordenarCategoriasJerarquia } from "@/lib/categorias";
 
 function formatEUR(value: number) {
@@ -116,19 +117,25 @@ export default async function MovimientosPage() {
                     </td>
                     <td className="px-4 py-2 text-right">
                       {esTraspaso ? (
-                        <form action={eliminarTraspaso}>
+                        <ConfirmForm
+                          action={eliminarTraspaso}
+                          mensaje="¿Seguro que quieres eliminar este traspaso? Se eliminarán los dos movimientos enlazados (origen y destino)."
+                        >
                           <input type="hidden" name="traspaso_grupo_id" value={mov.traspaso_grupo_id} />
                           <button className="text-slate-400 hover:text-red-600" type="submit">
                             Eliminar
                           </button>
-                        </form>
+                        </ConfirmForm>
                       ) : (
-                        <form action={eliminarMovimiento}>
+                        <ConfirmForm
+                          action={eliminarMovimiento}
+                          mensaje={`¿Seguro que quieres eliminar el movimiento "${mov.descripcion}" (${formatEUR(Number(mov.importe))})?`}
+                        >
                           <input type="hidden" name="id" value={mov.id} />
                           <button className="text-slate-400 hover:text-red-600" type="submit">
                             Eliminar
                           </button>
-                        </form>
+                        </ConfirmForm>
                       )}
                     </td>
                   </tr>
