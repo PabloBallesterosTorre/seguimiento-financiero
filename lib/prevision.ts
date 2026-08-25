@@ -50,6 +50,20 @@ export function previstoAplicaEnMes(p: MovimientoPrevisto, year: number, month: 
   return false;
 }
 
+// Categoría "real" de una previsión: si ya está conciliada con un movimiento real,
+// manda la categoría de ese movimiento (puede haberse categorizado o corregido
+// después de crear la previsión), no la que tenía la previsión al crearse. Evita el
+// bug de mostrar "Sin categoría" para una previsión ya vinculada a una transacción
+// categorizada.
+export function categoriaEfectivaId(
+  previsto: Pick<MovimientoPrevisto, "categoria_id" | "movimiento_real_id">,
+  categoriaPorMovimientoReal: Map<string, string | null>
+): string | null {
+  if (!previsto.movimiento_real_id) return previsto.categoria_id;
+  const categoriaDelReal = categoriaPorMovimientoReal.get(previsto.movimiento_real_id);
+  return categoriaDelReal !== undefined ? categoriaDelReal : previsto.categoria_id;
+}
+
 export function generarMeses(n: number): { year: number; month: number; label: string }[] {
   const hoy = new Date();
   const meses = [];

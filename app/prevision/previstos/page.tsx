@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { cambiarEstadoPrevisto, crearMovimientoPrevisto, eliminarMovimientoPrevisto } from "../actions";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { MovimientoPrevistoForm } from "./MovimientoPrevistoForm";
-import { importeEstimado } from "@/lib/prevision";
+import { importeEstimado, categoriaEfectivaId } from "@/lib/prevision";
 import { ordenarCategoriasJerarquia } from "@/lib/categorias";
 
 function formatEUR(value: number) {
@@ -32,13 +32,8 @@ export default async function PrevistosPage() {
   const categoriaPorMovimientoReal = new Map((movimientosReales ?? []).map((m) => [m.id, m.categoria_id]));
   const nombrePorCategoria = new Map((categorias ?? []).map((c) => [c.id, c.nombre]));
 
-  // Si la previsión ya está conciliada con un movimiento real, la categoría que manda
-  // es la de ese movimiento real (puede haberse categorizado o corregido después de
-  // crear la previsión), no la que tenía la previsión al crearse.
   function categoriaMostrada(p: { categoria_id: string | null; movimiento_real_id: string | null }) {
-    const categoriaId = p.movimiento_real_id
-      ? categoriaPorMovimientoReal.get(p.movimiento_real_id) ?? p.categoria_id
-      : p.categoria_id;
+    const categoriaId = categoriaEfectivaId(p, categoriaPorMovimientoReal);
     return categoriaId ? nombrePorCategoria.get(categoriaId) ?? "—" : "—";
   }
 
