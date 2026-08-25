@@ -2,14 +2,13 @@
 
 import { Fragment, useState } from "react";
 import type { FilaAmortizacion } from "@/lib/amortizacion";
-
-const formatEUR = (v: number) =>
-  new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(v);
+import { formatMoneda } from "@/lib/formato";
 
 // Primeros 12 meses siempre expandidos; a partir de ahí, una fila resumen por año
 // (intereses, amortizado y pendiente a cierre) que se puede desplegar de forma
 // independiente para ver el detalle mes a mes de ese año concreto.
-export function CuadroAmortizacion({ filas }: { filas: FilaAmortizacion[] }) {
+export function CuadroAmortizacion({ filas, moneda = "EUR" }: { filas: FilaAmortizacion[]; moneda?: string }) {
+  const formatEUR = (v: number) => formatMoneda(v, moneda);
   const [aniosAbiertos, setAniosAbiertos] = useState<Set<number>>(new Set());
 
   const primeros12 = filas.filter((f) => f.mes <= 12);

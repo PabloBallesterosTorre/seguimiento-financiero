@@ -52,7 +52,26 @@ export async function crearDeuda(formData: FormData) {
     moneda: "EUR",
   });
 
+  // Previsión automática de la cuota, para que aparezca en el flujo de caja futuro
+  // sin tener que darla de alta a mano como Movimiento previsto.
+  if (categoria?.id && cuota > 0) {
+    await supabase.from("movimientos_previstos").insert({
+      usuario_id: user.id,
+      descripcion: `Cuota ${nombre}`,
+      tipo: "gasto",
+      categoria_id: categoria.id,
+      importe_estimado: cuota,
+      tipo_recurrencia: "recurrente",
+      periodicidad: "mensual",
+      fecha_inicio,
+      fecha_fin,
+      estado: "activo",
+    });
+  }
+
   revalidatePath("/deudas");
+  revalidatePath("/prevision");
+  revalidatePath("/prevision/previstos");
   revalidatePath("/dashboard");
   revalidatePath("/categorias");
 }

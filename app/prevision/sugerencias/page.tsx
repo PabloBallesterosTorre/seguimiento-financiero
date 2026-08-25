@@ -3,26 +3,31 @@ import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { detectarMediaPorCategoria, detectarPatronesPorDescripcion } from "@/lib/deteccionPatrones";
 import { crearMovimientoPrevisto } from "../actions";
-
-function formatEUR(value: number) {
-  return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value);
-}
+import { obtenerConfiguracion } from "@/lib/configuracion";
+import { formatMoneda } from "@/lib/formato";
 
 export default async function SugerenciasPage() {
   const supabase = createClient();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const desde = new Date();
   desde.setFullYear(desde.getFullYear() - 3);
 
-  const [{ data: movimientos }, { data: categorias }, { data: previstos }] = await Promise.all([
+  const [{ data: movimientos }, { data: categorias }, { data: previstos }, config] = await Promise.all([
     supabase
       .from("movimientos")
       .select("descripcion, categoria_id, tipo, importe, fecha")
       .in("tipo", ["ingreso", "gasto"])
       .gte("fecha", desde.toISOString().slice(0, 10)),
     supabase.from("categorias").select("id, nombre"),
-    supabase.from("movimientos_previstos").select("descripcion, categoria_id, tipo"),
+    supabase.from("movimientos_previstos").select("descripcion, categoria_id, tipo, tipo_recurrencia, estado"),
+    user ? obtenerConfiguracion(supabase, user.id) : null,
   ]);
+
+  const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
 
   const nombreCategoria = new Map((categorias ?? []).map((c) => [c.id, c.nombre]));
 
@@ -39,12 +44,20 @@ export default async function SugerenciasPage() {
       .filter((p) => p.tipo !== "traspaso")
       .map((p) => `${p.tipo}:${p.descripcion.trim().toLowerCase()}`)
   );
+  // Cualquier previsión recurrente ya existente para una categoría (dada de alta a
+  // mano o generada automáticamente, ej. la cuota de una deuda) cubre esa categoría
+  // por completo — no se vuelve a sugerir un patrón para ella, aunque la descripción
+  // del patrón detectado no coincida literalmente con la de la previsión manual.
   const clavesExistentesCategoria = new Set(
-    (previstos ?? []).filter((p) => p.categoria_id).map((p) => `${p.tipo}:${p.categoria_id}`)
+    (previstos ?? [])
+      .filter((p) => p.categoria_id && p.tipo_recurrencia === "recurrente")
+      .map((p) => `${p.tipo}:${p.categoria_id}`)
   );
 
   const candidatosDescripcion = detectarPatronesPorDescripcion(historico).filter(
-    (c) => !clavesExistentesDescripcion.has(c.clave)
+    (c) =>
+      !clavesExistentesDescripcion.has(c.clave) &&
+      !(c.categoria_id && clavesExistentesCategoria.has(`${c.tipo}:${c.categoria_id}`))
   );
   const clavesCubiertas = new Set(candidatosDescripcion.map((c) => c.clave));
   const candidatosCategoria = detectarMediaPorCategoria(historico, clavesCubiertas).filter(

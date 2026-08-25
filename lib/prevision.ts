@@ -2,6 +2,7 @@ export type MovimientoPrevisto = {
   id: string;
   descripcion: string;
   categoria_id: string | null;
+  cuenta_id: string | null;
   tipo: "ingreso" | "gasto" | "traspaso";
   importe_estimado: number;
   importe_min: number | null;

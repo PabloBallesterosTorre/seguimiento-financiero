@@ -5,11 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 import { eliminarAmortizacionExtra, marcarAmortizacionAplicada, registrarAmortizacionExtra } from "../actions";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { CuadroAmortizacion } from "./CuadroAmortizacion";
+import { RegistrarAmortizacion } from "./RegistrarAmortizacion";
 import { simularAmortizacion } from "@/lib/amortizacion";
-
-function formatEUR(value: number) {
-  return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value);
-}
+import { obtenerConfiguracion } from "@/lib/configuracion";
+import { formatMoneda } from "@/lib/formato";
 
 function formatFecha(value: string) {
   return new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(new Date(value));
@@ -27,18 +26,22 @@ function InfoCard({ label, value }: { label: string; value: string }) {
 export default async function DeudaDetallePage({ params }: { params: { id: string } }) {
   const supabase = createClient();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data: deuda } = await supabase.from("deudas").select("*").eq("id", params.id).single();
   if (!deuda) notFound();
 
-  const { data: categoriaPago } = deuda.categoria_id
-    ? await supabase.from("categorias").select("nombre").eq("id", deuda.categoria_id).maybeSingle()
-    : { data: null };
+  const [{ data: categoriaPago }, { data: amortizacionesExtra }, config] = await Promise.all([
+    deuda.categoria_id
+      ? supabase.from("categorias").select("nombre").eq("id", deuda.categoria_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.from("amortizaciones_extra").select("*").eq("deuda_id", params.id).order("fecha", { ascending: false }),
+    user ? obtenerConfiguracion(supabase, user.id) : null,
+  ]);
 
-  const { data: amortizacionesExtra } = await supabase
-    .from("amortizaciones_extra")
-    .select("*")
-    .eq("deuda_id", params.id)
-    .order("fecha", { ascending: false });
+  const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
 
   const tieneInteres = deuda.tipo_interes !== null && Number(deuda.cuota) > 0;
   const simulacion = tieneInteres
@@ -116,71 +119,12 @@ export default async function DeudaDetallePage({ params }: { params: { id: strin
                   intereses
                 </p>
               </div>
-              <CuadroAmortizacion filas={simulacion.filas} />
+              <CuadroAmortizacion filas={simulacion.filas} moneda={config?.moneda_base ?? "EUR"} />
             </div>
           </>
         )}
 
-        <div className="rounded-lg border border-slate-200 bg-white p-6 space-y-4">
-          <h2 className="text-sm font-medium text-slate-700">Registrar amortización</h2>
-          <p className="text-xs text-slate-400">
-            Elige la fecha libremente: si es hoy o pasada se aplica al capital pendiente al guardar; si
-            es futura, queda como plan pendiente hasta que la marques como aplicada.
-          </p>
-          <form action={registrarAmortizacionExtra} className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-            <input type="hidden" name="deuda_id" value={deuda.id} />
-            <div>
-              <label className="block text-xs text-slate-500">Fecha</label>
-              <input
-                name="fecha"
-                type="date"
-                required
-                defaultValue={hoy}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500">Importe</label>
-              <input
-                name="importe"
-                type="number"
-                step="0.01"
-                min="0"
-                required
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500">Efecto</label>
-              <select
-                name="tipo_reduccion"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="reducir_plazo">Reducir plazo</option>
-                <option value="reducir_cuota">Reducir cuota</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500">Etiqueta (informativa)</label>
-              <select
-                name="recurrencia"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="puntual">Puntual</option>
-                <option value="mensual">Parte de un plan mensual</option>
-                <option value="anual">Parte de un plan anual</option>
-              </select>
-            </div>
-            <div className="sm:col-span-4">
-              <button
-                type="submit"
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-              >
-                Registrar
-              </button>
-            </div>
-          </form>
-        </div>
+        <RegistrarAmortizacion action={registrarAmortizacionExtra} deudaId={deuda.id} hoy={hoy} />
 
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-4 py-3">

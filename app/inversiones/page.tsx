@@ -2,10 +2,9 @@ import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { crearInversion, actualizarValorInversion, eliminarInversion } from "./actions";
 import { ConfirmForm } from "@/components/ConfirmForm";
-
-function formatEUR(value: number) {
-  return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value);
-}
+import { NuevaInversion } from "./NuevaInversion";
+import { obtenerConfiguracion } from "@/lib/configuracion";
+import { formatMoneda } from "@/lib/formato";
 
 function formatFecha(value: string) {
   return new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(new Date(value));
@@ -13,11 +12,17 @@ function formatFecha(value: string) {
 
 export default async function InversionesPage() {
   const supabase = createClient();
-  const { data: inversiones } = await supabase
-    .from("inversiones")
-    .select("*")
-    .order("created_at", { ascending: true });
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const [{ data: inversiones }, config] = await Promise.all([
+    supabase.from("inversiones").select("*").order("created_at", { ascending: true }),
+    user ? obtenerConfiguracion(supabase, user.id) : null,
+  ]);
+
+  const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
   const total = (inversiones ?? []).reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
 
   return (
@@ -93,48 +98,7 @@ export default async function InversionesPage() {
           </table>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-medium text-slate-700">Añadir inversión</h2>
-          <form action={crearInversion} className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-            <div>
-              <label className="block text-xs text-slate-500">Tipo de activo</label>
-              <input
-                name="tipo_activo"
-                required
-                placeholder="fondo_indexado, acciones, cripto…"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500">Nombre</label>
-              <input
-                name="nombre"
-                required
-                placeholder="MSCI World (Vanguard)"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500">Valor actual</label>
-              <input
-                name="valor_actual"
-                type="number"
-                step="0.01"
-                min="0"
-                defaultValue={0}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="flex items-end">
-              <button
-                type="submit"
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-              >
-                Añadir inversión
-              </button>
-            </div>
-          </form>
-        </div>
+        <NuevaInversion action={crearInversion} />
 
         <p className="text-sm text-slate-400">
           El valor de cada inversión se actualiza a mano por ahora — la sincronización automática con

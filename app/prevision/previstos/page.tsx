@@ -3,22 +3,27 @@ import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { cambiarEstadoPrevisto, crearMovimientoPrevisto, eliminarMovimientoPrevisto } from "../actions";
 import { ConfirmForm } from "@/components/ConfirmForm";
-import { MovimientoPrevistoForm } from "./MovimientoPrevistoForm";
+import { NuevoPrevisto } from "./NuevoPrevisto";
 import { importeEstimado, categoriaEfectivaId } from "@/lib/prevision";
 import { ordenarCategoriasJerarquia } from "@/lib/categorias";
-
-function formatEUR(value: number) {
-  return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value);
-}
+import { obtenerConfiguracion } from "@/lib/configuracion";
+import { formatMoneda } from "@/lib/formato";
 
 export default async function PrevistosPage() {
   const supabase = createClient();
 
-  const [{ data: previstos }, { data: categorias }, { data: cuentas }] = await Promise.all([
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const [{ data: previstos }, { data: categorias }, { data: cuentas }, config] = await Promise.all([
     supabase.from("movimientos_previstos").select("*").order("created_at", { ascending: false }),
     supabase.from("categorias").select("id, nombre, categoria_padre_id").order("nombre"),
     supabase.from("cuentas").select("id, nombre, banco_nombre").eq("activa", true).order("nombre"),
+    user ? obtenerConfiguracion(supabase, user.id) : null,
   ]);
+
+  const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
 
   const idsMovimientosReales = (previstos ?? [])
     .map((p) => p.movimiento_real_id)
@@ -119,15 +124,25 @@ export default async function PrevistosPage() {
           </table>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-medium text-slate-700">Añadir previsión</h2>
-          <MovimientoPrevistoForm
-            action={crearMovimientoPrevisto}
-            categorias={categoriasOrdenadas}
-            cuentas={cuentas ?? []}
-            hoy={hoy}
-          />
-        </div>
+        <NuevoPrevisto
+          action={crearMovimientoPrevisto}
+          categorias={categoriasOrdenadas}
+          cuentas={cuentas ?? []}
+          hoy={hoy}
+        />
+
+        <p className="text-sm text-slate-400">
+          Da de alta previsiones a mano solo para: gastos/ingresos nuevos sin histórico todavía (una
+          suscripción recién contratada), ítems puntuales que ya sabes que van a pasar (una paga extra
+          concreta), o mientras no tengas suficiente histórico importado para que la detección automática
+          (
+          <Link href="/prevision/sugerencias" className="underline">
+            Sugerencias
+          </Link>
+          ) lo identifique sola. Para gastos recurrentes con histórico ya importado (hipoteca, nómina,
+          seguros), deja que el motor de patrones lo proponga — evita duplicar la previsión a mano y con el
+          motor.
+        </p>
       </main>
     </>
   );

@@ -2,11 +2,10 @@ import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { generarMeses, importeEstimado, previstoAplicaEnMes, type MovimientoPrevisto } from "@/lib/prevision";
+import { calcularInteresesPrevistos } from "@/lib/intereses";
 import { desvincularMovimientoPrevisto, vincularMovimientoPrevisto } from "./actions";
-
-function formatEUR(value: number) {
-  return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value);
-}
+import { obtenerConfiguracion } from "@/lib/configuracion";
+import { formatMoneda } from "@/lib/formato";
 
 const HORIZONTES = [3, 6, 12];
 
@@ -18,6 +17,10 @@ export default async function PrevisionPage({
   const supabase = createClient();
   const horizonte = HORIZONTES.includes(Number(searchParams.meses)) ? Number(searchParams.meses) : 3;
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const hoyDate = new Date();
   const inicioMes = `${hoyDate.getFullYear()}-${String(hoyDate.getMonth() + 1).padStart(2, "0")}-01`;
   const inicioMesSiguienteDate = new Date(hoyDate.getFullYear(), hoyDate.getMonth() + 1, 1);
@@ -25,25 +28,34 @@ export default async function PrevisionPage({
     inicioMesSiguienteDate.getMonth() + 1
   ).padStart(2, "0")}-01`;
 
-  const [{ data: previstosRaw }, { data: categorias }, { data: cuentas }, { data: movimientosMes }] =
+  const [{ data: previstosRaw }, { data: categorias }, { data: cuentas }, { data: movimientosMes }, config] =
     await Promise.all([
       supabase.from("movimientos_previstos").select("*"),
       supabase.from("categorias").select("id, nombre"),
-      supabase.from("cuentas").select("saldo_actual").eq("activa", true),
+      supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
       supabase
         .from("movimientos")
         .select("id, descripcion, importe, tipo, categoria_id, fecha")
         .gte("fecha", inicioMes)
         .lt("fecha", inicioMesSiguiente)
         .in("tipo", ["ingreso", "gasto"]),
+      user ? obtenerConfiguracion(supabase, user.id) : null,
     ]);
 
+  const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
   const previstos = (previstosRaw ?? []) as unknown as MovimientoPrevisto[];
   const nombreCategoria = new Map((categorias ?? []).map((c) => [c.id, c.nombre]));
   const saldoInicial = (cuentas ?? []).reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
   const movimientosDelMes = movimientosMes ?? [];
 
-  const meses = generarMeses(horizonte).map((mes) => {
+  const cuentasRemuneradas = (cuentas ?? [])
+    .filter((c) => c.es_remunerada && c.tipo_interes !== null)
+    .map((c) => ({ id: c.id, saldo_actual: Number(c.saldo_actual), tipo_interes: Number(c.tipo_interes) }));
+
+  const mesesHorizonte = generarMeses(horizonte);
+  const interesesPorMes = calcularInteresesPrevistos(cuentasRemuneradas, previstos, mesesHorizonte);
+
+  const meses = mesesHorizonte.map((mes) => {
     const aplicables = previstos.filter((p) => previstoAplicaEnMes(p, mes.year, mes.month));
     const traspasos = aplicables.filter((p) => p.tipo === "traspaso");
     const resto = aplicables.filter((p) => p.tipo !== "traspaso");
@@ -56,6 +68,11 @@ export default async function PrevisionPage({
       const actual = porCategoria.get(clave) ?? { nombre, importe: 0 };
       actual.importe += signo * importeEstimado(p);
       porCategoria.set(clave, actual);
+    }
+
+    const interesMes = interesesPorMes.get(`${mes.year}-${mes.month}`) ?? 0;
+    if (interesMes > 0) {
+      porCategoria.set("__intereses__", { nombre: "Intereses (cuentas remuneradas)", importe: interesMes });
     }
 
     const totalMes = Array.from(porCategoria.values()).reduce((sum, c) => sum + c.importe, 0);

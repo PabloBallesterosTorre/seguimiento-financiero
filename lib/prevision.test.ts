@@ -6,6 +6,7 @@ function previsto(overrides: Partial<MovimientoPrevisto> = {}): MovimientoPrevis
     id: "p1",
     descripcion: "Test",
     categoria_id: null,
+    cuenta_id: null,
     tipo: "gasto",
     importe_estimado: 100,
     importe_min: null,
