@@ -8,7 +8,7 @@ export default async function ImportarPage() {
   const supabase = createClient();
 
   const [{ data: cuentas }, { data: categorias }, { data: reglas }] = await Promise.all([
-    supabase.from("cuentas").select("id, nombre, banco_nombre").eq("activa", true).order("nombre"),
+    supabase.from("cuentas").select("id, nombre, banco_nombre, iban").eq("activa", true).order("nombre"),
     supabase.from("categorias").select("id, nombre, categoria_padre_id").order("nombre"),
     supabase.from("reglas_categorizacion").select("patron_descripcion, categoria_id, veces_usada"),
   ]);
@@ -20,7 +20,7 @@ export default async function ImportarPage() {
       <Nav />
       <main className="mx-auto max-w-4xl px-4 py-8 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Importar movimientos desde CSV</h1>
+          <h1 className="text-xl font-semibold">Importar movimientos desde CSV/Excel</h1>
           <Link href="/movimientos" className="text-sm text-slate-500 hover:text-slate-900">
             ← Volver a movimientos
           </Link>

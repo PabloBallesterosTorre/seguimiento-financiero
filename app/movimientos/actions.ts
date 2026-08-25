@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { sugerirCategoria } from "@/lib/categorizacion";
 import { reforzarRegla } from "@/lib/reglas";
+import { registrarTraspaso } from "@/lib/traspasos";
 
 export async function actualizarCategoriaMovimiento(formData: FormData) {
   const supabase = createClient();
@@ -114,43 +115,15 @@ export async function crearTraspaso(formData: FormData) {
 
   if (!origen || !destino) return;
 
-  const traspaso_grupo_id = crypto.randomUUID();
-
-  await supabase.from("movimientos").insert([
-    {
-      usuario_id: user.id,
-      cuenta_id: cuenta_origen_id,
-      fecha,
-      descripcion: descripcionInput || `Traspaso a ${destino.nombre}`,
-      importe: -importe,
-      tipo: "traspaso",
-      origen: "manual",
-      moneda: "EUR",
-      traspaso_grupo_id,
-    },
-    {
-      usuario_id: user.id,
-      cuenta_id: cuenta_destino_id,
-      fecha,
-      descripcion: descripcionInput || `Traspaso desde ${origen.nombre}`,
-      importe,
-      tipo: "traspaso",
-      origen: "manual",
-      moneda: "EUR",
-      traspaso_grupo_id,
-    },
-  ]);
-
-  await Promise.all([
-    supabase
-      .from("cuentas")
-      .update({ saldo_actual: Number(origen.saldo_actual) - importe })
-      .eq("id", cuenta_origen_id),
-    supabase
-      .from("cuentas")
-      .update({ saldo_actual: Number(destino.saldo_actual) + importe })
-      .eq("id", cuenta_destino_id),
-  ]);
+  await registrarTraspaso(supabase, user.id, {
+    cuentaOrigenId: cuenta_origen_id,
+    cuentaDestinoId: cuenta_destino_id,
+    fecha,
+    importe,
+    descripcionOrigen: descripcionInput || `Traspaso a ${destino.nombre}`,
+    descripcionDestino: descripcionInput || `Traspaso desde ${origen.nombre}`,
+    origenMovimiento: "manual",
+  });
 
   revalidatePath("/movimientos");
   revalidatePath("/cuentas");

@@ -50,6 +50,35 @@ export function parseCSV(texto: string, delimitador: string): string[][] {
     .filter((f) => f.some((v) => v !== ""));
 }
 
+const PARECE_NUMERO_O_FECHA = /^-?\d+([.,]\d+)?$|^\d{1,4}[/\-.]\d{1,2}[/\-.]\d{1,4}/;
+
+// Detecta en qué fila (1-indexada) está la cabecera real de la tabla, para saltar
+// filas de metadatos que algunos bancos meten antes (título del informe, fecha de
+// generación, IBAN enmascarado...). Busca la última fila "todo texto" (sin ninguna
+// celda que parezca número o fecha) justo antes de que la fila siguiente ya tenga
+// pinta de datos — esa fila de transición es la cabecera. Contar solo celdas no
+// vacías no sirve: en archivos con columnas opcionales (ej. extractos con muchos
+// campos en blanco según el tipo de movimiento) las filas de datos no comparten un
+// recuento fijo de celdas.
+export function detectarFilaCabecera(filas: string[][]): number {
+  const muestra = filas.slice(0, 15);
+
+  for (let i = 0; i < muestra.length - 1; i++) {
+    const fila = muestra[i];
+    const siguiente = muestra[i + 1];
+
+    const filaConVariasCeldas = fila.filter((v) => v.trim() !== "").length >= 3;
+    const filaSinDatos = !fila.some((v) => v.trim() !== "" && PARECE_NUMERO_O_FECHA.test(v.trim()));
+    const siguienteConDatos = siguiente.some((v) => v.trim() !== "" && PARECE_NUMERO_O_FECHA.test(v.trim()));
+
+    if (filaConVariasCeldas && filaSinDatos && siguienteConDatos) {
+      return i + 1;
+    }
+  }
+
+  return 1;
+}
+
 // Detecta el delimitador más probable contando ocurrencias en la línea de cabecera.
 export function detectarDelimitador(lineaCabecera: string): string {
   const candidatos = [",", ";", "\t"];
