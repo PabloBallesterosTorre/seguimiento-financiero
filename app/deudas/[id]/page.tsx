@@ -29,6 +29,10 @@ export default async function DeudaDetallePage({ params }: { params: { id: strin
   const { data: deuda } = await supabase.from("deudas").select("*").eq("id", params.id).single();
   if (!deuda) notFound();
 
+  const { data: categoriaPago } = deuda.categoria_id
+    ? await supabase.from("categorias").select("nombre").eq("id", deuda.categoria_id).maybeSingle()
+    : { data: null };
+
   const { data: amortizacionesExtra } = await supabase
     .from("amortizaciones_extra")
     .select("*")
@@ -77,6 +81,15 @@ export default async function DeudaDetallePage({ params }: { params: { id: strin
           />
           <InfoCard label="Capital inicial" value={formatEUR(Number(deuda.capital_inicial))} />
         </div>
+
+        {categoriaPago && (
+          <p className="text-xs text-slate-400">
+            Categoría de pago:{" "}
+            <Link href="/categorias" className="underline hover:text-slate-600">
+              {categoriaPago.nombre}
+            </Link>
+          </p>
+        )}
 
         {!tieneInteres && (
           <p className="text-sm text-amber-600">

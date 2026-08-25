@@ -29,6 +29,13 @@ export async function crearDeuda(formData: FormData) {
   const valorResidualRaw = formData.get("valor_residual") as string;
   const valor_residual = valorResidualRaw ? Number(valorResidualRaw) : null;
 
+  // Categoría de gasto propia para las cuotas de esta deuda, creada automáticamente.
+  const { data: categoria } = await supabase
+    .from("categorias")
+    .insert({ usuario_id: user.id, nombre: `Pago ${nombre}`, es_categoria_inversion: false })
+    .select("id")
+    .single();
+
   await supabase.from("deudas").insert({
     usuario_id: user.id,
     tipo,
@@ -41,11 +48,13 @@ export async function crearDeuda(formData: FormData) {
     fecha_inicio,
     fecha_fin,
     valor_residual,
+    categoria_id: categoria?.id ?? null,
     moneda: "EUR",
   });
 
   revalidatePath("/deudas");
   revalidatePath("/dashboard");
+  revalidatePath("/categorias");
 }
 
 export async function eliminarDeuda(formData: FormData) {
