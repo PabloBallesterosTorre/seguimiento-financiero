@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { categoriaEfectivaId, importeEstimado, previstoAplicaEnMes, type MovimientoPrevisto } from "./prevision";
+import {
+  categoriaEfectivaId,
+  construirDiagnosticoPrevision,
+  importeEstimado,
+  previstoAplicaEnMes,
+  type CategoriaInfo,
+  type MovimientoPrevisto,
+} from "./prevision";
 
 function previsto(overrides: Partial<MovimientoPrevisto> = {}): MovimientoPrevisto {
   return {
@@ -86,5 +93,76 @@ describe("categoriaEfectivaId (fix bug 'Sin Categoría' en previsiones)", () => 
     const p = previsto({ categoria_id: "cat-vieja", movimiento_real_id: "mov-1" });
     const mapa = new Map<string, string | null>([["mov-1", null]]);
     expect(categoriaEfectivaId(p, mapa)).toBeNull();
+  });
+});
+
+describe("construirDiagnosticoPrevision", () => {
+  const meses = [
+    { year: 2026, month: 1 },
+    { year: 2026, month: 2 },
+  ];
+  const categorias: CategoriaInfo[] = [
+    { id: "ocio", nombre: "Ocio", categoria_padre_id: null },
+    { id: "restaurantes", nombre: "Restaurantes", categoria_padre_id: "ocio" },
+    { id: "cine", nombre: "Cine", categoria_padre_id: "ocio" },
+    { id: "hipoteca", nombre: "Pago Hipoteca", categoria_padre_id: null },
+  ];
+
+  it("agrega el importe de las subcategorías en la fila de su categoría padre", () => {
+    const previstos = [
+      previsto({ categoria_id: "restaurantes", importe_estimado: 100, fecha_inicio: "2026-01-01" }),
+      previsto({ categoria_id: "cine", importe_estimado: 30, fecha_inicio: "2026-01-01" }),
+    ];
+
+    const filas = construirDiagnosticoPrevision(previstos, meses, categorias);
+    const ocio = filas.find((f) => f.categoriaId === "ocio");
+
+    expect(ocio?.importesPorMes[0]).toBeCloseTo(-130, 2);
+    expect(ocio?.subfilas.map((s) => s.categoriaId).sort()).toEqual(["cine", "restaurantes"]);
+  });
+
+  it("no mezcla categorías padre distintas entre sí", () => {
+    const previstos = [
+      previsto({ categoria_id: "restaurantes", importe_estimado: 100, fecha_inicio: "2026-01-01" }),
+      previsto({ categoria_id: "hipoteca", importe_estimado: 600, fecha_inicio: "2026-01-01" }),
+    ];
+
+    const filas = construirDiagnosticoPrevision(previstos, meses, categorias);
+
+    expect(filas.find((f) => f.categoriaId === "ocio")?.importesPorMes[0]).toBeCloseTo(-100, 2);
+    expect(filas.find((f) => f.categoriaId === "hipoteca")?.importesPorMes[0]).toBeCloseTo(-600, 2);
+  });
+
+  it("deja la celda en 0 para un mes en el que la previsión no aplica (fuera de rango)", () => {
+    const previstos = [
+      previsto({
+        categoria_id: "hipoteca",
+        importe_estimado: 600,
+        tipo_recurrencia: "unica_vez",
+        fecha: "2026-01-15",
+        fecha_inicio: null,
+      }),
+    ];
+
+    const filas = construirDiagnosticoPrevision(previstos, meses, categorias);
+    const hipoteca = filas.find((f) => f.categoriaId === "hipoteca");
+
+    expect(hipoteca?.importesPorMes).toEqual([-600, 0]);
+  });
+
+  it("incluye una fila de intereses previstos como categoría propia", () => {
+    const intereses = new Map([["2026-1", 12.5]]);
+    const filas = construirDiagnosticoPrevision([], meses, categorias, intereses);
+
+    const filaIntereses = filas.find((f) => f.nombre === "Intereses (cuentas remuneradas)");
+    expect(filaIntereses?.importesPorMes).toEqual([12.5, 0]);
+  });
+
+  it("agrupa los previstos sin categoría en su propia fila", () => {
+    const previstos = [previsto({ categoria_id: null, importe_estimado: 50, fecha_inicio: "2026-01-01" })];
+    const filas = construirDiagnosticoPrevision(previstos, meses, categorias);
+
+    const sinCategoria = filas.find((f) => f.nombre === "Sin categoría");
+    expect(sinCategoria?.importesPorMes[0]).toBeCloseTo(-50, 2);
   });
 });

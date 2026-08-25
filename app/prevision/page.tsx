@@ -98,9 +98,14 @@ export default async function PrevisionPage({
       <main className="mx-auto max-w-4xl px-4 py-8 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Previsión de flujo de caja</h1>
-          <Link href="/prevision/previstos" className="text-sm text-slate-500 hover:text-slate-900">
-            Gestionar previsiones →
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/prevision/diagnostico" className="text-sm text-slate-500 hover:text-slate-900">
+              Diagnóstico →
+            </Link>
+            <Link href="/prevision/previstos" className="text-sm text-slate-500 hover:text-slate-900">
+              Gestionar previsiones →
+            </Link>
+          </div>
         </div>
 
         <div className="flex rounded-md border border-slate-300 text-sm w-fit">
