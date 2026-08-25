@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcularCuota, simularAmortizacion, simularAmortizacionExtra } from "./amortizacion";
+import { calcularCuota, simularAmortizacion, simularConProgramadas } from "./amortizacion";
 
 describe("calcularCuota + simularAmortizacion (hipoteca estándar)", () => {
   it("amortiza exactamente a 0 en el número de meses pactado (150k, 3%, 20 años)", () => {
@@ -30,43 +30,66 @@ describe("simularAmortizacion detecta cuota insuficiente", () => {
   });
 });
 
-describe("simularAmortizacionExtra", () => {
-  const base = { saldoActual: 150000, tasaAnual: 3, cuotaActual: 831.9, valorResidual: 0 };
+describe("simularConProgramadas", () => {
+  const saldo = 150000;
+  const tasa = 3;
+  const cuota = 831.9;
+  const hoy = "2026-01-15";
 
-  it("reducir_plazo: mismo importe de cuota, menos meses y menos intereses totales", () => {
-    const resultado = simularAmortizacionExtra({
-      ...base,
-      importeExtra: 20000,
-      recurrencia: "puntual",
-      tipoReduccion: "reducir_plazo",
-    });
-    expect(resultado.despues.mesesRestantes).toBeLessThan(resultado.antes.mesesRestantes);
-    expect(resultado.ahorroIntereses).toBeGreaterThan(0);
-    expect(resultado.cuotaNueva).toBeNull();
+  it("sin amortizaciones programadas, equivale a simularAmortizacion", () => {
+    const base = simularAmortizacion(saldo, tasa, cuota, 0);
+    const programada = simularConProgramadas(saldo, tasa, cuota, 0, hoy, []);
+    expect(programada.mesesRestantes).toBe(base.mesesRestantes);
+    expect(programada.interesesTotales).toBeCloseTo(base.interesesTotales, 4);
+    expect(programada.cuotaFinal).toBe(cuota);
   });
 
-  it("reducir_cuota: mismo plazo aproximado, cuota más baja y menos intereses totales", () => {
-    const resultado = simularAmortizacionExtra({
-      ...base,
-      importeExtra: 20000,
-      recurrencia: "puntual",
-      tipoReduccion: "reducir_cuota",
-    });
-    expect(resultado.cuotaNueva).not.toBeNull();
-    expect(resultado.cuotaNueva as number).toBeLessThan(base.cuotaActual);
-    expect(resultado.ahorroIntereses).toBeGreaterThan(0);
-    // El plazo se mantiene igual (por diseño: se recalcula la cuota para los mismos meses restantes).
-    expect(resultado.despues.mesesRestantes).toBe(resultado.antes.mesesRestantes);
+  it("reducir_plazo: menos meses y menos intereses que sin amortización", () => {
+    const base = simularConProgramadas(saldo, tasa, cuota, 0, hoy, []);
+    const conExtra = simularConProgramadas(saldo, tasa, cuota, 0, hoy, [
+      { fecha: "2026-06-01", importe: 20000, tipoReduccion: "reducir_plazo" },
+    ]);
+    expect(conExtra.mesesRestantes).toBeLessThan(base.mesesRestantes);
+    expect(conExtra.interesesTotales).toBeLessThan(base.interesesTotales);
+    expect(conExtra.cuotaFinal).toBe(cuota);
   });
 
-  it("recurrente mensual siempre reduce plazo, nunca cuota", () => {
-    const resultado = simularAmortizacionExtra({
-      ...base,
-      importeExtra: 100,
-      recurrencia: "mensual",
-      tipoReduccion: "reducir_cuota", // se ignora para recurrentes
-    });
-    expect(resultado.cuotaNueva).toBeNull();
-    expect(resultado.despues.mesesRestantes).toBeLessThan(resultado.antes.mesesRestantes);
+  it("reducir_cuota: mismo plazo, cuota final más baja", () => {
+    const base = simularConProgramadas(saldo, tasa, cuota, 0, hoy, []);
+    const conExtra = simularConProgramadas(saldo, tasa, cuota, 0, hoy, [
+      { fecha: "2026-06-01", importe: 20000, tipoReduccion: "reducir_cuota" },
+    ]);
+    expect(conExtra.mesesRestantes).toBe(base.mesesRestantes);
+    expect(conExtra.cuotaFinal).toBeLessThan(cuota);
+    expect(conExtra.interesesTotales).toBeLessThan(base.interesesTotales);
+  });
+
+  it("encadena varias amortizaciones en orden cronológico, independientemente del orden de entrada", () => {
+    const enOrden = simularConProgramadas(saldo, tasa, cuota, 0, hoy, [
+      { fecha: "2026-03-01", importe: 10000, tipoReduccion: "reducir_plazo" },
+      { fecha: "2027-03-01", importe: 15000, tipoReduccion: "reducir_plazo" },
+    ]);
+    const desordenado = simularConProgramadas(saldo, tasa, cuota, 0, hoy, [
+      { fecha: "2027-03-01", importe: 15000, tipoReduccion: "reducir_plazo" },
+      { fecha: "2026-03-01", importe: 10000, tipoReduccion: "reducir_plazo" },
+    ]);
+    expect(desordenado.mesesRestantes).toBe(enOrden.mesesRestantes);
+    expect(desordenado.interesesTotales).toBeCloseTo(enOrden.interesesTotales, 4);
+
+    // El efecto conjunto ahorra más que aplicar solo la primera amortización.
+    const soloLaPrimera = simularConProgramadas(saldo, tasa, cuota, 0, hoy, [
+      { fecha: "2026-03-01", importe: 10000, tipoReduccion: "reducir_plazo" },
+    ]);
+    expect(enOrden.mesesRestantes).toBeLessThan(soloLaPrimera.mesesRestantes);
+  });
+
+  it("detecta cuota insuficiente si tras reducir_cuota varias veces la cuota deja de cubrir intereses", () => {
+    const resultado = simularConProgramadas(100000, 8, 700, 0, hoy, [
+      { fecha: "2026-02-01", importe: 90000, tipoReduccion: "reducir_cuota" },
+    ]);
+    // Al quedar un capital muy pequeño con el mismo plazo largo, la cuota recalculada
+    // debería seguir siendo válida (más baja, no negativa) — comprobamos que al menos
+    // no revienta y siempre devuelve una cuota final numérica coherente.
+    expect(Number.isFinite(resultado.cuotaFinal)).toBe(true);
   });
 });

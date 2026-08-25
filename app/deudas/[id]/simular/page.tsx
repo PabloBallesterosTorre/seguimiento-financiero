@@ -3,17 +3,27 @@ import { notFound } from "next/navigation";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { SimuladorAmortizacion } from "../SimuladorAmortizacion";
+import { obtenerConfiguracion } from "@/lib/configuracion";
 
 export default async function SimularAmortizacionPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
 
-  const { data: deuda } = await supabase
-    .from("deudas")
-    .select("nombre, capital_pendiente, cuota, tipo_interes, valor_residual")
-    .eq("id", params.id)
-    .single();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const [{ data: deuda }, config] = await Promise.all([
+    supabase
+      .from("deudas")
+      .select("nombre, capital_pendiente, cuota, tipo_interes, valor_residual")
+      .eq("id", params.id)
+      .single(),
+    user ? obtenerConfiguracion(supabase, user.id) : null,
+  ]);
 
   if (!deuda) notFound();
+
+  const hoy = new Date().toISOString().slice(0, 10);
 
   return (
     <>
@@ -36,6 +46,8 @@ export default async function SimularAmortizacionPage({ params }: { params: { id
             tasaAnual={Number(deuda.tipo_interes)}
             cuotaActual={Number(deuda.cuota)}
             valorResidual={Number(deuda.valor_residual ?? 0)}
+            moneda={config?.moneda_base ?? "EUR"}
+            hoy={hoy}
           />
         )}
       </main>

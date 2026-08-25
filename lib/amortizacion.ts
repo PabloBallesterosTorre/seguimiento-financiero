@@ -71,51 +71,80 @@ export function calcularCuota(saldo: number, tasaAnual: number, meses: number, v
   return ((saldo - valorResidual * factor) * i) / (1 - factor);
 }
 
-export type ResultadoAmortizacionExtra = {
-  antes: ResultadoSimulacion;
-  despues: ResultadoSimulacion;
-  cuotaNueva: number | null;
-  ahorroIntereses: number;
-  mesesAhorrados: number;
+export type AmortizacionProgramada = {
+  fecha: string; // ISO AAAA-MM-DD
+  importe: number;
+  tipoReduccion: TipoReduccion;
 };
 
-export function simularAmortizacionExtra(params: {
-  saldoActual: number;
-  tasaAnual: number;
-  cuotaActual: number;
-  valorResidual: number;
-  importeExtra: number;
-  recurrencia: Recurrencia;
-  tipoReduccion: TipoReduccion;
-}): ResultadoAmortizacionExtra {
-  const { saldoActual, tasaAnual, cuotaActual, valorResidual, importeExtra, recurrencia, tipoReduccion } = params;
+export type ResultadoSimulacionProgramada = ResultadoSimulacion & {
+  cuotaFinal: number;
+};
 
-  const antes = simularAmortizacion(saldoActual, tasaAnual, cuotaActual, valorResidual);
+function sumarMeses(fechaISO: string, n: number): Date {
+  const [anio, mes, dia] = fechaISO.split("-").map(Number);
+  return new Date(anio, mes - 1 + n, dia);
+}
 
-  let despues: ResultadoSimulacion;
-  let cuotaNueva: number | null = null;
+function anioMes(fecha: Date): number {
+  return fecha.getFullYear() * 12 + fecha.getMonth();
+}
 
-  if (recurrencia === "puntual") {
-    const nuevoSaldo = Math.max(saldoActual - importeExtra, valorResidual);
+// Simula la amortización desde `fechaInicio`, aplicando cada amortización
+// programada en el mes en que cae su fecha (antes de la cuota normal de ese mes),
+// encadenadas en orden cronológico: el capital pendiente antes de cada una es el
+// resultante de aplicar todas las anteriores. Con la lista vacía equivale a
+// `simularAmortizacion` sin extras.
+export function simularConProgramadas(
+  saldoInicial: number,
+  tasaAnual: number,
+  cuotaInicial: number,
+  valorResidual: number,
+  fechaInicio: string,
+  amortizacionesProgramadas: AmortizacionProgramada[],
+  maxMeses = 600
+): ResultadoSimulacionProgramada {
+  const tasaMensual = tasaAnual / 100 / 12;
+  const eventos = [...amortizacionesProgramadas].sort((a, b) => a.fecha.localeCompare(b.fecha));
 
-    if (tipoReduccion === "reducir_cuota") {
-      cuotaNueva = calcularCuota(nuevoSaldo, tasaAnual, antes.mesesRestantes, valorResidual);
-      despues = simularAmortizacion(nuevoSaldo, tasaAnual, cuotaNueva, valorResidual);
-    } else {
-      despues = simularAmortizacion(nuevoSaldo, tasaAnual, cuotaActual, valorResidual);
+  let saldo = saldoInicial;
+  let cuota = cuotaInicial;
+  let indiceEvento = 0;
+  let interesesTotales = 0;
+  let cuotaNoCubreIntereses = false;
+  const filas: FilaAmortizacion[] = [];
+  let mes = 0;
+
+  while (saldo > valorResidual + 0.01 && mes < maxMeses) {
+    mes++;
+    const fechaCursor = anioMes(sumarMeses(fechaInicio, mes));
+
+    while (indiceEvento < eventos.length && anioMes(new Date(eventos[indiceEvento].fecha)) <= fechaCursor) {
+      const evento = eventos[indiceEvento];
+      const mesesRestantesAntes = simularAmortizacion(saldo, tasaAnual, cuota, valorResidual).mesesRestantes;
+      saldo = Math.max(saldo - evento.importe, valorResidual);
+      if (evento.tipoReduccion === "reducir_cuota") {
+        cuota = calcularCuota(saldo, tasaAnual, mesesRestantesAntes, valorResidual);
+      }
+      indiceEvento++;
     }
-  } else {
-    despues = simularAmortizacion(saldoActual, tasaAnual, cuotaActual, valorResidual, {
-      extraRecurrente: importeExtra,
-      frecuenciaExtra: recurrencia,
-    });
+
+    if (saldo <= valorResidual + 0.01) break;
+
+    const interes = saldo * tasaMensual;
+    let principal = cuota - interes;
+
+    if (principal <= 0) {
+      cuotaNoCubreIntereses = true;
+      break;
+    }
+
+    if (saldo - principal < valorResidual) principal = saldo - valorResidual;
+
+    saldo = Math.max(saldo - principal, valorResidual);
+    interesesTotales += interes;
+    filas.push({ mes, interes, principal, saldo });
   }
 
-  return {
-    antes,
-    despues,
-    cuotaNueva,
-    ahorroIntereses: antes.interesesTotales - despues.interesesTotales,
-    mesesAhorrados: antes.mesesRestantes - despues.mesesRestantes,
-  };
+  return { filas, mesesRestantes: filas.length, interesesTotales, cuotaNoCubreIntereses, cuotaFinal: cuota };
 }
