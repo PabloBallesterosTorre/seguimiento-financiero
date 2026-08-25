@@ -7,10 +7,11 @@ import { ordenarCategoriasJerarquia } from "@/lib/categorias";
 export default async function ImportarPage() {
   const supabase = createClient();
 
-  const [{ data: cuentas }, { data: categorias }, { data: reglas }] = await Promise.all([
+  const [{ data: cuentas }, { data: categorias }, { data: reglas }, { data: existentes }] = await Promise.all([
     supabase.from("cuentas").select("id, nombre, banco_nombre, iban").eq("activa", true).order("nombre"),
     supabase.from("categorias").select("id, nombre, categoria_padre_id").order("nombre"),
     supabase.from("reglas_categorizacion").select("patron_descripcion, categoria_id, veces_usada"),
+    supabase.from("movimientos").select("cuenta_id, fecha, importe, descripcion"),
   ]);
 
   const categoriasOrdenadas = ordenarCategoriasJerarquia(categorias ?? []);
@@ -31,7 +32,12 @@ export default async function ImportarPage() {
             Antes de importar, da de alta una cuenta en la sección Cuentas.
           </p>
         ) : (
-          <ImportarCSV cuentas={cuentas ?? []} categorias={categoriasOrdenadas} reglas={reglas ?? []} />
+          <ImportarCSV
+            cuentas={cuentas ?? []}
+            categorias={categoriasOrdenadas}
+            reglas={reglas ?? []}
+            existentes={existentes ?? []}
+          />
         )}
       </main>
     </>

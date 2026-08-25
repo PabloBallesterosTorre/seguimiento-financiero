@@ -16,12 +16,19 @@ import type { CategoriaJerarquica } from "@/lib/categorias";
 import { importarMovimientos, importarTraspasos, type FilaImportar } from "./actions";
 
 type Cuenta = { id: string; nombre: string; banco_nombre: string; iban: string | null };
+type MovimientoExistente = { cuenta_id: string; fecha: string; importe: number; descripcion: string };
 type FilaPrevia = FilaImportar & {
   original: string;
   valida: boolean;
   esTraspaso: boolean;
   cuentaContraparteId: string | null;
+  esDuplicado: boolean;
+  incluirDuplicado: boolean;
 };
+
+function claveMovimiento(cuentaId: string, fecha: string, importe: number, descripcion: string): string {
+  return `${cuentaId}|${fecha}|${importe.toFixed(2)}|${descripcion.trim().toLowerCase()}`;
+}
 
 const DELIMITADORES = [
   { value: ",", label: "Coma (,)" },
@@ -53,12 +60,19 @@ export function ImportarCSV({
   cuentas,
   categorias,
   reglas,
+  existentes,
 }: {
   cuentas: Cuenta[];
   categorias: CategoriaJerarquica[];
   reglas: ReglaCategorizacion[];
+  existentes: MovimientoExistente[];
 }) {
   const router = useRouter();
+
+  const firmasExistentes = useMemo(
+    () => new Set(existentes.map((m) => claveMovimiento(m.cuenta_id, m.fecha, Number(m.importe), m.descripcion))),
+    [existentes]
+  );
 
   const [paso, setPaso] = useState<"subir" | "mapear" | "previsualizar">("subir");
   const [cuentaId, setCuentaId] = useState(cuentas[0]?.id ?? "");
@@ -254,6 +268,9 @@ export function ImportarCSV({
         }
       }
 
+      const esDuplicado =
+        valida && firmasExistentes.has(claveMovimiento(cuentaId, fecha ?? "", importe ?? 0, descripcion));
+
       return {
         fecha: fecha ?? "",
         descripcion,
@@ -264,6 +281,8 @@ export function ImportarCSV({
         valida,
         esTraspaso,
         cuentaContraparteId,
+        esDuplicado,
+        incluirDuplicado: false,
       };
     });
 
@@ -297,11 +316,15 @@ export function ImportarCSV({
     );
   }
 
+  function toggleIncluirDuplicado(index: number, incluir: boolean) {
+    setFilasPreview((prev) => prev.map((f, i) => (i === index ? { ...f, incluirDuplicado: incluir } : f)));
+  }
+
   async function confirmarImportacion() {
     setImportando(true);
     setResultado(null);
 
-    const filasValidas = filasPreview.filter((f) => f.valida);
+    const filasValidas = filasPreview.filter((f) => f.valida && (!f.esDuplicado || f.incluirDuplicado));
     const filasTraspaso = filasValidas.filter((f) => f.esTraspaso && f.cuentaContraparteId);
     const filasNormales = filasValidas.filter((f) => !(f.esTraspaso && f.cuentaContraparteId));
 
@@ -352,7 +375,9 @@ export function ImportarCSV({
 
   const filasValidas = filasPreview.filter((f) => f.valida);
   const filasInvalidas = filasPreview.length - filasValidas.length;
-  const totalImporte = filasValidas.reduce((suma, f) => suma + f.importe, 0);
+  const filasDuplicadasSinConfirmar = filasValidas.filter((f) => f.esDuplicado && !f.incluirDuplicado);
+  const filasAImportar = filasValidas.filter((f) => !f.esDuplicado || f.incluirDuplicado);
+  const totalImporte = filasAImportar.reduce((suma, f) => suma + f.importe, 0);
   const previewFilasCrudas = filasCSV.slice(0, 8);
 
   return (
@@ -619,7 +644,7 @@ export function ImportarCSV({
         <div className="rounded-lg border border-slate-200 bg-white p-6 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-medium text-slate-700">
-              Previsualización — {filasValidas.length} movimientos listos para importar
+              Previsualización — {filasAImportar.length} movimientos listos para importar
             </h2>
             <p className="text-sm font-medium">Total: {formatEUR(totalImporte)}</p>
           </div>
@@ -628,6 +653,14 @@ export function ImportarCSV({
             <p className="text-xs text-amber-600">
               {filasInvalidas} filas no se han podido leer (fecha o importe con formato inesperado) y se
               omitirán. Revisa el mapeo de columnas si el número es mayor de lo esperado.
+            </p>
+          )}
+
+          {filasDuplicadasSinConfirmar.length > 0 && (
+            <p className="text-xs text-amber-600">
+              {filasDuplicadasSinConfirmar.length} filas parecen ya existir en esta cuenta (misma fecha,
+              importe y descripción) y se omitirán para no duplicarlas. Márcalas como "Importar de todas
+              formas" si en realidad son movimientos distintos.
             </p>
           )}
 
@@ -642,12 +675,26 @@ export function ImportarCSV({
                 </tr>
               </thead>
               <tbody>
-                {filasPreview.map((fila, index) => (
-                  <tr key={index} className={`border-t border-slate-100 ${!fila.valida ? "opacity-40" : ""}`}>
+                {filasPreview.map((fila, index) => {
+                  const omitidaPorDuplicado = fila.esDuplicado && !fila.incluirDuplicado;
+                  return (
+                  <tr
+                    key={index}
+                    className={`border-t border-slate-100 ${
+                      !fila.valida || omitidaPorDuplicado ? "opacity-40" : ""
+                    }`}
+                  >
                     <td className="px-3 py-2 whitespace-nowrap text-slate-500">
                       {fila.valida ? formatFecha(fila.fecha) : `Sin leer (${fila.original})`}
                     </td>
-                    <td className="px-3 py-2">{fila.descripcion || "—"}</td>
+                    <td className="px-3 py-2">
+                      {fila.descripcion || "—"}
+                      {fila.esDuplicado && (
+                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                          Posible duplicado
+                        </span>
+                      )}
+                    </td>
                     <td
                       className={`px-3 py-2 text-right font-medium ${
                         fila.importe < 0 ? "text-slate-900" : "text-emerald-600"
@@ -658,6 +705,16 @@ export function ImportarCSV({
                     <td className="px-3 py-2">
                       {fila.valida && (
                         <div className="space-y-1">
+                          {fila.esDuplicado && (
+                            <label className="flex items-center gap-1.5 text-xs text-amber-700">
+                              <input
+                                type="checkbox"
+                                checked={fila.incluirDuplicado}
+                                onChange={(e) => toggleIncluirDuplicado(index, e.target.checked)}
+                              />
+                              Importar de todas formas
+                            </label>
+                          )}
                           <label className="flex items-center gap-1.5 text-xs text-sky-700">
                             <input
                               type="checkbox"
@@ -697,7 +754,8 @@ export function ImportarCSV({
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -713,10 +771,10 @@ export function ImportarCSV({
             <button
               type="button"
               onClick={confirmarImportacion}
-              disabled={importando || filasValidas.length === 0}
+              disabled={importando || filasAImportar.length === 0}
               className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
             >
-              {importando ? "Importando…" : `Confirmar importación (${filasValidas.length})`}
+              {importando ? "Importando…" : `Confirmar importación (${filasAImportar.length})`}
             </button>
           </div>
         </div>
