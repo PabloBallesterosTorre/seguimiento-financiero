@@ -82,9 +82,11 @@ function FilaMovimiento({
             />
             <MarcarComoTraspaso
               movimientoId={mov.id}
-              candidatos={candidatosTraspaso}
+              candidatos={candidatosTraspaso.map((c) => ({
+                id: c.id,
+                label: `${c.cuenta ? `${c.cuenta.banco_nombre} — ${c.cuenta.nombre}` : "?"} · ${c.fecha} · ${formatEUR(c.importe)}`,
+              }))}
               action={vincularComoTraspaso}
-              formatEUR={formatEUR}
             />
           </>
         )}

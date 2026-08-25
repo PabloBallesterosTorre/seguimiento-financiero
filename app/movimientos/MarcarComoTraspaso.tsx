@@ -1,18 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import type { CandidatoTraspaso } from "@/lib/traspasos";
+
+type CandidatoTraspasoDisplay = {
+  id: string;
+  label: string;
+};
 
 export function MarcarComoTraspaso({
   movimientoId,
   candidatos,
   action,
-  formatEUR,
 }: {
   movimientoId: string;
-  candidatos: CandidatoTraspaso[];
+  candidatos: CandidatoTraspasoDisplay[];
   action: (formData: FormData) => void;
-  formatEUR: (v: number) => string;
 }) {
   const [abierto, setAbierto] = useState(false);
 
@@ -44,8 +46,7 @@ export function MarcarComoTraspaso({
         </option>
         {candidatos.map((c) => (
           <option key={c.id} value={c.id}>
-            {c.cuenta ? `${c.cuenta.banco_nombre} — ${c.cuenta.nombre}` : "?"} · {c.fecha} ·{" "}
-            {formatEUR(c.importe)}
+            {c.label}
           </option>
         ))}
       </select>
