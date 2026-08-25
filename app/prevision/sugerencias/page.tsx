@@ -102,6 +102,7 @@ export default async function SugerenciasPage() {
                   <input type="hidden" name="tipo_recurrencia" value="recurrente" />
                   <input type="hidden" name="periodicidad" value={c.periodicidad} />
                   <input type="hidden" name="fecha_inicio" value={c.proximaFecha} />
+                  <input type="hidden" name="origen_calculo" value="fijo" />
                   <div>
                     <p className="text-sm font-medium text-slate-900">{c.descripcion}</p>
                     <p className="text-xs text-slate-500">
@@ -153,6 +154,7 @@ export default async function SugerenciasPage() {
                     <input type="hidden" name="tipo_recurrencia" value="recurrente" />
                     <input type="hidden" name="periodicidad" value="mensual" />
                     <input type="hidden" name="fecha_inicio" value={hoy} />
+                    <input type="hidden" name="origen_calculo" value="media_categoria" />
                     <div>
                       <p className="text-sm font-medium text-slate-900">{nombre}</p>
                       <p className="text-xs text-slate-500">Media sobre {c.mesesConDatos} meses con datos</p>

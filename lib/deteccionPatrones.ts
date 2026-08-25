@@ -136,3 +136,15 @@ export function detectarMediaPorCategoria(
 
   return candidatos.sort((a, b) => b.mesesConDatos - a.mesesConDatos);
 }
+
+// Mapa "tipo:categoriaId" -> media mensual actual, para recalcular en cada
+// proyección el importe de los previstos de nivel 2 (origen_calculo
+// 'media_categoria') a partir del histórico más reciente, en vez de un importe
+// congelado al aceptarlos.
+export function mapaMediaPorCategoria(
+  movimientos: MovimientoHistorico[],
+  categoriaEfectiva: (categoriaId: string) => string = (id) => id
+): Map<string, number> {
+  const candidatos = detectarMediaPorCategoria(movimientos, new Set(), categoriaEfectiva);
+  return new Map(candidatos.map((c) => [c.clave, c.importe_estimado]));
+}

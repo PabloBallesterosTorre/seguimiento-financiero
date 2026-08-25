@@ -1,4 +1,4 @@
-import { importeEstimado, previstoAplicaEnMes, type MovimientoPrevisto } from "./prevision";
+import { importeEfectivoPrevisto, previstoAplicaEnMes, type MovimientoPrevisto } from "./prevision";
 import { simularConProgramadas, type TipoReduccion } from "./amortizacion";
 
 export type DeudaParaProyeccion = {
@@ -49,6 +49,7 @@ export function construirProyeccionPatrimonio(params: {
   deudas: DeudaParaProyeccion[];
   amortizacionesProgramadas: AmortizacionProgramadaDeuda[];
   esCategoriaInversion: (categoriaId: string | null) => boolean;
+  mediaPorCategoria?: Map<string, number>;
 }): PuntoProyeccion[] {
   const {
     meses,
@@ -60,6 +61,7 @@ export function construirProyeccionPatrimonio(params: {
     deudas,
     amortizacionesProgramadas,
     esCategoriaInversion,
+    mediaPorCategoria = new Map(),
   } = params;
 
   const deudaPorMes = deudas.map((deuda) => {
@@ -89,7 +91,7 @@ export function construirProyeccionPatrimonio(params: {
     let aportacionInversion = 0;
 
     for (const p of aplicables) {
-      const importe = importeEstimado(p);
+      const importe = importeEfectivoPrevisto(p, mediaPorCategoria);
       const signo = p.tipo === "ingreso" ? 1 : -1;
       flujoNeto += signo * importe;
       if (p.tipo === "gasto" && esCategoriaInversion(p.categoria_id)) {

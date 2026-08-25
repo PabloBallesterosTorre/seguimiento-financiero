@@ -3,6 +3,7 @@ import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { construirDiagnosticoPrevision, generarMeses, type CategoriaInfo, type MovimientoPrevisto } from "@/lib/prevision";
 import { calcularInteresesPrevistos } from "@/lib/intereses";
+import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccionPatrones";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { TablaDiagnosticoPrevision } from "./TablaDiagnosticoPrevision";
 
@@ -20,12 +21,21 @@ export default async function DiagnosticoPrevisionPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: previstosRaw }, { data: categoriasRaw }, { data: cuentas }, config] = await Promise.all([
-    supabase.from("movimientos_previstos").select("*"),
-    supabase.from("categorias").select("id, nombre, categoria_padre_id"),
-    supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
-    user ? obtenerConfiguracion(supabase, user.id) : null,
-  ]);
+  const desde = new Date();
+  desde.setFullYear(desde.getFullYear() - 3);
+
+  const [{ data: previstosRaw }, { data: categoriasRaw }, { data: cuentas }, { data: historicoRaw }, config] =
+    await Promise.all([
+      supabase.from("movimientos_previstos").select("*"),
+      supabase.from("categorias").select("id, nombre, categoria_padre_id"),
+      supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
+      supabase
+        .from("movimientos")
+        .select("descripcion, categoria_id, tipo, importe, fecha")
+        .in("tipo", ["ingreso", "gasto"])
+        .gte("fecha", desde.toISOString().slice(0, 10)),
+      user ? obtenerConfiguracion(supabase, user.id) : null,
+    ]);
 
   const previstos = (previstosRaw ?? []) as unknown as MovimientoPrevisto[];
   const categorias = (categoriasRaw ?? []) as CategoriaInfo[];
@@ -35,8 +45,13 @@ export default async function DiagnosticoPrevisionPage({
     .filter((c) => c.es_remunerada && c.tipo_interes !== null)
     .map((c) => ({ id: c.id, saldo_actual: Number(c.saldo_actual), tipo_interes: Number(c.tipo_interes) }));
 
-  const interesesPorMes = calcularInteresesPrevistos(cuentasRemuneradas, previstos, mesesHorizonte);
-  const filas = construirDiagnosticoPrevision(previstos, mesesHorizonte, categorias, interesesPorMes);
+  const categoriaPadreId = new Map(categorias.map((c) => [c.id, c.categoria_padre_id]));
+  const categoriaEfectiva = (id: string) => categoriaPadreId.get(id) ?? id;
+  const historico = (historicoRaw ?? []) as MovimientoHistorico[];
+  const mediaPorCategoria = mapaMediaPorCategoria(historico, categoriaEfectiva);
+
+  const interesesPorMes = calcularInteresesPrevistos(cuentasRemuneradas, previstos, mesesHorizonte, mediaPorCategoria);
+  const filas = construirDiagnosticoPrevision(previstos, mesesHorizonte, categorias, interesesPorMes, mediaPorCategoria);
 
   return (
     <>
@@ -53,7 +68,9 @@ export default async function DiagnosticoPrevisionPage({
           categoría (categorías padre, con sus subcategorías desplegables debajo). Útil para
           detectar huecos, duplicados o importes inesperados. Combina previsiones manuales,
           detectadas y aceptadas, la cuota de deuda y los intereses previstos de cuentas
-          remuneradas.
+          remuneradas. Los importes marcados con <span className="italic">≈</span> son media
+          variable (nivel 2, recalculada con el histórico más reciente); el resto son ítems fijos
+          (nivel 1: manual, patrón con importe estable, o deuda).
         </p>
 
         <div className="flex rounded-md border border-slate-300 text-sm w-fit">

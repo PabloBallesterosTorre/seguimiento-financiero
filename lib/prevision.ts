@@ -14,6 +14,7 @@ export type MovimientoPrevisto = {
   fecha_fin: string | null;
   estado: "activo" | "pausado";
   movimiento_real_id: string | null;
+  origen_calculo: "fijo" | "media_categoria";
 };
 
 export function importeEstimado(
@@ -21,6 +22,23 @@ export function importeEstimado(
 ): number {
   if (p.importe_min != null && p.importe_max != null) return (p.importe_min + p.importe_max) / 2;
   return Number(p.importe_estimado);
+}
+
+// Importe a usar en una proyección: si el previsto es de origen 'media_categoria'
+// (nivel 2 — categoría variable sin patrón de descripción propio), se recalcula a
+// partir del histórico actual de esa categoría en vez de usar el importe congelado
+// al aceptarlo, para que se actualice solo según llega más histórico. Si todavía no
+// hay media calculada para esa categoría (p. ej. recién aceptada, sin histórico
+// nuevo desde entonces), cae al importe guardado como respaldo.
+export function importeEfectivoPrevisto(
+  p: Pick<MovimientoPrevisto, "importe_estimado" | "importe_min" | "importe_max" | "origen_calculo" | "categoria_id" | "tipo">,
+  mediaPorCategoria: Map<string, number> = new Map()
+): number {
+  if (p.origen_calculo === "media_categoria" && p.categoria_id) {
+    const media = mediaPorCategoria.get(`${p.tipo}:${p.categoria_id}`);
+    if (media !== undefined) return media;
+  }
+  return importeEstimado(p);
 }
 
 // ¿Aplica este movimiento previsto al mes (year, month 1-12) indicado?
@@ -71,6 +89,7 @@ export type FilaDiagnostico = {
   categoriaId: string;
   nombre: string;
   importesPorMes: number[];
+  mediaPorMes: boolean[];
   subfilas: FilaDiagnostico[];
 };
 
@@ -82,29 +101,43 @@ const INTERESES_CLAVE = "__intereses__";
 // desglose por subcategoría disponible para las filas expandibles. Sirve para ver de
 // un vistazo qué está aplicando el motor de previsión mes a mes y detectar huecos o
 // duplicados, combinando movimientos previstos (manuales y automáticos, incluida la
-// cuota de deuda) y la previsión de intereses de cuentas remuneradas.
+// cuota de deuda), la previsión de intereses de cuentas remuneradas, y el nivel 2
+// (media histórica por categoría, recalculada vía `mediaPorCategoria` en vez del
+// importe congelado al aceptar la sugerencia). `mediaPorMes` marca, celda a celda, si
+// el importe mostrado viene de una media variable (nivel 2) para poder distinguirlo
+// visualmente de un ítem fijo (nivel 1, manual o deuda).
 export function construirDiagnosticoPrevision(
   previstos: MovimientoPrevisto[],
   meses: { year: number; month: number }[],
   categorias: CategoriaInfo[],
-  interesesPorMes: Map<string, number> = new Map()
+  interesesPorMes: Map<string, number> = new Map(),
+  mediaPorCategoria: Map<string, number> = new Map()
 ): FilaDiagnostico[] {
   const nombreCategoria = new Map(categorias.map((c) => [c.id, c.nombre]));
   const padreDe = new Map(categorias.map((c) => [c.id, c.categoria_padre_id]));
 
   const directoPorCategoria = new Map<string, number[]>();
+  const esMediaPorCategoria = new Map<string, boolean[]>();
   const filaDirecta = (clave: string): number[] => {
     if (!directoPorCategoria.has(clave)) directoPorCategoria.set(clave, meses.map(() => 0));
     return directoPorCategoria.get(clave)!;
+  };
+  const filaEsMedia = (clave: string): boolean[] => {
+    if (!esMediaPorCategoria.has(clave)) esMediaPorCategoria.set(clave, meses.map(() => false));
+    return esMediaPorCategoria.get(clave)!;
   };
 
   for (const p of previstos) {
     if (p.tipo === "traspaso") continue;
     const clave = p.categoria_id ?? SIN_CATEGORIA_CLAVE;
     const fila = filaDirecta(clave);
+    const filaMedia = filaEsMedia(clave);
     const signo = p.tipo === "ingreso" ? 1 : -1;
+    const esMedia = p.origen_calculo === "media_categoria";
     meses.forEach((mes, i) => {
-      if (previstoAplicaEnMes(p, mes.year, mes.month)) fila[i] += signo * importeEstimado(p);
+      if (!previstoAplicaEnMes(p, mes.year, mes.month)) return;
+      fila[i] += signo * importeEfectivoPrevisto(p, mediaPorCategoria);
+      if (esMedia) filaMedia[i] = true;
     });
   }
 
@@ -135,15 +168,18 @@ export function construirDiagnosticoPrevision(
         categoriaId: clave,
         nombre: nombreDe(clave),
         importesPorMes: filaDirecta(clave),
+        mediaPorMes: filaEsMedia(clave),
         subfilas: [],
       }));
 
     const importePropio = directoPorCategoria.get(padreClave) ?? meses.map(() => 0);
+    const mediaPropia = esMediaPorCategoria.get(padreClave) ?? meses.map(() => false);
     const importesPorMes = meses.map(
       (_, i) => importePropio[i] + subfilas.reduce((suma, hijo) => suma + hijo.importesPorMes[i], 0)
     );
+    const mediaPorMes = meses.map((_, i) => mediaPropia[i] || subfilas.some((hijo) => hijo.mediaPorMes[i]));
 
-    return { categoriaId: padreClave, nombre: nombreDe(padreClave), importesPorMes, subfilas };
+    return { categoriaId: padreClave, nombre: nombreDe(padreClave), importesPorMes, mediaPorMes, subfilas };
   });
 
   return filas.sort((a, b) => a.nombre.localeCompare(b.nombre));

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   categoriaEfectivaId,
   construirDiagnosticoPrevision,
+  importeEfectivoPrevisto,
   importeEstimado,
   previstoAplicaEnMes,
   type CategoriaInfo,
@@ -25,6 +26,7 @@ function previsto(overrides: Partial<MovimientoPrevisto> = {}): MovimientoPrevis
     fecha_fin: null,
     estado: "activo",
     movimiento_real_id: null,
+    origen_calculo: "fijo",
     ...overrides,
   };
 }
@@ -36,6 +38,25 @@ describe("importeEstimado", () => {
 
   it("usa el punto medio del rango si hay min y max", () => {
     expect(importeEstimado({ importe_estimado: 0, importe_min: 30, importe_max: 70 })).toBe(50);
+  });
+});
+
+describe("importeEfectivoPrevisto", () => {
+  it("un previsto fijo usa siempre su importe guardado, aunque haya una media disponible", () => {
+    const p = previsto({ origen_calculo: "fijo", categoria_id: "ocio", tipo: "gasto", importe_estimado: 40 });
+    const medias = new Map([["gasto:ocio", 999]]);
+    expect(importeEfectivoPrevisto(p, medias)).toBe(40);
+  });
+
+  it("un previsto de nivel 2 usa la media recalculada en vez del importe congelado", () => {
+    const p = previsto({ origen_calculo: "media_categoria", categoria_id: "ocio", tipo: "gasto", importe_estimado: 40 });
+    const medias = new Map([["gasto:ocio", 65]]);
+    expect(importeEfectivoPrevisto(p, medias)).toBe(65);
+  });
+
+  it("un previsto de nivel 2 sin media disponible cae al importe guardado como respaldo", () => {
+    const p = previsto({ origen_calculo: "media_categoria", categoria_id: "ocio", tipo: "gasto", importe_estimado: 40 });
+    expect(importeEfectivoPrevisto(p, new Map())).toBe(40);
   });
 });
 
@@ -119,6 +140,27 @@ describe("construirDiagnosticoPrevision", () => {
 
     expect(ocio?.importesPorMes[0]).toBeCloseTo(-130, 2);
     expect(ocio?.subfilas.map((s) => s.categoriaId).sort()).toEqual(["cine", "restaurantes"]);
+  });
+
+  it("un previsto de nivel 2 usa la media recalculada y marca la celda como media (mediaPorMes)", () => {
+    const previstos = [
+      previsto({ categoria_id: "ocio", tipo: "gasto", importe_estimado: 40, origen_calculo: "media_categoria", fecha_inicio: "2026-01-01" }),
+    ];
+    const mediaPorCategoria = new Map([["gasto:ocio", 75]]);
+
+    const filas = construirDiagnosticoPrevision(previstos, meses, categorias, new Map(), mediaPorCategoria);
+    const ocio = filas.find((f) => f.categoriaId === "ocio");
+
+    expect(ocio?.importesPorMes[0]).toBeCloseTo(-75, 2);
+    expect(ocio?.mediaPorMes[0]).toBe(true);
+  });
+
+  it("un previsto fijo no marca la celda como media", () => {
+    const previstos = [previsto({ categoria_id: "hipoteca", importe_estimado: 600, fecha_inicio: "2026-01-01" })];
+    const filas = construirDiagnosticoPrevision(previstos, meses, categorias);
+    const hipoteca = filas.find((f) => f.categoriaId === "hipoteca");
+
+    expect(hipoteca?.mediaPorMes[0]).toBe(false);
   });
 
   it("no mezcla categorías padre distintas entre sí", () => {

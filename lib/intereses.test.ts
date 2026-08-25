@@ -18,6 +18,7 @@ function previsto(overrides: Partial<MovimientoPrevisto>): MovimientoPrevisto {
     fecha_fin: null,
     estado: "activo",
     movimiento_real_id: null,
+    origen_calculo: "fijo",
     cuenta_id: null,
     ...overrides,
   } as MovimientoPrevisto;

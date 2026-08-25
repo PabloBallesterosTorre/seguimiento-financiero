@@ -19,6 +19,7 @@ function previsto(overrides: Partial<MovimientoPrevisto> = {}): MovimientoPrevis
     fecha_fin: null,
     estado: "activo",
     movimiento_real_id: null,
+    origen_calculo: "fijo",
     ...overrides,
   };
 }
@@ -81,6 +82,25 @@ describe("construirProyeccionPatrimonio", () => {
     expect(puntos[0].saldoLiquido).toBeCloseTo(900, 2);
     expect(puntos[0].valorInversion).toBeCloseTo(5100, 2);
     expect(puntos[0].patrimonioSinDeuda).toBeCloseTo(6000, 2);
+  });
+
+  it("un previsto de nivel 2 usa la media recalculada en la proyección de flujo", () => {
+    const puntos = construirProyeccionPatrimonio({
+      meses,
+      fechaInicio: "2026-01-01",
+      saldoLiquidoInicial: 1000,
+      valorInversionInicial: 0,
+      previstos: [
+        previsto({ tipo: "gasto", categoria_id: "ocio", importe_estimado: 40, origen_calculo: "media_categoria" }),
+      ],
+      interesesPorMes: new Map(),
+      deudas: [],
+      amortizacionesProgramadas: [],
+      esCategoriaInversion: () => false,
+      mediaPorCategoria: new Map([["gasto:ocio", 90]]),
+    });
+
+    expect(puntos[0].flujoNeto).toBeCloseTo(-90, 2);
   });
 
   it("proyecta el capital pendiente de una deuda a la baja mes a mes", () => {

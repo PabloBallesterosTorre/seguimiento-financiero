@@ -26,6 +26,7 @@ export async function crearMovimientoPrevisto(formData: FormData) {
   const fecha = (formData.get("fecha") as string) || null;
   const fecha_inicio = (formData.get("fecha_inicio") as string) || null;
   const fecha_fin = (formData.get("fecha_fin") as string) || null;
+  const origen_calculo = (formData.get("origen_calculo") as string) === "media_categoria" ? "media_categoria" : "fijo";
 
   await supabase.from("movimientos_previstos").insert({
     usuario_id: user.id,
@@ -42,6 +43,7 @@ export async function crearMovimientoPrevisto(formData: FormData) {
     fecha_inicio: tipo_recurrencia === "recurrente" ? fecha_inicio : null,
     fecha_fin: tipo_recurrencia === "recurrente" ? fecha_fin : null,
     estado: "activo",
+    origen_calculo,
   });
 
   revalidatePath("/prevision");

@@ -3,6 +3,7 @@ import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { generarMeses, type MovimientoPrevisto } from "@/lib/prevision";
 import { calcularInteresesPrevistos } from "@/lib/intereses";
+import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccionPatrones";
 import { construirProyeccionPatrimonio, agruparPorAnio, type DeudaParaProyeccion } from "@/lib/planificador";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
@@ -28,6 +29,8 @@ export default async function PlanificadorPage({
   } = await supabase.auth.getUser();
 
   const hoy = new Date().toISOString().slice(0, 10);
+  const desde = new Date();
+  desde.setFullYear(desde.getFullYear() - 3);
 
   const [
     { data: cuentas },
@@ -36,6 +39,7 @@ export default async function PlanificadorPage({
     { data: amortizacionesRaw },
     { data: previstosRaw },
     { data: categorias },
+    { data: historicoRaw },
     config,
   ] = await Promise.all([
     supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
@@ -47,7 +51,12 @@ export default async function PlanificadorPage({
       .eq("aplicado", false)
       .gt("fecha", hoy),
     supabase.from("movimientos_previstos").select("*"),
-    supabase.from("categorias").select("id, es_categoria_inversion"),
+    supabase.from("categorias").select("id, es_categoria_inversion, categoria_padre_id"),
+    supabase
+      .from("movimientos")
+      .select("descripcion, categoria_id, tipo, importe, fecha")
+      .in("tipo", ["ingreso", "gasto"])
+      .gte("fecha", desde.toISOString().slice(0, 10)),
     user ? obtenerConfiguracion(supabase, user.id) : null,
   ]);
 
@@ -82,8 +91,13 @@ export default async function PlanificadorPage({
   const esCategoriaInversion = (categoriaId: string | null) =>
     categoriaId !== null && categoriaEsInversion.get(categoriaId) === true;
 
+  const categoriaPadreId = new Map((categorias ?? []).map((c) => [c.id, c.categoria_padre_id as string | null]));
+  const categoriaEfectiva = (id: string) => categoriaPadreId.get(id) ?? id;
+  const historico = (historicoRaw ?? []) as MovimientoHistorico[];
+  const mediaPorCategoria = mapaMediaPorCategoria(historico, categoriaEfectiva);
+
   const meses = generarMeses(horizonteMeses);
-  const interesesPorMes = calcularInteresesPrevistos(cuentasRemuneradas, previstos, meses);
+  const interesesPorMes = calcularInteresesPrevistos(cuentasRemuneradas, previstos, meses, mediaPorCategoria);
 
   const puntos = construirProyeccionPatrimonio({
     meses,
@@ -93,6 +107,7 @@ export default async function PlanificadorPage({
     previstos,
     interesesPorMes,
     deudas,
+    mediaPorCategoria,
     amortizacionesProgramadas,
     esCategoriaInversion,
   });

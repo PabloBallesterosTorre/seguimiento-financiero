@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { generarMeses, importeEstimado, previstoAplicaEnMes, type MovimientoPrevisto } from "@/lib/prevision";
+import { generarMeses, importeEfectivoPrevisto, previstoAplicaEnMes, type MovimientoPrevisto } from "@/lib/prevision";
 import { calcularInteresesPrevistos } from "@/lib/intereses";
+import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccionPatrones";
 import { desvincularMovimientoPrevisto, vincularMovimientoPrevisto } from "./actions";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
@@ -28,19 +29,33 @@ export default async function PrevisionPage({
     inicioMesSiguienteDate.getMonth() + 1
   ).padStart(2, "0")}-01`;
 
-  const [{ data: previstosRaw }, { data: categorias }, { data: cuentas }, { data: movimientosMes }, config] =
-    await Promise.all([
-      supabase.from("movimientos_previstos").select("*"),
-      supabase.from("categorias").select("id, nombre"),
-      supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
-      supabase
-        .from("movimientos")
-        .select("id, descripcion, importe, tipo, categoria_id, fecha")
-        .gte("fecha", inicioMes)
-        .lt("fecha", inicioMesSiguiente)
-        .in("tipo", ["ingreso", "gasto"]),
-      user ? obtenerConfiguracion(supabase, user.id) : null,
-    ]);
+  const desde = new Date();
+  desde.setFullYear(desde.getFullYear() - 3);
+
+  const [
+    { data: previstosRaw },
+    { data: categorias },
+    { data: cuentas },
+    { data: movimientosMes },
+    { data: historicoRaw },
+    config,
+  ] = await Promise.all([
+    supabase.from("movimientos_previstos").select("*"),
+    supabase.from("categorias").select("id, nombre, categoria_padre_id"),
+    supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
+    supabase
+      .from("movimientos")
+      .select("id, descripcion, importe, tipo, categoria_id, fecha")
+      .gte("fecha", inicioMes)
+      .lt("fecha", inicioMesSiguiente)
+      .in("tipo", ["ingreso", "gasto"]),
+    supabase
+      .from("movimientos")
+      .select("descripcion, categoria_id, tipo, importe, fecha")
+      .in("tipo", ["ingreso", "gasto"])
+      .gte("fecha", desde.toISOString().slice(0, 10)),
+    user ? obtenerConfiguracion(supabase, user.id) : null,
+  ]);
 
   const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
   const previstos = (previstosRaw ?? []) as unknown as MovimientoPrevisto[];
@@ -52,8 +67,13 @@ export default async function PrevisionPage({
     .filter((c) => c.es_remunerada && c.tipo_interes !== null)
     .map((c) => ({ id: c.id, saldo_actual: Number(c.saldo_actual), tipo_interes: Number(c.tipo_interes) }));
 
+  const categoriaPadreId = new Map((categorias ?? []).map((c) => [c.id, c.categoria_padre_id as string | null]));
+  const categoriaEfectiva = (id: string) => categoriaPadreId.get(id) ?? id;
+  const historico = (historicoRaw ?? []) as MovimientoHistorico[];
+  const mediaPorCategoria = mapaMediaPorCategoria(historico, categoriaEfectiva);
+
   const mesesHorizonte = generarMeses(horizonte);
-  const interesesPorMes = calcularInteresesPrevistos(cuentasRemuneradas, previstos, mesesHorizonte);
+  const interesesPorMes = calcularInteresesPrevistos(cuentasRemuneradas, previstos, mesesHorizonte, mediaPorCategoria);
 
   const meses = mesesHorizonte.map((mes) => {
     const aplicables = previstos.filter((p) => previstoAplicaEnMes(p, mes.year, mes.month));
@@ -66,7 +86,7 @@ export default async function PrevisionPage({
       const nombre = p.categoria_id ? nombreCategoria.get(p.categoria_id) ?? "Categoría eliminada" : "Sin categoría";
       const signo = p.tipo === "ingreso" ? 1 : -1;
       const actual = porCategoria.get(clave) ?? { nombre, importe: 0 };
-      actual.importe += signo * importeEstimado(p);
+      actual.importe += signo * importeEfectivoPrevisto(p, mediaPorCategoria);
       porCategoria.set(clave, actual);
     }
 
@@ -229,7 +249,7 @@ export default async function PrevisionPage({
                 <form key={p.id} action={vincularMovimientoPrevisto} className="flex items-center gap-2 text-sm">
                   <input type="hidden" name="previsto_id" value={p.id} />
                   <span className="w-48 truncate text-slate-600">{p.descripcion}</span>
-                  <span className="text-slate-400">{formatEUR(importeEstimado(p))}</span>
+                  <span className="text-slate-400">{formatEUR(importeEfectivoPrevisto(p, mediaPorCategoria))}</span>
                   <select
                     name="movimiento_id"
                     className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm"

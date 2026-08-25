@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { cambiarEstadoPrevisto, crearMovimientoPrevisto, eliminarMovimientoPrevisto } from "../actions";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { NuevoPrevisto } from "./NuevoPrevisto";
-import { importeEstimado, categoriaEfectivaId } from "@/lib/prevision";
+import { importeEfectivoPrevisto, categoriaEfectivaId } from "@/lib/prevision";
+import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccionPatrones";
 import { ordenarCategoriasJerarquia } from "@/lib/categorias";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
@@ -16,14 +17,27 @@ export default async function PrevistosPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: previstos }, { data: categorias }, { data: cuentas }, config] = await Promise.all([
-    supabase.from("movimientos_previstos").select("*").order("created_at", { ascending: false }),
-    supabase.from("categorias").select("id, nombre, categoria_padre_id").order("nombre"),
-    supabase.from("cuentas").select("id, nombre, banco_nombre").eq("activa", true).order("nombre"),
-    user ? obtenerConfiguracion(supabase, user.id) : null,
-  ]);
+  const desde = new Date();
+  desde.setFullYear(desde.getFullYear() - 3);
+
+  const [{ data: previstos }, { data: categorias }, { data: cuentas }, { data: historicoRaw }, config] =
+    await Promise.all([
+      supabase.from("movimientos_previstos").select("*").order("created_at", { ascending: false }),
+      supabase.from("categorias").select("id, nombre, categoria_padre_id").order("nombre"),
+      supabase.from("cuentas").select("id, nombre, banco_nombre").eq("activa", true).order("nombre"),
+      supabase
+        .from("movimientos")
+        .select("descripcion, categoria_id, tipo, importe, fecha")
+        .in("tipo", ["ingreso", "gasto"])
+        .gte("fecha", desde.toISOString().slice(0, 10)),
+      user ? obtenerConfiguracion(supabase, user.id) : null,
+    ]);
 
   const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
+  const categoriaPadreId = new Map((categorias ?? []).map((c) => [c.id, c.categoria_padre_id as string | null]));
+  const categoriaEfectiva = (id: string) => categoriaPadreId.get(id) ?? id;
+  const historico = (historicoRaw ?? []) as MovimientoHistorico[];
+  const mediaPorCategoria = mapaMediaPorCategoria(historico, categoriaEfectiva);
 
   const idsMovimientosReales = (previstos ?? [])
     .map((p) => p.movimiento_real_id)
@@ -77,10 +91,17 @@ export default async function PrevistosPage() {
             <tbody>
               {(previstos ?? []).map((p) => (
                 <tr key={p.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2">{p.descripcion}</td>
+                  <td className="px-4 py-2">
+                    {p.descripcion}
+                    {p.origen_calculo === "media_categoria" && (
+                      <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                        Media
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2 capitalize">{p.tipo}</td>
                   <td className="px-4 py-2 text-slate-500">{categoriaMostrada(p)}</td>
-                  <td className="px-4 py-2 text-right">{formatEUR(importeEstimado(p))}</td>
+                  <td className="px-4 py-2 text-right">{formatEUR(importeEfectivoPrevisto(p, mediaPorCategoria))}</td>
                   <td className="px-4 py-2 text-slate-500">
                     {p.tipo_recurrencia === "unica_vez" ? "Única vez" : `Recurrente (${p.periodicidad})`}
                   </td>

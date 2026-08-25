@@ -62,7 +62,7 @@ export function TablaDiagnosticoPrevision({
                         importe === 0 ? "text-slate-300" : importe > 0 ? "text-emerald-600" : "text-slate-900"
                       }`}
                     >
-                      {importe === 0 ? "—" : formatEUR(importe)}
+                      {importe === 0 ? "—" : (fila.mediaPorMes[i] ? "≈ " : "") + formatEUR(importe)}
                     </td>
                   ))}
                 </tr>
@@ -77,7 +77,7 @@ export function TablaDiagnosticoPrevision({
                             importe === 0 ? "text-slate-300" : importe > 0 ? "text-emerald-600" : "text-slate-700"
                           }`}
                         >
-                          {importe === 0 ? "—" : formatEUR(importe)}
+                          {importe === 0 ? "—" : (hijo.mediaPorMes[i] ? "≈ " : "") + formatEUR(importe)}
                         </td>
                       ))}
                     </tr>
