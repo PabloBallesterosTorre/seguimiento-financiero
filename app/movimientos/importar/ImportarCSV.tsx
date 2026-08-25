@@ -14,6 +14,7 @@ import {
 import { sugerirCategoria, type ReglaCategorizacion } from "@/lib/categorizacion";
 import type { CategoriaJerarquica } from "@/lib/categorias";
 import { importarMovimientos, importarTraspasos, type FilaImportar } from "./actions";
+import { formatMoneda } from "@/lib/formato";
 
 type Cuenta = { id: string; nombre: string; banco_nombre: string; iban: string | null };
 type MovimientoExistente = { cuenta_id: string; fecha: string; importe: number; descripcion: string };
@@ -24,6 +25,7 @@ type FilaPrevia = FilaImportar & {
   cuentaContraparteId: string | null;
   esDuplicado: boolean;
   incluirDuplicado: boolean;
+  omitidaPorFechaCorte: boolean;
 };
 
 function claveMovimiento(cuentaId: string, fecha: string, importe: number, descripcion: string): string {
@@ -52,30 +54,56 @@ function normalizarIban(valor: string): string {
   return valor.replace(/\s+/g, "").toUpperCase();
 }
 
-const formatEUR = (v: number) =>
-  new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(v);
 const formatFecha = (v: string) => new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(new Date(v));
+
+function diaSiguiente(fecha: string): string {
+  const d = new Date(`${fecha}T00:00:00`);
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 export function ImportarCSV({
   cuentas,
   categorias,
   reglas,
   existentes,
+  moneda,
 }: {
   cuentas: Cuenta[];
   categorias: CategoriaJerarquica[];
   reglas: ReglaCategorizacion[];
   existentes: MovimientoExistente[];
+  moneda: string;
 }) {
   const router = useRouter();
+  const formatEUR = (v: number) => formatMoneda(v, moneda);
 
   const firmasExistentes = useMemo(
     () => new Set(existentes.map((m) => claveMovimiento(m.cuenta_id, m.fecha, Number(m.importe), m.descripcion))),
     [existentes]
   );
 
+  const ultimaFechaPorCuenta = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const m of existentes) {
+      const actual = mapa.get(m.cuenta_id);
+      if (!actual || m.fecha > actual) mapa.set(m.cuenta_id, m.fecha);
+    }
+    return mapa;
+  }, [existentes]);
+
   const [paso, setPaso] = useState<"subir" | "mapear" | "previsualizar">("subir");
-  const [cuentaId, setCuentaId] = useState(cuentas[0]?.id ?? "");
+  const [cuentaId, setCuentaIdState] = useState(cuentas[0]?.id ?? "");
+  const [fechaCorte, setFechaCorte] = useState(() => {
+    const ultima = ultimaFechaPorCuenta.get(cuentas[0]?.id ?? "");
+    return ultima ? diaSiguiente(ultima) : "";
+  });
+
+  function setCuentaId(id: string) {
+    setCuentaIdState(id);
+    const ultima = ultimaFechaPorCuenta.get(id);
+    setFechaCorte(ultima ? diaSiguiente(ultima) : "");
+  }
   const [nombreArchivo, setNombreArchivo] = useState("");
   const [modoArchivo, setModoArchivo] = useState<"csv" | "xlsx">("csv");
   const [textoOriginal, setTextoOriginal] = useState("");
@@ -270,6 +298,7 @@ export function ImportarCSV({
 
       const esDuplicado =
         valida && firmasExistentes.has(claveMovimiento(cuentaId, fecha ?? "", importe ?? 0, descripcion));
+      const omitidaPorFechaCorte = valida && fechaCorte !== "" && (fecha ?? "") < fechaCorte;
 
       return {
         fecha: fecha ?? "",
@@ -283,6 +312,7 @@ export function ImportarCSV({
         cuentaContraparteId,
         esDuplicado,
         incluirDuplicado: false,
+        omitidaPorFechaCorte,
       };
     });
 
@@ -324,7 +354,9 @@ export function ImportarCSV({
     setImportando(true);
     setResultado(null);
 
-    const filasValidas = filasPreview.filter((f) => f.valida && (!f.esDuplicado || f.incluirDuplicado));
+    const filasValidas = filasPreview.filter(
+      (f) => f.valida && !f.omitidaPorFechaCorte && (!f.esDuplicado || f.incluirDuplicado)
+    );
     const filasTraspaso = filasValidas.filter((f) => f.esTraspaso && f.cuentaContraparteId);
     const filasNormales = filasValidas.filter((f) => !(f.esTraspaso && f.cuentaContraparteId));
 
@@ -375,8 +407,10 @@ export function ImportarCSV({
 
   const filasValidas = filasPreview.filter((f) => f.valida);
   const filasInvalidas = filasPreview.length - filasValidas.length;
-  const filasDuplicadasSinConfirmar = filasValidas.filter((f) => f.esDuplicado && !f.incluirDuplicado);
-  const filasAImportar = filasValidas.filter((f) => !f.esDuplicado || f.incluirDuplicado);
+  const filasOmitidasPorFecha = filasValidas.filter((f) => f.omitidaPorFechaCorte);
+  const filasDentroDeRango = filasValidas.filter((f) => !f.omitidaPorFechaCorte);
+  const filasDuplicadasSinConfirmar = filasDentroDeRango.filter((f) => f.esDuplicado && !f.incluirDuplicado);
+  const filasAImportar = filasDentroDeRango.filter((f) => !f.esDuplicado || f.incluirDuplicado);
   const totalImporte = filasAImportar.reduce((suma, f) => suma + f.importe, 0);
   const previewFilasCrudas = filasCSV.slice(0, 8);
 
@@ -464,6 +498,20 @@ export function ImportarCSV({
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
               <p className="mt-1 text-xs text-slate-400">Resaltada arriba. Súbela si el archivo trae texto antes.</p>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500">Fecha de corte (opcional)</label>
+              <input
+                type="date"
+                value={fechaCorte}
+                onChange={(e) => setFechaCorte(e.target.value)}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Se ignora todo lo anterior a esta fecha, aunque el archivo lo incluya (evita reimportar
+                movimientos antiguos o que borraste a propósito). Por defecto, el día siguiente al último
+                movimiento que ya tienes en esta cuenta.
+              </p>
             </div>
             {modoArchivo === "csv" && (
               <div>
@@ -656,6 +704,13 @@ export function ImportarCSV({
             </p>
           )}
 
+          {filasOmitidasPorFecha.length > 0 && (
+            <p className="text-xs text-slate-400">
+              {filasOmitidasPorFecha.length} filas son anteriores a la fecha de corte ({formatFecha(fechaCorte)})
+              y se omiten.
+            </p>
+          )}
+
           {filasDuplicadasSinConfirmar.length > 0 && (
             <p className="text-xs text-amber-600">
               {filasDuplicadasSinConfirmar.length} filas parecen ya existir en esta cuenta (misma fecha,
@@ -681,7 +736,7 @@ export function ImportarCSV({
                   <tr
                     key={index}
                     className={`border-t border-slate-100 ${
-                      !fila.valida || omitidaPorDuplicado ? "opacity-40" : ""
+                      !fila.valida || omitidaPorDuplicado || fila.omitidaPorFechaCorte ? "opacity-40" : ""
                     }`}
                   >
                     <td className="px-3 py-2 whitespace-nowrap text-slate-500">
@@ -692,6 +747,11 @@ export function ImportarCSV({
                       {fila.esDuplicado && (
                         <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
                           Posible duplicado
+                        </span>
+                      )}
+                      {fila.omitidaPorFechaCorte && (
+                        <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                          Anterior a la fecha de corte
                         </span>
                       )}
                     </td>

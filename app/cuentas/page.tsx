@@ -1,14 +1,19 @@
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
+import { obtenerConfiguracion } from "@/lib/configuracion";
 import { crearCuenta, actualizarCuenta, eliminarCuenta } from "./actions";
 import { CuentasClient } from "./CuentasClient";
 
 export default async function CuentasPage() {
   const supabase = createClient();
-  const { data: cuentas } = await supabase
-    .from("cuentas")
-    .select("*")
-    .order("created_at", { ascending: true });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const [{ data: cuentas }, config] = await Promise.all([
+    supabase.from("cuentas").select("*").order("created_at", { ascending: true }),
+    user ? obtenerConfiguracion(supabase, user.id) : null,
+  ]);
 
   return (
     <>
@@ -18,6 +23,7 @@ export default async function CuentasPage() {
 
         <CuentasClient
           cuentas={cuentas ?? []}
+          moneda={config?.moneda_base ?? "EUR"}
           crearCuenta={crearCuenta}
           actualizarCuenta={actualizarCuenta}
           eliminarCuenta={eliminarCuenta}

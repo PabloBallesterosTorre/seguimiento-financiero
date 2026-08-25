@@ -1,14 +1,8 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { guardarObjetivoAhorro } from "./actions";
-
-function formatEUR(value: number) {
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency: "EUR",
-  }).format(value);
-}
+import { obtenerConfiguracion } from "@/lib/configuracion";
+import { formatMoneda } from "@/lib/formato";
 
 export default async function DashboardPage({
   searchParams,
@@ -17,6 +11,10 @@ export default async function DashboardPage({
 }) {
   const supabase = createClient();
   const conDeuda = searchParams.sinDeuda !== "1";
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const hoy = new Date();
   const inicioMes = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-01`;
@@ -27,18 +25,21 @@ export default async function DashboardPage({
   const nombreMesRaw = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(hoy);
   const nombreMes = nombreMesRaw.charAt(0).toUpperCase() + nombreMesRaw.slice(1);
 
-  const [{ data: cuentas }, { data: inversiones }, { data: deudas }, { data: objetivo }, { data: movimientosMes }] =
+  const [{ data: cuentas }, { data: inversiones }, { data: deudas }, config, { data: movimientosMes }] =
     await Promise.all([
       supabase.from("cuentas").select("saldo_actual").eq("activa", true),
       supabase.from("inversiones").select("valor_actual"),
       supabase.from("deudas").select("capital_pendiente"),
-      supabase.from("objetivos_ahorro").select("importe_objetivo").eq("periodo", inicioMes).maybeSingle(),
+      user ? obtenerConfiguracion(supabase, user.id) : null,
       supabase
         .from("movimientos")
         .select("importe, tipo, categorias!categoria_id(es_categoria_inversion)")
         .gte("fecha", inicioMes)
         .lt("fecha", inicioMesSiguiente),
     ]);
+
+  const moneda = config?.moneda_base ?? "EUR";
+  const formatEUR = (v: number) => formatMoneda(v, moneda);
 
   const totalCuentas = (cuentas ?? []).reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
   const totalInversion = (inversiones ?? []).reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
@@ -53,13 +54,18 @@ export default async function DashboardPage({
   };
   const movimientosDelMes = (movimientosMes ?? []) as unknown as MovimientoMes[];
 
+  const incluirInversionEnAhorro = config?.incluir_inversion_en_ahorro ?? true;
+
   const ahorroReal = movimientosDelMes.reduce((sum, m) => {
     if (m.tipo === "traspaso") return sum;
     const esAportacionInversion = m.tipo === "gasto" && m.categorias?.es_categoria_inversion === true;
-    return esAportacionInversion ? sum : sum + Number(m.importe);
+    // Si "incluir inversión en ahorro" está activado, la aportación no resta (cuenta
+    // como ahorro); si está desactivado, resta como cualquier otro gasto.
+    if (esAportacionInversion && incluirInversionEnAhorro) return sum;
+    return sum + Number(m.importe);
   }, 0);
 
-  const importeObjetivo = objetivo ? Number(objetivo.importe_objetivo) : null;
+  const importeObjetivo = config?.objetivo_ahorro_mensual ?? null;
   const cumplido = importeObjetivo !== null && ahorroReal >= importeObjetivo;
   const porcentaje = importeObjetivo ? Math.min(100, Math.max(0, (ahorroReal / importeObjetivo) * 100)) : 0;
 
@@ -134,35 +140,23 @@ export default async function DashboardPage({
               </div>
             </>
           ) : (
-            <p className="text-sm text-slate-400">Todavía no has fijado un objetivo de ahorro para este mes.</p>
+            <p className="text-sm text-slate-400">
+              Todavía no has fijado un objetivo de ahorro.{" "}
+              <Link href="/configuracion" className="underline">
+                Configúralo aquí
+              </Link>
+              .
+            </p>
           )}
-
-          <form action={guardarObjetivoAhorro} className="flex items-end gap-3">
-            <input type="hidden" name="periodo" value={inicioMes} />
-            <div>
-              <label className="block text-xs text-slate-500">Objetivo mensual</label>
-              <input
-                name="importe_objetivo"
-                type="number"
-                step="0.01"
-                min="0"
-                defaultValue={importeObjetivo ?? undefined}
-                required
-                className="mt-1 w-40 rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <button
-              type="submit"
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-            >
-              Guardar objetivo
-            </button>
-          </form>
         </div>
 
         <p className="text-sm text-slate-400">
-          El ahorro del mes se calcula a partir de los movimientos (los ingresos menos los gastos, sin
-          contar como gasto las aportaciones a inversión). Añádelos en{" "}
+          El objetivo de ahorro se edita desde{" "}
+          <Link href="/configuracion" className="underline">
+            Configuración
+          </Link>{" "}
+          — aquí solo se muestra el resultado. El ahorro del mes se calcula a partir de los movimientos.
+          Añádelos en{" "}
           <Link href="/movimientos" className="underline">
             Movimientos
           </Link>

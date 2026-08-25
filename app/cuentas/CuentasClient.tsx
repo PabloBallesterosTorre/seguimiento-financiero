@@ -3,6 +3,7 @@
 import { Fragment, useState } from "react";
 import { CuentaForm } from "./CuentaForm";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { formatMoneda } from "@/lib/formato";
 
 type Cuenta = {
   id: string;
@@ -16,21 +17,20 @@ type Cuenta = {
   periodicidad_pago_interes: string | null;
 };
 
-function formatEUR(value: number) {
-  return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value);
-}
-
 export function CuentasClient({
   cuentas,
+  moneda,
   crearCuenta,
   actualizarCuenta,
   eliminarCuenta,
 }: {
   cuentas: Cuenta[];
+  moneda: string;
   crearCuenta: (formData: FormData) => void;
   actualizarCuenta: (formData: FormData) => void;
   eliminarCuenta: (formData: FormData) => void;
 }) {
+  const formatEUR = (v: number) => formatMoneda(v, moneda);
   const [abierto, setAbierto] = useState<"nueva" | string | null>(null);
 
   return (

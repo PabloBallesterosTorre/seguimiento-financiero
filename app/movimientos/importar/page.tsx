@@ -3,16 +3,23 @@ import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { ImportarCSV } from "./ImportarCSV";
 import { ordenarCategoriasJerarquia } from "@/lib/categorias";
+import { obtenerConfiguracion } from "@/lib/configuracion";
 
 export default async function ImportarPage() {
   const supabase = createClient();
 
-  const [{ data: cuentas }, { data: categorias }, { data: reglas }, { data: existentes }] = await Promise.all([
-    supabase.from("cuentas").select("id, nombre, banco_nombre, iban").eq("activa", true).order("nombre"),
-    supabase.from("categorias").select("id, nombre, categoria_padre_id").order("nombre"),
-    supabase.from("reglas_categorizacion").select("patron_descripcion, categoria_id, veces_usada"),
-    supabase.from("movimientos").select("cuenta_id, fecha, importe, descripcion"),
-  ]);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const [{ data: cuentas }, { data: categorias }, { data: reglas }, { data: existentes }, config] =
+    await Promise.all([
+      supabase.from("cuentas").select("id, nombre, banco_nombre, iban").eq("activa", true).order("nombre"),
+      supabase.from("categorias").select("id, nombre, categoria_padre_id").order("nombre"),
+      supabase.from("reglas_categorizacion").select("patron_descripcion, categoria_id, veces_usada"),
+      supabase.from("movimientos").select("cuenta_id, fecha, importe, descripcion"),
+      user ? obtenerConfiguracion(supabase, user.id) : null,
+    ]);
 
   const categoriasOrdenadas = ordenarCategoriasJerarquia(categorias ?? []);
 
@@ -37,6 +44,7 @@ export default async function ImportarPage() {
             categorias={categoriasOrdenadas}
             reglas={reglas ?? []}
             existentes={existentes ?? []}
+            moneda={config?.moneda_base ?? "EUR"}
           />
         )}
       </main>

@@ -8,6 +8,7 @@ const links = [
   { href: "/inversiones", label: "Inversión" },
   { href: "/deudas", label: "Deuda" },
   { href: "/prevision", label: "Previsión" },
+  { href: "/configuracion", label: "Configuración" },
 ];
 
 export function Nav() {
