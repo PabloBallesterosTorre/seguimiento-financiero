@@ -79,7 +79,9 @@ export default async function MovimientosPage() {
                 return (
                   <tr key={mov.id} className="border-t border-slate-100">
                     <td className="px-4 py-2 whitespace-nowrap text-slate-500">{formatFecha(mov.fecha)}</td>
-                    <td className="px-4 py-2">{mov.cuentas?.nombre ?? "—"}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      {mov.cuentas ? `${mov.cuentas.banco_nombre} — ${mov.cuentas.nombre}` : "—"}
+                    </td>
                     <td className="px-4 py-2">
                       {mov.descripcion}
                       {esTraspaso && (
