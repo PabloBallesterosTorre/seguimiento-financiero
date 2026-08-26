@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { generarMeses, importeEfectivoPrevisto, previstoAplicaEnMes, type MovimientoPrevisto } from "@/lib/prevision";
+import {
+  generarMeses,
+  importeEfectivoPrevisto,
+  previstoAplicaEnMes,
+  previstoYaMaterializadoEnMes,
+  type MovimientoPrevisto,
+} from "@/lib/prevision";
 import { calcularInteresesPrevistos } from "@/lib/intereses";
 import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccionPatrones";
 import { desvincularMovimientoPrevisto, vincularMovimientoPrevisto } from "./actions";
@@ -63,6 +69,13 @@ export default async function PrevisionPage({
   const saldoInicial = (cuentas ?? []).reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
   const movimientosDelMes = movimientosMes ?? [];
 
+  const idsMovimientosReales = previstos.map((p) => p.movimiento_real_id).filter((id): id is string => Boolean(id));
+  const { data: movimientosVinculados } =
+    idsMovimientosReales.length > 0
+      ? await supabase.from("movimientos").select("id, fecha").in("id", idsMovimientosReales)
+      : { data: [] as { id: string; fecha: string }[] };
+  const fechaPorMovimientoReal = new Map((movimientosVinculados ?? []).map((m) => [m.id, m.fecha]));
+
   const cuentasRemuneradas = (cuentas ?? [])
     .filter((c) => c.es_remunerada && c.tipo_interes !== null)
     .map((c) => ({ id: c.id, saldo_actual: Number(c.saldo_actual), tipo_interes: Number(c.tipo_interes) }));
@@ -73,10 +86,20 @@ export default async function PrevisionPage({
   const mediaPorCategoria = mapaMediaPorCategoria(historico, categoriaEfectiva);
 
   const mesesHorizonte = generarMeses(horizonte);
-  const interesesPorMes = calcularInteresesPrevistos(cuentasRemuneradas, previstos, mesesHorizonte, mediaPorCategoria);
+  const interesesPorMes = calcularInteresesPrevistos(
+    cuentasRemuneradas,
+    previstos,
+    mesesHorizonte,
+    mediaPorCategoria,
+    fechaPorMovimientoReal
+  );
 
   const meses = mesesHorizonte.map((mes) => {
-    const aplicables = previstos.filter((p) => previstoAplicaEnMes(p, mes.year, mes.month));
+    const aplicables = previstos.filter(
+      (p) =>
+        previstoAplicaEnMes(p, mes.year, mes.month) &&
+        !previstoYaMaterializadoEnMes(p, mes.year, mes.month, fechaPorMovimientoReal)
+    );
     const traspasos = aplicables.filter((p) => p.tipo === "traspaso");
     const resto = aplicables.filter((p) => p.tipo !== "traspaso");
 
@@ -148,10 +171,19 @@ export default async function PrevisionPage({
         </div>
 
         <div className="space-y-4">
-          {mesesConSaldo.map((mes) => (
+          {mesesConSaldo.map((mes, i) => (
             <div key={`${mes.year}-${mes.month}`} className="rounded-lg border border-slate-200 bg-white p-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-sm font-medium text-slate-700">{mes.label}</h2>
+                <h2 className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  {mes.label}
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      i === 0 ? "bg-amber-100 text-amber-700" : "bg-sky-100 text-sky-700"
+                    }`}
+                  >
+                    {i === 0 ? "Mes en curso" : "Previsión"}
+                  </span>
+                </h2>
                 <p className="text-sm text-slate-500">
                   Neto:{" "}
                   <span className={mes.totalMes >= 0 ? "text-emerald-600" : "text-slate-900"}>

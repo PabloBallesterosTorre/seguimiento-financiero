@@ -129,8 +129,21 @@ export default async function PlanificadorPage({
   const historico = (historicoRaw ?? []) as MovimientoHistorico[];
   const mediaPorCategoria = mapaMediaPorCategoria(historico, categoriaEfectiva);
 
+  const idsMovimientosReales = previstos.map((p) => p.movimiento_real_id).filter((id): id is string => Boolean(id));
+  const { data: movimientosVinculados } =
+    idsMovimientosReales.length > 0
+      ? await supabase.from("movimientos").select("id, fecha").in("id", idsMovimientosReales)
+      : { data: [] as { id: string; fecha: string }[] };
+  const fechaPorMovimientoReal = new Map((movimientosVinculados ?? []).map((m) => [m.id, m.fecha]));
+
   const meses = generarMeses(horizonteMeses);
-  const interesesPorMes = calcularInteresesPrevistos(cuentasRemuneradas, previstos, meses, mediaPorCategoria);
+  const interesesPorMes = calcularInteresesPrevistos(
+    cuentasRemuneradas,
+    previstos,
+    meses,
+    mediaPorCategoria,
+    fechaPorMovimientoReal
+  );
 
   const puntosFuturos = construirProyeccionPatrimonio({
     meses,
@@ -143,6 +156,7 @@ export default async function PlanificadorPage({
     mediaPorCategoria,
     amortizacionesProgramadas,
     esCategoriaInversion,
+    fechaPorMovimientoReal,
   });
 
   const historicoCompleto = (historicoCompletoRaw ?? []) as {
@@ -176,6 +190,7 @@ export default async function PlanificadorPage({
       : [];
 
   const puntos = [...puntosHistoricos, ...puntosFuturos];
+  const indiceMesActual = puntosHistoricos.length;
   const filasAnuales = vista === "anual" ? agruparPorAnio(puntos) : [];
 
   return (
@@ -194,7 +209,9 @@ export default async function PlanificadorPage({
           e intereses de cuentas remuneradas). El horizonte elegido aplica en ambas direcciones.
           Para los meses pasados, la inversión es lo aportado hasta esa fecha (coste, no el valor
           de mercado histórico, que no se registra); para hoy y los meses futuros, es el valor real
-          de hoy más las aportaciones previstas — no se asume ninguna rentabilidad futura.
+          de hoy más las aportaciones previstas — no se asume ninguna rentabilidad futura. Un
+          previsto ya vinculado a un movimiento real de este mes no se suma también como previsión
+          — el saldo de hoy ya lo incluye.
         </p>
 
         <div className="rounded-lg border border-slate-200 bg-white p-6">
@@ -229,8 +246,11 @@ export default async function PlanificadorPage({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs">
             <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-500">Real</span>
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-700">Mixto</span>
             <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-700">Proyección</span>
-            <p className="text-sm text-slate-500">cada fila indica si es histórico real o previsión</p>
+            <p className="text-sm text-slate-500">
+              histórico real, el mes en curso (real + lo que falta) o previsión futura
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex rounded-md border border-slate-300 text-sm">
@@ -281,7 +301,9 @@ export default async function PlanificadorPage({
             </thead>
             <tbody>
               {vista === "mensual"
-                ? puntos.map((p) => (
+                ? puntos.map((p, i) => {
+                    const esMesActual = i === indiceMesActual;
+                    return (
                     <tr
                       key={`${p.year}-${p.month}`}
                       className={`border-t border-slate-100 ${p.esReal ? "" : "bg-sky-50/40"}`}
@@ -289,10 +311,14 @@ export default async function PlanificadorPage({
                       <td className="whitespace-nowrap px-2 py-2">
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            p.esReal ? "bg-slate-100 text-slate-500" : "bg-sky-100 text-sky-700"
+                            p.esReal
+                              ? "bg-slate-100 text-slate-500"
+                              : esMesActual
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-sky-100 text-sky-700"
                           }`}
                         >
-                          {p.esReal ? "Real" : "Proy."}
+                          {p.esReal ? "Real" : esMesActual ? "Mixto" : "Proy."}
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-2 text-slate-600">{p.label}</td>
@@ -313,7 +339,8 @@ export default async function PlanificadorPage({
                         {formatEUR(p.patrimonioSinDeuda)}
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 : filasAnuales.map((f) => (
                     <tr key={f.year} className={`border-t border-slate-100 ${f.esReal ? "" : "bg-sky-50/40"}`}>
                       <td className="whitespace-nowrap px-2 py-2">

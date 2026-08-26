@@ -69,6 +69,24 @@ export function previstoAplicaEnMes(p: MovimientoPrevisto, year: number, month: 
   return false;
 }
 
+// ¿Ya se materializó este previsto para el mes (year, month) indicado? Es decir, ¿su
+// movimiento_real_id apunta a un movimiento real fechado ese mismo mes? Sirve para no
+// contar dos veces un mes que mezcla lo ya ocurrido (reflejado en el saldo real) con
+// lo previsto para lo que falta: si ya se concilió, ese importe ya está dentro del
+// saldo real de partida y no debe volver a sumarse como previsión.
+export function previstoYaMaterializadoEnMes(
+  p: Pick<MovimientoPrevisto, "movimiento_real_id">,
+  year: number,
+  month: number,
+  fechaPorMovimientoReal: Map<string, string>
+): boolean {
+  if (!p.movimiento_real_id) return false;
+  const fecha = fechaPorMovimientoReal.get(p.movimiento_real_id);
+  if (!fecha) return false;
+  const f = new Date(`${fecha}T00:00:00`);
+  return f.getFullYear() === year && f.getMonth() + 1 === month;
+}
+
 // Categoría "real" de una previsión: si ya está conciliada con un movimiento real,
 // manda la categoría de ese movimiento (puede haberse categorizado o corregido
 // después de crear la previsión), no la que tenía la previsión al crearse. Evita el

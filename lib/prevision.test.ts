@@ -5,6 +5,7 @@ import {
   importeEfectivoPrevisto,
   importeEstimado,
   previstoAplicaEnMes,
+  previstoYaMaterializadoEnMes,
   type CategoriaInfo,
   type MovimientoPrevisto,
 } from "./prevision";
@@ -89,6 +90,22 @@ describe("previstoAplicaEnMes", () => {
     expect(previstoAplicaEnMes(p, 2026, 6)).toBe(true);
     expect(previstoAplicaEnMes(p, 2027, 6)).toBe(true);
     expect(previstoAplicaEnMes(p, 2026, 7)).toBe(false);
+  });
+});
+
+describe("previstoYaMaterializadoEnMes (evita doble conteo en el mes en curso)", () => {
+  it("no está materializado si no hay movimiento_real_id", () => {
+    expect(previstoYaMaterializadoEnMes({ movimiento_real_id: null }, 2026, 8, new Map())).toBe(false);
+  });
+
+  it("está materializado si el movimiento real vinculado cae en ese mismo mes", () => {
+    const mapa = new Map([["mov-1", "2026-08-05"]]);
+    expect(previstoYaMaterializadoEnMes({ movimiento_real_id: "mov-1" }, 2026, 8, mapa)).toBe(true);
+  });
+
+  it("no está materializado para un mes distinto al del movimiento real vinculado", () => {
+    const mapa = new Map([["mov-1", "2026-07-05"]]);
+    expect(previstoYaMaterializadoEnMes({ movimiento_real_id: "mov-1" }, 2026, 8, mapa)).toBe(false);
   });
 });
 

@@ -1,4 +1,9 @@
-import { importeEfectivoPrevisto, previstoAplicaEnMes, type MovimientoPrevisto } from "@/lib/prevision";
+import {
+  importeEfectivoPrevisto,
+  previstoAplicaEnMes,
+  previstoYaMaterializadoEnMes,
+  type MovimientoPrevisto,
+} from "@/lib/prevision";
 
 export type CuentaRemunerada = {
   id: string;
@@ -17,7 +22,8 @@ export function calcularInteresesPrevistos(
   cuentas: CuentaRemunerada[],
   previstos: MovimientoPrevisto[],
   meses: MesHorizonte[],
-  mediaPorCategoria: Map<string, number> = new Map()
+  mediaPorCategoria: Map<string, number> = new Map(),
+  fechaPorMovimientoReal: Map<string, string> = new Map()
 ): Map<string, number> {
   const interesesPorMes = new Map<string, number>();
 
@@ -31,7 +37,11 @@ export function calcularInteresesPrevistos(
       interesesPorMes.set(clave, (interesesPorMes.get(clave) ?? 0) + interesMes);
 
       const otrosPrevistos = previstos.filter(
-        (p) => p.cuenta_id === cuenta.id && p.tipo !== "traspaso" && previstoAplicaEnMes(p, mes.year, mes.month)
+        (p) =>
+          p.cuenta_id === cuenta.id &&
+          p.tipo !== "traspaso" &&
+          previstoAplicaEnMes(p, mes.year, mes.month) &&
+          !previstoYaMaterializadoEnMes(p, mes.year, mes.month, fechaPorMovimientoReal)
       );
       const netoOtros = otrosPrevistos.reduce((suma, p) => {
         const importe = importeEfectivoPrevisto(p, mediaPorCategoria);

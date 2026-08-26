@@ -126,6 +126,41 @@ describe("construirProyeccionPatrimonio", () => {
     expect(puntos[0].patrimonioConDeuda).toBeLessThan(puntos[0].patrimonioSinDeuda);
   });
 
+  it("un previsto ya conciliado con un movimiento real de ese mismo mes no se cuenta dos veces", () => {
+    const puntos = construirProyeccionPatrimonio({
+      meses,
+      fechaInicio: "2026-01-01",
+      saldoLiquidoInicial: 1000,
+      valorInversionInicial: 0,
+      previstos: [previsto({ tipo: "gasto", importe_estimado: 800, movimiento_real_id: "mov-1" })],
+      interesesPorMes: new Map(),
+      deudas: [],
+      amortizacionesProgramadas: [],
+      esCategoriaInversion: () => false,
+      fechaPorMovimientoReal: new Map([["mov-1", "2026-01-05"]]),
+    });
+
+    expect(puntos[0].flujoNeto).toBe(0);
+    expect(puntos[0].saldoLiquido).toBe(1000);
+  });
+
+  it("un previsto conciliado con un movimiento de OTRO mes sí se proyecta con normalidad", () => {
+    const puntos = construirProyeccionPatrimonio({
+      meses,
+      fechaInicio: "2026-01-01",
+      saldoLiquidoInicial: 1000,
+      valorInversionInicial: 0,
+      previstos: [previsto({ tipo: "gasto", importe_estimado: 800, movimiento_real_id: "mov-1" })],
+      interesesPorMes: new Map(),
+      deudas: [],
+      amortizacionesProgramadas: [],
+      esCategoriaInversion: () => false,
+      fechaPorMovimientoReal: new Map([["mov-1", "2025-12-05"]]),
+    });
+
+    expect(puntos[0].flujoNeto).toBeCloseTo(-800, 2);
+  });
+
   it("una amortización programada reduce el capital pendiente proyectado", () => {
     const base = construirProyeccionPatrimonio({
       meses,

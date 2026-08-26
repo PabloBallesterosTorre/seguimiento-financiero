@@ -1,4 +1,9 @@
-import { importeEfectivoPrevisto, previstoAplicaEnMes, type MovimientoPrevisto } from "./prevision";
+import {
+  importeEfectivoPrevisto,
+  previstoAplicaEnMes,
+  previstoYaMaterializadoEnMes,
+  type MovimientoPrevisto,
+} from "./prevision";
 import { simularConProgramadas, type TipoReduccion } from "./amortizacion";
 
 export type DeudaParaProyeccion = {
@@ -39,7 +44,10 @@ export type PuntoProyeccion = {
 // El capital pendiente de cada mes usa el mismo índice relativo que el resto de la
 // previsión (mes 0 = mes actual), igual que ya hace el simulador de amortización —
 // no pretende una sincronía exacta día a día entre el cargo de la cuota y el resto
-// del flujo de caja de ese mes.
+// del flujo de caja de ese mes. Un previsto ya conciliado con un movimiento real de
+// ese mismo mes (fechaPorMovimientoReal) se excluye del flujo de ese mes: su importe
+// ya está dentro de saldoLiquidoInicial/valorInversionInicial (saldo real de hoy), y
+// sumarlo también como previsión lo contaría dos veces.
 export function construirProyeccionPatrimonio(params: {
   meses: MesProyeccion[];
   fechaInicio: string;
@@ -51,6 +59,7 @@ export function construirProyeccionPatrimonio(params: {
   amortizacionesProgramadas: AmortizacionProgramadaDeuda[];
   esCategoriaInversion: (categoriaId: string | null) => boolean;
   mediaPorCategoria?: Map<string, number>;
+  fechaPorMovimientoReal?: Map<string, string>;
 }): PuntoProyeccion[] {
   const {
     meses,
@@ -63,6 +72,7 @@ export function construirProyeccionPatrimonio(params: {
     amortizacionesProgramadas,
     esCategoriaInversion,
     mediaPorCategoria = new Map(),
+    fechaPorMovimientoReal = new Map(),
   } = params;
 
   const deudaPorMes = deudas.map((deuda) => {
@@ -87,7 +97,12 @@ export function construirProyeccionPatrimonio(params: {
   let valorInversion = valorInversionInicial;
 
   return meses.map((mes, i) => {
-    const aplicables = previstos.filter((p) => p.tipo !== "traspaso" && previstoAplicaEnMes(p, mes.year, mes.month));
+    const aplicables = previstos.filter(
+      (p) =>
+        p.tipo !== "traspaso" &&
+        previstoAplicaEnMes(p, mes.year, mes.month) &&
+        !previstoYaMaterializadoEnMes(p, mes.year, mes.month, fechaPorMovimientoReal)
+    );
     let flujoNeto = interesesPorMes.get(`${mes.year}-${mes.month}`) ?? 0;
     let aportacionInversion = 0;
 
