@@ -27,11 +27,10 @@ import {
   agruparPorCategoriaPadreYMes,
   mediaPorCategoriaEnRango,
   previstoVsRealPorCategoria,
-  ahorroDelMes,
   type MovimientoParaInforme,
 } from "@/lib/informes";
 import { obtenerConfiguracion } from "@/lib/configuracion";
-import { InformesClient, type MesFlujo, type CategoriaMedia, type SerieCategoria, type FilaComparativa, type MesAhorro } from "./InformesClient";
+import { InformesClient, type MesFlujo, type CategoriaMedia, type SerieCategoria, type FilaComparativa } from "./InformesClient";
 
 const RANGOS = ["6", "12", "todos"] as const;
 type Rango = (typeof RANGOS)[number];
@@ -79,8 +78,6 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
   ]);
 
   const moneda = config?.moneda_base ?? "EUR";
-  const objetivoAhorroMensual = config?.objetivo_ahorro_mensual ?? null;
-  const incluirInversionEnAhorro = config?.incluir_inversion_en_ahorro ?? true;
 
   const saldoLiquidoInicial = (cuentas ?? []).reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
   const valorInversionInicial = (inversiones ?? []).reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
@@ -211,60 +208,38 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
     { label: "Hoy", valor: patrimonioHoy },
   ];
 
-  // ---- Desglose ingreso/gasto/aportación-inversión mes a mes (8.2 y 8.7) ----
+  // ---- Desglose ingreso/gasto mes a mes (8.2) ----
   function desgloseMesHistorico(mesLabel: string) {
     let ingresos = 0;
     let gastos = 0;
-    let aportacionInversion = 0;
     for (const m of historicoCompleto) {
       if (m.fecha.slice(0, 7) !== mesLabel || m.tipo === "traspaso") continue;
       const importe = Number(m.importe);
       if (m.tipo === "ingreso") ingresos += importe;
-      else {
-        gastos += importe;
-        if (esCategoriaInversion(m.categoria_id)) aportacionInversion += Math.abs(importe);
-      }
+      else gastos += importe;
     }
-    return { ingresos, gastos, aportacionInversion };
+    return { ingresos, gastos };
   }
 
   function desgloseMesPrevisto(year: number, month: number) {
     let ingresos = 0;
     let gastos = 0;
-    let aportacionInversion = 0;
     for (const p of previstos) {
       if (p.tipo === "traspaso") continue;
       if (!previstoAplicaEnMes(p, year, month)) continue;
       if (previstoYaMaterializadoEnMes(p.id, year, month, periodosConciliados)) continue;
       const importe = importeEfectivoPrevisto(p, mediaPorCategoria);
       if (p.tipo === "ingreso") ingresos += importe;
-      else {
-        gastos += -importe;
-        if (esCategoriaInversion(p.categoria_id)) aportacionInversion += importe;
-      }
+      else gastos += -importe;
     }
     ingresos += interesesPorMes.get(`${year}-${month}`) ?? 0;
-    return { ingresos, gastos, aportacionInversion };
+    return { ingresos, gastos };
   }
 
-  const flujoPorMes: MesFlujo[] = [];
-  const ahorroPorMes: MesAhorro[] = [];
-
-  puntos.forEach((p) => {
+  const flujoPorMes: MesFlujo[] = puntos.map((p) => {
     const mesLabel = `${p.year}-${String(p.month).padStart(2, "0")}`;
     const desglose = p.esReal ? desgloseMesHistorico(mesLabel) : desgloseMesPrevisto(p.year, p.month);
-
-    flujoPorMes.push({
-      label: p.label,
-      esReal: p.esReal,
-      ingresos: desglose.ingresos,
-      gastos: desglose.gastos,
-      neto: p.flujoNeto,
-    });
-
-    const ahorro = ahorroDelMes(p.flujoNeto, desglose.aportacionInversion, incluirInversionEnAhorro);
-    const cumplido = objetivoAhorroMensual !== null ? ahorro >= objetivoAhorroMensual : null;
-    ahorroPorMes.push({ label: p.label, esReal: p.esReal, ahorro, objetivo: objetivoAhorroMensual, cumplido });
+    return { label: p.label, esReal: p.esReal, ingresos: desglose.ingresos, gastos: desglose.gastos, neto: p.flujoNeto };
   });
 
   // ---- 8.3 y 8.4: agregaciones por categoría, solo histórico real (incluye el mes en curso hasta hoy) ----
@@ -362,8 +337,6 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
           comparativa={comparativa}
           etiquetaMesCerrado={etiquetaMesCerrado}
           patrimonioYDeuda={patrimonioYDeuda}
-          ahorroPorMes={ahorroPorMes}
-          objetivoAhorroMensual={objetivoAhorroMensual}
         />
       </main>
     </>
