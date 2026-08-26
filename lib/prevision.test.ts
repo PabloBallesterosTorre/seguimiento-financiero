@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   categoriaEfectivaId,
   construirDiagnosticoPrevision,
+  construirPeriodosConciliados,
   importeEfectivoPrevisto,
   importeEstimado,
+  mapaCategoriaPorPrevistoMasReciente,
   previstoAplicaEnMes,
   previstoYaMaterializadoEnMes,
   previstosCoincidentes,
@@ -27,7 +29,6 @@ function previsto(overrides: Partial<MovimientoPrevisto> = {}): MovimientoPrevis
     fecha_inicio: "2026-01-01",
     fecha_fin: null,
     estado: "activo",
-    movimiento_real_id: null,
     origen_calculo: "fijo",
     ...overrides,
   };
@@ -199,42 +200,67 @@ describe("previstosCoincidentes (conciliación al importar)", () => {
 });
 
 describe("previstoYaMaterializadoEnMes (evita doble conteo en el mes en curso)", () => {
-  it("no está materializado si no hay movimiento_real_id", () => {
-    expect(previstoYaMaterializadoEnMes({ movimiento_real_id: null }, 2026, 8, new Map())).toBe(false);
+  it("no está materializado si no hay ninguna conciliación", () => {
+    expect(previstoYaMaterializadoEnMes("p1", 2026, 8, new Set())).toBe(false);
   });
 
-  it("está materializado si el movimiento real vinculado cae en ese mismo mes", () => {
-    const mapa = new Map([["mov-1", "2026-08-05"]]);
-    expect(previstoYaMaterializadoEnMes({ movimiento_real_id: "mov-1" }, 2026, 8, mapa)).toBe(true);
+  it("está materializado si hay una conciliación para ese previsto y ese mismo mes", () => {
+    const periodos = construirPeriodosConciliados([{ previsto_id: "p1", periodo: "2026-08-01" }]);
+    expect(previstoYaMaterializadoEnMes("p1", 2026, 8, periodos)).toBe(true);
   });
 
-  it("no está materializado para un mes distinto al del movimiento real vinculado", () => {
-    const mapa = new Map([["mov-1", "2026-07-05"]]);
-    expect(previstoYaMaterializadoEnMes({ movimiento_real_id: "mov-1" }, 2026, 8, mapa)).toBe(false);
+  it("no está materializado para un mes distinto al de la conciliación", () => {
+    const periodos = construirPeriodosConciliados([{ previsto_id: "p1", periodo: "2026-07-01" }]);
+    expect(previstoYaMaterializadoEnMes("p1", 2026, 8, periodos)).toBe(false);
+  });
+
+  it("conciliar un mes no afecta a la conciliación de otro mes del mismo previsto", () => {
+    const periodos = construirPeriodosConciliados([
+      { previsto_id: "p1", periodo: "2026-07-01" },
+      { previsto_id: "p1", periodo: "2026-08-01" },
+    ]);
+    expect(previstoYaMaterializadoEnMes("p1", 2026, 7, periodos)).toBe(true);
+    expect(previstoYaMaterializadoEnMes("p1", 2026, 8, periodos)).toBe(true);
+    expect(previstoYaMaterializadoEnMes("p1", 2026, 9, periodos)).toBe(false);
+  });
+});
+
+describe("mapaCategoriaPorPrevistoMasReciente", () => {
+  it("usa la categoría del movimiento real de la conciliación más reciente", () => {
+    const conciliaciones = [
+      { previsto_id: "p1", periodo: "2026-06-01", movimiento_real_id: "mov-viejo" },
+      { previsto_id: "p1", periodo: "2026-08-01", movimiento_real_id: "mov-nuevo" },
+    ];
+    const categoriaPorMovimientoReal = new Map([
+      ["mov-viejo", "cat-vieja"],
+      ["mov-nuevo", "cat-nueva"],
+    ]);
+    const mapa = mapaCategoriaPorPrevistoMasReciente(conciliaciones, categoriaPorMovimientoReal);
+    expect(mapa.get("p1")).toBe("cat-nueva");
   });
 });
 
 describe("categoriaEfectivaId (fix bug 'Sin Categoría' en previsiones)", () => {
   it("usa la categoría propia si no está conciliada con ningún movimiento real", () => {
-    const p = previsto({ categoria_id: "cat-previsto", movimiento_real_id: null });
+    const p = previsto({ id: "p1", categoria_id: "cat-previsto" });
     expect(categoriaEfectivaId(p, new Map())).toBe("cat-previsto");
   });
 
   it("usa la categoría del movimiento real conciliado, no la de la previsión", () => {
-    const p = previsto({ categoria_id: null, movimiento_real_id: "mov-1" });
-    const mapa = new Map([["mov-1", "cat-del-movimiento-real"]]);
+    const p = previsto({ id: "p1", categoria_id: null });
+    const mapa = new Map([["p1", "cat-del-movimiento-real"]]);
     expect(categoriaEfectivaId(p, mapa)).toBe("cat-del-movimiento-real");
   });
 
   it("la categoría del movimiento real prevalece incluso si la previsión también tenía una", () => {
-    const p = previsto({ categoria_id: "cat-vieja-de-la-prevision", movimiento_real_id: "mov-1" });
-    const mapa = new Map([["mov-1", "cat-nueva-del-real"]]);
+    const p = previsto({ id: "p1", categoria_id: "cat-vieja-de-la-prevision" });
+    const mapa = new Map([["p1", "cat-nueva-del-real"]]);
     expect(categoriaEfectivaId(p, mapa)).toBe("cat-nueva-del-real");
   });
 
   it("si el movimiento real vinculado no tiene categoría, cae a 'sin categoría' (null)", () => {
-    const p = previsto({ categoria_id: "cat-vieja", movimiento_real_id: "mov-1" });
-    const mapa = new Map<string, string | null>([["mov-1", null]]);
+    const p = previsto({ id: "p1", categoria_id: "cat-vieja" });
+    const mapa = new Map<string, string | null>([["p1", null]]);
     expect(categoriaEfectivaId(p, mapa)).toBeNull();
   });
 });

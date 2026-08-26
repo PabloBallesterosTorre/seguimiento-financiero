@@ -13,9 +13,41 @@ export type MovimientoPrevisto = {
   fecha_inicio: string | null;
   fecha_fin: string | null;
   estado: "activo" | "pausado";
-  movimiento_real_id: string | null;
   origen_calculo: "fijo" | "media_categoria";
 };
+
+export type ConciliacionPeriodo = { previsto_id: string; periodo: string; movimiento_real_id: string };
+
+// Clave "previstoId:YYYY-MM" que identifica una instancia mensual conciliada. Se usa
+// tanto para construir el conjunto de periodos ya conciliados (previstoYaMaterializadoEnMes)
+// como, en el propio llamador, para localizar la conciliación de un previsto en un mes
+// concreto (p. ej. para desvincularla).
+export function construirPeriodosConciliados(
+  conciliaciones: Pick<ConciliacionPeriodo, "previsto_id" | "periodo">[]
+): Set<string> {
+  return new Set(conciliaciones.map((c) => `${c.previsto_id}:${c.periodo.slice(0, 7)}`));
+}
+
+// Un previsto puede estar conciliado en varios meses, cada uno potencialmente con un
+// movimiento real de categoría distinta (recategorizado a posteriori). Para mostrar
+// "la" categoría efectiva de la previsión como definición (no por mes), se usa la del
+// movimiento real conciliado más reciente.
+export function mapaCategoriaPorPrevistoMasReciente(
+  conciliaciones: ConciliacionPeriodo[],
+  categoriaPorMovimientoReal: Map<string, string | null>
+): Map<string, string | null> {
+  const masReciente = new Map<string, ConciliacionPeriodo>();
+  for (const c of conciliaciones) {
+    const actual = masReciente.get(c.previsto_id);
+    if (!actual || c.periodo > actual.periodo) masReciente.set(c.previsto_id, c);
+  }
+
+  const resultado = new Map<string, string | null>();
+  for (const [previstoId, c] of masReciente) {
+    resultado.set(previstoId, categoriaPorMovimientoReal.get(c.movimiento_real_id) ?? null);
+  }
+  return resultado;
+}
 
 export function importeEstimado(
   p: Pick<MovimientoPrevisto, "importe_estimado" | "importe_min" | "importe_max">
@@ -72,22 +104,20 @@ export function previstoAplicaEnMes(p: MovimientoPrevisto, year: number, month: 
   return false;
 }
 
-// ¿Ya se materializó este previsto para el mes (year, month) indicado? Es decir, ¿su
-// movimiento_real_id apunta a un movimiento real fechado ese mismo mes? Sirve para no
-// contar dos veces un mes que mezcla lo ya ocurrido (reflejado en el saldo real) con
-// lo previsto para lo que falta: si ya se concilió, ese importe ya está dentro del
-// saldo real de partida y no debe volver a sumarse como previsión.
+// ¿Ya se materializó este previsto para el mes (year, month) indicado? Es decir, ¿existe
+// una conciliación suya para ese periodo concreto? Sirve para no contar dos veces un mes
+// que mezcla lo ya ocurrido (reflejado en el saldo real) con lo previsto para lo que
+// falta: si ya se concilió ese mes, su importe ya está dentro del saldo real de partida y
+// no debe volver a sumarse como previsión. Cada mes se concilia de forma independiente
+// (construirPeriodosConciliados), así que conciliar uno no afecta a los demás.
 export function previstoYaMaterializadoEnMes(
-  p: Pick<MovimientoPrevisto, "movimiento_real_id">,
+  previstoId: string,
   year: number,
   month: number,
-  fechaPorMovimientoReal: Map<string, string>
+  periodosConciliados: Set<string>
 ): boolean {
-  if (!p.movimiento_real_id) return false;
-  const fecha = fechaPorMovimientoReal.get(p.movimiento_real_id);
-  if (!fecha) return false;
-  const f = new Date(`${fecha}T00:00:00`);
-  return f.getFullYear() === year && f.getMonth() + 1 === month;
+  const clave = `${previstoId}:${year}-${String(month).padStart(2, "0")}`;
+  return periodosConciliados.has(clave);
 }
 
 // Previstos recurrentes o de única vez que podrían corresponder a un movimiento (al
@@ -123,18 +153,18 @@ export function previstosCoincidentes(
   });
 }
 
-// Categoría "real" de una previsión: si ya está conciliada con un movimiento real,
-// manda la categoría de ese movimiento (puede haberse categorizado o corregido
-// después de crear la previsión), no la que tenía la previsión al crearse. Evita el
-// bug de mostrar "Sin categoría" para una previsión ya vinculada a una transacción
-// categorizada.
+// Categoría "real" de una previsión: si ya está conciliada con algún movimiento real,
+// manda la categoría de ese movimiento (puede haberse categorizado o corregido después
+// de crear la previsión), no la que tenía la previsión al crearse. Evita el bug de
+// mostrar "Sin categoría" para una previsión ya vinculada a una transacción
+// categorizada. `categoriaPorPrevisto` ya resuelve, por previsto, la categoría de su
+// conciliación más reciente (mapaCategoriaPorPrevistoMasReciente).
 export function categoriaEfectivaId(
-  previsto: Pick<MovimientoPrevisto, "categoria_id" | "movimiento_real_id">,
-  categoriaPorMovimientoReal: Map<string, string | null>
+  previsto: Pick<MovimientoPrevisto, "id" | "categoria_id">,
+  categoriaPorPrevisto: Map<string, string | null>
 ): string | null {
-  if (!previsto.movimiento_real_id) return previsto.categoria_id;
-  const categoriaDelReal = categoriaPorMovimientoReal.get(previsto.movimiento_real_id);
-  return categoriaDelReal !== undefined ? categoriaDelReal : previsto.categoria_id;
+  const categoriaConciliada = categoriaPorPrevisto.get(previsto.id);
+  return categoriaConciliada !== undefined ? categoriaConciliada : previsto.categoria_id;
 }
 
 export type CategoriaInfo = { id: string; nombre: string; categoria_padre_id: string | null };

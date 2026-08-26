@@ -76,10 +76,11 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
     if (error) return { ok: false as const, error: error.message };
 
     if (insertado) {
-      await supabase
-        .from("movimientos_previstos")
-        .update({ movimiento_real_id: insertado.id })
-        .eq("id", fila.previstoId!);
+      const periodo = `${fila.fecha.slice(0, 7)}-01`;
+      await supabase.from("previsto_conciliaciones").upsert(
+        { usuario_id: user.id, previsto_id: fila.previstoId!, periodo, movimiento_real_id: insertado.id },
+        { onConflict: "previsto_id,periodo" }
+      );
     }
   }
 

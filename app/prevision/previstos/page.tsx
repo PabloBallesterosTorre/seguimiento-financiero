@@ -8,7 +8,7 @@ import {
   eliminarMovimientoPrevisto,
 } from "../actions";
 import { NuevoPrevisto } from "./NuevoPrevisto";
-import { importeEfectivoPrevisto, categoriaEfectivaId } from "@/lib/prevision";
+import { importeEfectivoPrevisto, categoriaEfectivaId, mapaCategoriaPorPrevistoMasReciente } from "@/lib/prevision";
 import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccionPatrones";
 import { ordenarCategoriasJerarquia } from "@/lib/categorias";
 import { obtenerConfiguracion } from "@/lib/configuracion";
@@ -45,20 +45,22 @@ export default async function PrevistosPage() {
   const historico = (historicoRaw ?? []) as MovimientoHistorico[];
   const mediaPorCategoria = mapaMediaPorCategoria(historico, categoriaEfectiva);
 
-  const idsMovimientosReales = (previstos ?? [])
-    .map((p) => p.movimiento_real_id)
-    .filter((id): id is string => Boolean(id));
+  const { data: conciliaciones } = await supabase
+    .from("previsto_conciliaciones")
+    .select("previsto_id, periodo, movimiento_real_id");
 
+  const idsMovimientosReales = (conciliaciones ?? []).map((c) => c.movimiento_real_id);
   const { data: movimientosReales } =
     idsMovimientosReales.length > 0
       ? await supabase.from("movimientos").select("id, categoria_id").in("id", idsMovimientosReales)
       : { data: [] as { id: string; categoria_id: string | null }[] };
 
   const categoriaPorMovimientoReal = new Map((movimientosReales ?? []).map((m) => [m.id, m.categoria_id]));
+  const categoriaPorPrevisto = mapaCategoriaPorPrevistoMasReciente(conciliaciones ?? [], categoriaPorMovimientoReal);
   const nombrePorCategoria = new Map((categorias ?? []).map((c) => [c.id, c.nombre]));
 
-  function categoriaMostrada(p: { categoria_id: string | null; movimiento_real_id: string | null }) {
-    const categoriaId = categoriaEfectivaId(p, categoriaPorMovimientoReal);
+  function categoriaMostrada(p: { id: string; categoria_id: string | null }) {
+    const categoriaId = categoriaEfectivaId(p, categoriaPorPrevisto);
     return categoriaId ? nombrePorCategoria.get(categoriaId) ?? "—" : "—";
   }
 

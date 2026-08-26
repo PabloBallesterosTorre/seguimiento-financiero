@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import {
+  construirPeriodosConciliados,
   generarMeses,
   importeEfectivoPrevisto,
   previstoAplicaEnMes,
@@ -44,6 +45,7 @@ export default async function PrevisionPage({
     { data: cuentas },
     { data: movimientosMes },
     { data: historicoRaw },
+    { data: conciliacionesRaw },
     config,
   ] = await Promise.all([
     supabase.from("movimientos_previstos").select("*"),
@@ -60,6 +62,7 @@ export default async function PrevisionPage({
       .select("descripcion, categoria_id, tipo, importe, fecha")
       .in("tipo", ["ingreso", "gasto"])
       .gte("fecha", desde.toISOString().slice(0, 10)),
+    supabase.from("previsto_conciliaciones").select("previsto_id, periodo, movimiento_real_id"),
     user ? obtenerConfiguracion(supabase, user.id) : null,
   ]);
 
@@ -69,12 +72,8 @@ export default async function PrevisionPage({
   const saldoInicial = (cuentas ?? []).reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
   const movimientosDelMes = movimientosMes ?? [];
 
-  const idsMovimientosReales = previstos.map((p) => p.movimiento_real_id).filter((id): id is string => Boolean(id));
-  const { data: movimientosVinculados } =
-    idsMovimientosReales.length > 0
-      ? await supabase.from("movimientos").select("id, fecha").in("id", idsMovimientosReales)
-      : { data: [] as { id: string; fecha: string }[] };
-  const fechaPorMovimientoReal = new Map((movimientosVinculados ?? []).map((m) => [m.id, m.fecha]));
+  const conciliaciones = conciliacionesRaw ?? [];
+  const periodosConciliados = construirPeriodosConciliados(conciliaciones);
 
   const cuentasRemuneradas = (cuentas ?? [])
     .filter((c) => c.es_remunerada && c.tipo_interes !== null)
@@ -91,14 +90,14 @@ export default async function PrevisionPage({
     previstos,
     mesesHorizonte,
     mediaPorCategoria,
-    fechaPorMovimientoReal
+    periodosConciliados
   );
 
   const meses = mesesHorizonte.map((mes) => {
     const aplicables = previstos.filter(
       (p) =>
         previstoAplicaEnMes(p, mes.year, mes.month) &&
-        !previstoYaMaterializadoEnMes(p, mes.year, mes.month, fechaPorMovimientoReal)
+        !previstoYaMaterializadoEnMes(p.id, mes.year, mes.month, periodosConciliados)
     );
     const traspasos = aplicables.filter((p) => p.tipo === "traspaso");
     const resto = aplicables.filter((p) => p.tipo !== "traspaso");
@@ -130,9 +129,18 @@ export default async function PrevisionPage({
   });
 
   const mesActual = mesesConSaldo[0];
-  const previstosSinVincular = (mesActual?.previstosMes ?? []).filter((p) => !p.movimiento_real_id);
+  const periodoActual = mesActual ? `${mesActual.year}-${String(mesActual.month).padStart(2, "0")}-01` : null;
+  const movimientoRealPorPrevistoEnPeriodoActual = new Map(
+    conciliaciones.filter((c) => c.periodo.slice(0, 7) === periodoActual?.slice(0, 7)).map((c) => [c.previsto_id, c.movimiento_real_id])
+  );
+  // previstosMes ya excluye los conciliados para este periodo (previstoYaMaterializadoEnMes
+  // arriba), así que basta con listar los que quedan como "sin vincular".
+  const previstosSinVincular = mesActual?.previstosMes ?? [];
   const previstosVinculados = previstos.filter(
-    (p) => p.movimiento_real_id && mesActual && previstoAplicaEnMes(p, mesActual.year, mesActual.month)
+    (p) =>
+      movimientoRealPorPrevistoEnPeriodoActual.has(p.id) &&
+      mesActual &&
+      previstoAplicaEnMes(p, mesActual.year, mesActual.month)
   );
 
   return (
@@ -280,6 +288,7 @@ export default async function PrevisionPage({
               return (
                 <form key={p.id} action={vincularMovimientoPrevisto} className="flex items-center gap-2 text-sm">
                   <input type="hidden" name="previsto_id" value={p.id} />
+                  <input type="hidden" name="periodo" value={periodoActual ?? ""} />
                   <span className="w-48 truncate text-slate-600">{p.descripcion}</span>
                   <span className="text-slate-400">{formatEUR(importeEfectivoPrevisto(p, mediaPorCategoria))}</span>
                   <select
@@ -307,6 +316,7 @@ export default async function PrevisionPage({
             {previstosVinculados.map((p) => (
               <form key={p.id} action={desvincularMovimientoPrevisto} className="flex items-center gap-2 text-sm">
                 <input type="hidden" name="previsto_id" value={p.id} />
+                <input type="hidden" name="periodo" value={periodoActual ?? ""} />
                 <span className="w-48 truncate text-slate-600">{p.descripcion}</span>
                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
                   Vinculado

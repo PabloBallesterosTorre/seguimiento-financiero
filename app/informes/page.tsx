@@ -2,6 +2,7 @@ import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import {
+  construirPeriodosConciliados,
   generarMeses,
   generarMesesHaciaAtras,
   previstoAplicaEnMes,
@@ -57,6 +58,7 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
     { data: categoriasRaw },
     { data: historicoCompletoRaw },
     config,
+    { data: conciliacionesRaw },
   ] = await Promise.all([
     supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
     supabase.from("inversiones").select("valor_actual"),
@@ -73,6 +75,7 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
     supabase.from("categorias").select("id, nombre, categoria_padre_id, es_categoria_inversion"),
     supabase.from("movimientos").select("categoria_id, tipo, importe, fecha, descripcion"),
     user ? obtenerConfiguracion(supabase, user.id) : null,
+    supabase.from("previsto_conciliaciones").select("previsto_id, periodo"),
   ]);
 
   const moneda = config?.moneda_base ?? "EUR";
@@ -134,12 +137,7 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
   const historicoParaMedia = historicoCompleto.filter((m) => m.tipo !== "traspaso") as unknown as MovimientoHistorico[];
   const mediaPorCategoria = mapaMediaPorCategoria(historicoParaMedia, categoriaEfectiva);
 
-  const idsMovimientosReales = previstos.map((p) => p.movimiento_real_id).filter((id): id is string => Boolean(id));
-  const { data: movimientosVinculados } =
-    idsMovimientosReales.length > 0
-      ? await supabase.from("movimientos").select("id, fecha").in("id", idsMovimientosReales)
-      : { data: [] as { id: string; fecha: string }[] };
-  const fechaPorMovimientoReal = new Map((movimientosVinculados ?? []).map((m) => [m.id, m.fecha]));
+  const periodosConciliados = construirPeriodosConciliados(conciliacionesRaw ?? []);
 
   // ---- Horizonte: rango de histórico elegido (limitado a los datos disponibles) + previsión que le sigue ----
   const rangoMesesPasados = rango === "todos" ? 240 : Number(rango);
@@ -156,7 +154,13 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
     : [];
 
   const mesesFuturos = generarMeses(futuroMeses);
-  const interesesPorMes = calcularInteresesPrevistos(cuentasRemuneradas, previstos, mesesFuturos, mediaPorCategoria);
+  const interesesPorMes = calcularInteresesPrevistos(
+    cuentasRemuneradas,
+    previstos,
+    mesesFuturos,
+    mediaPorCategoria,
+    periodosConciliados
+  );
 
   const puntosHistoricos: PuntoProyeccion[] =
     mesesPasadosDisponibles.length > 0
@@ -181,7 +185,7 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
     amortizacionesProgramadas,
     esCategoriaInversion,
     mediaPorCategoria,
-    fechaPorMovimientoReal,
+    periodosConciliados,
   });
 
   const puntos = [...puntosHistoricos, ...puntosFuturos];
@@ -220,7 +224,7 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
     for (const p of previstos) {
       if (p.tipo === "traspaso") continue;
       if (!previstoAplicaEnMes(p, year, month)) continue;
-      if (previstoYaMaterializadoEnMes(p, year, month, fechaPorMovimientoReal)) continue;
+      if (previstoYaMaterializadoEnMes(p.id, year, month, periodosConciliados)) continue;
       const importe = importeEfectivoPrevisto(p, mediaPorCategoria);
       if (p.tipo === "ingreso") ingresos += importe;
       else {

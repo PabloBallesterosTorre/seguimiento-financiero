@@ -23,7 +23,7 @@ export function calcularInteresesPrevistos(
   previstos: MovimientoPrevisto[],
   meses: MesHorizonte[],
   mediaPorCategoria: Map<string, number> = new Map(),
-  fechaPorMovimientoReal: Map<string, string> = new Map()
+  periodosConciliados: Set<string> = new Set()
 ): Map<string, number> {
   const interesesPorMes = new Map<string, number>();
 
@@ -41,7 +41,7 @@ export function calcularInteresesPrevistos(
           p.cuenta_id === cuenta.id &&
           p.tipo !== "traspaso" &&
           previstoAplicaEnMes(p, mes.year, mes.month) &&
-          !previstoYaMaterializadoEnMes(p, mes.year, mes.month, fechaPorMovimientoReal)
+          !previstoYaMaterializadoEnMes(p.id, mes.year, mes.month, periodosConciliados)
       );
       const netoOtros = otrosPrevistos.reduce((suma, p) => {
         const importe = importeEfectivoPrevisto(p, mediaPorCategoria);

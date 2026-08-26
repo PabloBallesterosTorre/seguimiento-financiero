@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { generarMeses, generarMesesHaciaAtras, type MovimientoPrevisto } from "@/lib/prevision";
+import { construirPeriodosConciliados, generarMeses, generarMesesHaciaAtras, type MovimientoPrevisto } from "@/lib/prevision";
 import { calcularInteresesPrevistos } from "@/lib/intereses";
 import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccionPatrones";
 import {
@@ -51,6 +51,7 @@ export default async function PlanificadorPage({
     { data: historicoRaw },
     { data: historicoCompletoRaw },
     config,
+    { data: conciliacionesRaw },
   ] = await Promise.all([
     supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
     supabase.from("inversiones").select("valor_actual"),
@@ -70,6 +71,7 @@ export default async function PlanificadorPage({
       .gte("fecha", desde.toISOString().slice(0, 10)),
     supabase.from("movimientos").select("categoria_id, tipo, importe, fecha").in("tipo", ["ingreso", "gasto", "traspaso"]),
     user ? obtenerConfiguracion(supabase, user.id) : null,
+    supabase.from("previsto_conciliaciones").select("previsto_id, periodo"),
   ]);
 
   const moneda = config?.moneda_base ?? "EUR";
@@ -129,12 +131,7 @@ export default async function PlanificadorPage({
   const historico = (historicoRaw ?? []) as MovimientoHistorico[];
   const mediaPorCategoria = mapaMediaPorCategoria(historico, categoriaEfectiva);
 
-  const idsMovimientosReales = previstos.map((p) => p.movimiento_real_id).filter((id): id is string => Boolean(id));
-  const { data: movimientosVinculados } =
-    idsMovimientosReales.length > 0
-      ? await supabase.from("movimientos").select("id, fecha").in("id", idsMovimientosReales)
-      : { data: [] as { id: string; fecha: string }[] };
-  const fechaPorMovimientoReal = new Map((movimientosVinculados ?? []).map((m) => [m.id, m.fecha]));
+  const periodosConciliados = construirPeriodosConciliados(conciliacionesRaw ?? []);
 
   const meses = generarMeses(horizonteMeses);
   const interesesPorMes = calcularInteresesPrevistos(
@@ -142,7 +139,7 @@ export default async function PlanificadorPage({
     previstos,
     meses,
     mediaPorCategoria,
-    fechaPorMovimientoReal
+    periodosConciliados
   );
 
   const puntosFuturos = construirProyeccionPatrimonio({
@@ -156,7 +153,7 @@ export default async function PlanificadorPage({
     mediaPorCategoria,
     amortizacionesProgramadas,
     esCategoriaInversion,
-    fechaPorMovimientoReal,
+    periodosConciliados,
   });
 
   const historicoCompleto = (historicoCompletoRaw ?? []) as {

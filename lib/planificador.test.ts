@@ -5,7 +5,7 @@ import {
   construirProyeccionPatrimonio,
   type PuntoProyeccion,
 } from "./planificador";
-import type { MovimientoPrevisto } from "./prevision";
+import { construirPeriodosConciliados, type MovimientoPrevisto } from "./prevision";
 
 function previsto(overrides: Partial<MovimientoPrevisto> = {}): MovimientoPrevisto {
   return {
@@ -23,7 +23,6 @@ function previsto(overrides: Partial<MovimientoPrevisto> = {}): MovimientoPrevis
     fecha_inicio: "2026-01-01",
     fecha_fin: null,
     estado: "activo",
-    movimiento_real_id: null,
     origen_calculo: "fijo",
     ...overrides,
   };
@@ -126,36 +125,38 @@ describe("construirProyeccionPatrimonio", () => {
     expect(puntos[0].patrimonioConDeuda).toBeLessThan(puntos[0].patrimonioSinDeuda);
   });
 
-  it("un previsto ya conciliado con un movimiento real de ese mismo mes no se cuenta dos veces", () => {
+  it("un previsto ya conciliado para ese mismo mes no se cuenta dos veces", () => {
+    const periodosConciliados = construirPeriodosConciliados([{ previsto_id: "p1", periodo: "2026-01-01" }]);
     const puntos = construirProyeccionPatrimonio({
       meses,
       fechaInicio: "2026-01-01",
       saldoLiquidoInicial: 1000,
       valorInversionInicial: 0,
-      previstos: [previsto({ tipo: "gasto", importe_estimado: 800, movimiento_real_id: "mov-1" })],
+      previstos: [previsto({ id: "p1", tipo: "gasto", importe_estimado: 800 })],
       interesesPorMes: new Map(),
       deudas: [],
       amortizacionesProgramadas: [],
       esCategoriaInversion: () => false,
-      fechaPorMovimientoReal: new Map([["mov-1", "2026-01-05"]]),
+      periodosConciliados,
     });
 
     expect(puntos[0].flujoNeto).toBe(0);
     expect(puntos[0].saldoLiquido).toBe(1000);
   });
 
-  it("un previsto conciliado con un movimiento de OTRO mes sí se proyecta con normalidad", () => {
+  it("un previsto conciliado en OTRO mes sí se proyecta con normalidad en este", () => {
+    const periodosConciliados = construirPeriodosConciliados([{ previsto_id: "p1", periodo: "2025-12-01" }]);
     const puntos = construirProyeccionPatrimonio({
       meses,
       fechaInicio: "2026-01-01",
       saldoLiquidoInicial: 1000,
       valorInversionInicial: 0,
-      previstos: [previsto({ tipo: "gasto", importe_estimado: 800, movimiento_real_id: "mov-1" })],
+      previstos: [previsto({ id: "p1", tipo: "gasto", importe_estimado: 800 })],
       interesesPorMes: new Map(),
       deudas: [],
       amortizacionesProgramadas: [],
       esCategoriaInversion: () => false,
-      fechaPorMovimientoReal: new Map([["mov-1", "2025-12-05"]]),
+      periodosConciliados,
     });
 
     expect(puntos[0].flujoNeto).toBeCloseTo(-800, 2);

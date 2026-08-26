@@ -134,15 +134,23 @@ export async function descartarSugerenciaPrevision(formData: FormData) {
 
 export async function vincularMovimientoPrevisto(formData: FormData) {
   const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
   const previsto_id = formData.get("previsto_id") as string;
   const movimiento_id = formData.get("movimiento_id") as string;
+  const periodo = formData.get("periodo") as string;
 
-  if (!movimiento_id) return;
+  if (!movimiento_id || !periodo) return;
 
-  await supabase
-    .from("movimientos_previstos")
-    .update({ movimiento_real_id: movimiento_id })
-    .eq("id", previsto_id);
+  await supabase.from("previsto_conciliaciones").upsert(
+    { usuario_id: user.id, previsto_id, periodo, movimiento_real_id: movimiento_id },
+    { onConflict: "previsto_id,periodo" }
+  );
 
   revalidatePath("/prevision");
 }
@@ -150,11 +158,13 @@ export async function vincularMovimientoPrevisto(formData: FormData) {
 export async function desvincularMovimientoPrevisto(formData: FormData) {
   const supabase = createClient();
   const previsto_id = formData.get("previsto_id") as string;
+  const periodo = formData.get("periodo") as string;
 
   await supabase
-    .from("movimientos_previstos")
-    .update({ movimiento_real_id: null })
-    .eq("id", previsto_id);
+    .from("previsto_conciliaciones")
+    .delete()
+    .eq("previsto_id", previsto_id)
+    .eq("periodo", periodo);
 
   revalidatePath("/prevision");
 }
