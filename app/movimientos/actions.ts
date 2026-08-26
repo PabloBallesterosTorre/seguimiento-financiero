@@ -86,7 +86,7 @@ export async function crearMovimiento(formData: FormData) {
 
   revalidatePath("/movimientos");
   revalidatePath("/cuentas");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }
 
 export async function crearTraspaso(formData: FormData) {
@@ -127,7 +127,7 @@ export async function crearTraspaso(formData: FormData) {
 
   revalidatePath("/movimientos");
   revalidatePath("/cuentas");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }
 
 export async function vincularComoTraspaso(formData: FormData) {
@@ -167,7 +167,7 @@ export async function vincularComoTraspaso(formData: FormData) {
   );
 
   revalidatePath("/movimientos");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }
 
 export async function eliminarTraspaso(formData: FormData) {
@@ -217,7 +217,7 @@ export async function eliminarTraspaso(formData: FormData) {
 
   revalidatePath("/movimientos");
   revalidatePath("/cuentas");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }
 
 export async function eliminarMovimiento(formData: FormData) {
@@ -249,5 +249,5 @@ export async function eliminarMovimiento(formData: FormData) {
 
   revalidatePath("/movimientos");
   revalidatePath("/cuentas");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }

@@ -26,7 +26,7 @@ export async function crearInversion(formData: FormData) {
   });
 
   revalidatePath("/inversiones");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }
 
 export async function actualizarValorInversion(formData: FormData) {
@@ -40,7 +40,7 @@ export async function actualizarValorInversion(formData: FormData) {
     .eq("id", id);
 
   revalidatePath("/inversiones");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }
 
 export async function eliminarInversion(formData: FormData) {
@@ -50,5 +50,5 @@ export async function eliminarInversion(formData: FormData) {
   await supabase.from("inversiones").delete().eq("id", id);
 
   revalidatePath("/inversiones");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }

@@ -39,7 +39,7 @@ export async function crearCuenta(formData: FormData) {
   });
 
   revalidatePath("/cuentas");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }
 
 export async function actualizarCuenta(formData: FormData) {
@@ -49,7 +49,7 @@ export async function actualizarCuenta(formData: FormData) {
   await supabase.from("cuentas").update(leerCamposCuenta(formData)).eq("id", id);
 
   revalidatePath("/cuentas");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }
 
 export async function eliminarCuenta(formData: FormData) {
@@ -59,5 +59,5 @@ export async function eliminarCuenta(formData: FormData) {
   await supabase.from("cuentas").delete().eq("id", id);
 
   revalidatePath("/cuentas");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }

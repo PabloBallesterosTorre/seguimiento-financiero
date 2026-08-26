@@ -72,7 +72,7 @@ export async function crearDeuda(formData: FormData) {
   revalidatePath("/deudas");
   revalidatePath("/prevision");
   revalidatePath("/prevision/previstos");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
   revalidatePath("/categorias");
 }
 
@@ -83,7 +83,7 @@ export async function eliminarDeuda(formData: FormData) {
   await supabase.from("deudas").delete().eq("id", id);
 
   revalidatePath("/deudas");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }
 
 // Descuenta `importe` del capital pendiente de la deuda, recalcula la cuota si el
@@ -179,7 +179,7 @@ export async function registrarAmortizacionExtra(formData: FormData) {
 
   revalidatePath(`/deudas/${deuda_id}`);
   revalidatePath("/deudas");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }
 
 export async function marcarAmortizacionAplicada(formData: FormData) {
@@ -193,7 +193,7 @@ export async function marcarAmortizacionAplicada(formData: FormData) {
 
   revalidatePath(`/deudas/${deuda_id}`);
   revalidatePath("/deudas");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 }
 
 export async function eliminarAmortizacionExtra(formData: FormData) {

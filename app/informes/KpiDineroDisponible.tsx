@@ -9,18 +9,20 @@ export function KpiDineroDisponible({
   valor,
   variacion,
   miniSerie,
+  titulo = "Dinero disponible ahora (líquido + inversión, sin descontar deuda)",
 }: {
   moneda: string;
   valor: number;
   variacion: { abs: number; pct: number } | null;
   miniSerie: PuntoMini[];
+  titulo?: string;
 }) {
   const formatEUR = (v: number) => formatMoneda(v, moneda);
   const subiendo = variacion !== null && variacion.abs >= 0;
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-6">
-      <p className="text-sm text-slate-500">Dinero disponible ahora (líquido + inversión, sin descontar deuda)</p>
+      <p className="text-sm text-slate-500">{titulo}</p>
       <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-3xl font-semibold">{formatEUR(valor)}</p>

@@ -50,6 +50,6 @@ export async function guardarObjetivoAhorroGlobal(formData: FormData) {
     incluir_inversion_en_ahorro: formData.get("incluir_inversion_en_ahorro") === "on",
   });
 
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
   revalidatePath("/configuracion");
 }

@@ -107,7 +107,7 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
 
   revalidatePath("/movimientos");
   revalidatePath("/cuentas");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
   if (filasConPrevisto.length > 0) {
     revalidatePath("/prevision");
     revalidatePath("/prevision/previstos");
@@ -143,7 +143,7 @@ export async function importarTraspasos(cuentaId: string, filas: FilaTraspasoImp
 
   revalidatePath("/movimientos");
   revalidatePath("/cuentas");
-  revalidatePath("/dashboard");
+  revalidatePath("/home");
 
   return { ok: true as const, importados: filas.length };
 }
