@@ -1,14 +1,20 @@
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { crearCategoria, actualizarCategoria, eliminarCategoria } from "./actions";
+import { crearCategoria, actualizarCategoria, eliminarCategoria, obtenerMovimientosDeCategoria } from "./actions";
 import { CategoriasClient } from "./CategoriasClient";
+import { obtenerConfiguracion } from "@/lib/configuracion";
 
 export default async function CategoriasPage() {
   const supabase = createClient();
-  const { data: categorias } = await supabase
-    .from("categorias")
-    .select("id, nombre, categoria_padre_id, es_categoria_inversion")
-    .order("nombre");
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const [{ data: categorias }, config] = await Promise.all([
+    supabase.from("categorias").select("id, nombre, categoria_padre_id, es_categoria_inversion").order("nombre"),
+    user ? obtenerConfiguracion(supabase, user.id) : null,
+  ]);
 
   return (
     <>
@@ -21,6 +27,8 @@ export default async function CategoriasPage() {
           crearCategoria={crearCategoria}
           actualizarCategoria={actualizarCategoria}
           eliminarCategoria={eliminarCategoria}
+          obtenerMovimientosDeCategoria={obtenerMovimientosDeCategoria}
+          moneda={config?.moneda_base ?? "EUR"}
         />
       </main>
     </>
