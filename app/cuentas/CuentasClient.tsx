@@ -4,6 +4,8 @@ import { Fragment, useState } from "react";
 import { CuentaForm } from "./CuentaForm";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { formatMoneda } from "@/lib/formato";
+import { ordenarFilas, type OrdenTabla } from "@/lib/ordenTabla";
+import { useOrdenTabla, ThOrdenable } from "@/components/OrdenTabla";
 
 type Cuenta = {
   id: string;
@@ -23,15 +25,26 @@ export function CuentasClient({
   crearCuenta,
   actualizarCuenta,
   eliminarCuenta,
+  ordenInicial = null,
 }: {
   cuentas: Cuenta[];
   moneda: string;
   crearCuenta: (formData: FormData) => void;
   actualizarCuenta: (formData: FormData) => void;
   eliminarCuenta: (formData: FormData) => void;
+  ordenInicial?: OrdenTabla;
 }) {
   const formatEUR = (v: number) => formatMoneda(v, moneda);
   const [abierto, setAbierto] = useState<"nueva" | string | null>(null);
+  const { orden, toggle } = useOrdenTabla("cuentas", ordenInicial);
+
+  const cuentasOrdenadas = ordenarFilas(cuentas, orden, {
+    banco: (c) => c.banco_nombre,
+    cuenta: (c) => c.nombre,
+    tipo: (c) => c.tipo,
+    remunerada: (c) => (c.es_remunerada ? Number(c.tipo_interes ?? 0) : null),
+    saldo: (c) => Number(c.saldo_actual),
+  });
 
   return (
     <div className="space-y-8">
@@ -39,16 +52,16 @@ export function CuentasClient({
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-slate-500">
             <tr>
-              <th className="px-4 py-2 font-medium">Banco</th>
-              <th className="px-4 py-2 font-medium">Cuenta</th>
-              <th className="px-4 py-2 font-medium">Tipo</th>
-              <th className="px-4 py-2 font-medium">Remunerada</th>
-              <th className="px-4 py-2 font-medium text-right">Saldo</th>
+              <ThOrdenable columna="banco" orden={orden} onToggle={toggle}>Banco</ThOrdenable>
+              <ThOrdenable columna="cuenta" orden={orden} onToggle={toggle}>Cuenta</ThOrdenable>
+              <ThOrdenable columna="tipo" orden={orden} onToggle={toggle}>Tipo</ThOrdenable>
+              <ThOrdenable columna="remunerada" orden={orden} onToggle={toggle}>Remunerada</ThOrdenable>
+              <ThOrdenable columna="saldo" orden={orden} onToggle={toggle} align="right">Saldo</ThOrdenable>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
-            {cuentas.map((cuenta) => (
+            {cuentasOrdenadas.map((cuenta) => (
               <Fragment key={cuenta.id}>
                 <tr className="border-t border-slate-100">
                   <td className="px-4 py-2">{cuenta.banco_nombre}</td>

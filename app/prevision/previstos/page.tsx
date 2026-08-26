@@ -2,13 +2,14 @@ import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { cambiarEstadoPrevisto, crearMovimientoPrevisto, eliminarMovimientoPrevisto } from "../actions";
-import { ConfirmForm } from "@/components/ConfirmForm";
 import { NuevoPrevisto } from "./NuevoPrevisto";
 import { importeEfectivoPrevisto, categoriaEfectivaId } from "@/lib/prevision";
 import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccionPatrones";
 import { ordenarCategoriasJerarquia } from "@/lib/categorias";
 import { obtenerConfiguracion } from "@/lib/configuracion";
+import { obtenerOrdenTabla } from "@/lib/ordenTabla";
 import { formatMoneda } from "@/lib/formato";
+import { PrevistosClient, type FilaPrevisto } from "./PrevistosClient";
 
 export default async function PrevistosPage() {
   const supabase = createClient();
@@ -20,7 +21,7 @@ export default async function PrevistosPage() {
   const desde = new Date();
   desde.setFullYear(desde.getFullYear() - 3);
 
-  const [{ data: previstos }, { data: categorias }, { data: cuentas }, { data: historicoRaw }, config] =
+  const [{ data: previstos }, { data: categorias }, { data: cuentas }, { data: historicoRaw }, config, ordenInicial] =
     await Promise.all([
       supabase.from("movimientos_previstos").select("*").order("created_at", { ascending: false }),
       supabase.from("categorias").select("id, nombre, categoria_padre_id").order("nombre"),
@@ -31,6 +32,7 @@ export default async function PrevistosPage() {
         .in("tipo", ["ingreso", "gasto"])
         .gte("fecha", desde.toISOString().slice(0, 10)),
       user ? obtenerConfiguracion(supabase, user.id) : null,
+      user ? obtenerOrdenTabla(supabase, user.id, "movimientos_previstos") : null,
     ]);
 
   const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
@@ -59,6 +61,17 @@ export default async function PrevistosPage() {
   const categoriasOrdenadas = ordenarCategoriasJerarquia(categorias ?? []);
   const hoy = new Date().toISOString().slice(0, 10);
 
+  const filas: FilaPrevisto[] = (previstos ?? []).map((p) => ({
+    id: p.id,
+    descripcion: p.descripcion,
+    tipo: p.tipo,
+    categoriaNombre: categoriaMostrada(p),
+    importe: importeEfectivoPrevisto(p, mediaPorCategoria),
+    recurrenciaLabel: p.tipo_recurrencia === "unica_vez" ? "Única vez" : `Recurrente (${p.periodicidad})`,
+    estado: p.estado,
+    esMedia: p.origen_calculo === "media_categoria",
+  }));
+
   return (
     <>
       <Nav />
@@ -75,75 +88,13 @@ export default async function PrevistosPage() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-slate-500">
-              <tr>
-                <th className="px-4 py-2 font-medium">Descripción</th>
-                <th className="px-4 py-2 font-medium">Tipo</th>
-                <th className="px-4 py-2 font-medium">Categoría</th>
-                <th className="px-4 py-2 font-medium text-right">Importe</th>
-                <th className="px-4 py-2 font-medium">Recurrencia</th>
-                <th className="px-4 py-2 font-medium">Estado</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {(previstos ?? []).map((p) => (
-                <tr key={p.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2">
-                    {p.descripcion}
-                    {p.origen_calculo === "media_categoria" && (
-                      <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
-                        Media
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 capitalize">{p.tipo}</td>
-                  <td className="px-4 py-2 text-slate-500">{categoriaMostrada(p)}</td>
-                  <td className="px-4 py-2 text-right">{formatEUR(importeEfectivoPrevisto(p, mediaPorCategoria))}</td>
-                  <td className="px-4 py-2 text-slate-500">
-                    {p.tipo_recurrencia === "unica_vez" ? "Única vez" : `Recurrente (${p.periodicidad})`}
-                  </td>
-                  <td className="px-4 py-2">
-                    <form action={cambiarEstadoPrevisto} className="inline">
-                      <input type="hidden" name="id" value={p.id} />
-                      <input type="hidden" name="estado" value={p.estado === "activo" ? "pausado" : "activo"} />
-                      <button
-                        type="submit"
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          p.estado === "activo"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-slate-100 text-slate-500"
-                        }`}
-                      >
-                        {p.estado === "activo" ? "Activo" : "Pausado"}
-                      </button>
-                    </form>
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <ConfirmForm
-                      action={eliminarMovimientoPrevisto}
-                      mensaje={`¿Seguro que quieres eliminar la previsión "${p.descripcion}"? Esta acción no se puede deshacer.`}
-                    >
-                      <input type="hidden" name="id" value={p.id} />
-                      <button className="text-slate-400 hover:text-red-600" type="submit">
-                        Eliminar
-                      </button>
-                    </ConfirmForm>
-                  </td>
-                </tr>
-              ))}
-              {(previstos ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
-                    Todavía no hay movimientos previstos.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <PrevistosClient
+          filas={filas}
+          formatEUR={formatEUR}
+          cambiarEstadoPrevisto={cambiarEstadoPrevisto}
+          eliminarMovimientoPrevisto={eliminarMovimientoPrevisto}
+          ordenInicial={ordenInicial}
+        />
 
         <NuevoPrevisto
           action={crearMovimientoPrevisto}
