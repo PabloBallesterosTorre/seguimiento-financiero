@@ -19,12 +19,12 @@ export type PuntoMini = { label: string; valor: number };
 export function InformesClient({
   moneda,
   patrimonioHoy,
-  variacionAbs,
-  variacionPct,
+  variacion,
   miniSerie,
   flujoPorMes,
   mediaGasto,
   mediaIngreso,
+  mesesUsadosParaMedia,
   seriesGastoPorCategoria,
   etiquetasMeses,
   comparativa,
@@ -35,12 +35,12 @@ export function InformesClient({
 }: {
   moneda: string;
   patrimonioHoy: number;
-  variacionAbs: number;
-  variacionPct: number;
+  variacion: { abs: number; pct: number } | null;
   miniSerie: PuntoMini[];
   flujoPorMes: MesFlujo[];
   mediaGasto: CategoriaMedia[];
   mediaIngreso: CategoriaMedia[];
+  mesesUsadosParaMedia: number;
   seriesGastoPorCategoria: SerieCategoria[];
   etiquetasMeses: string[];
   comparativa: FilaComparativa[];
@@ -51,15 +51,14 @@ export function InformesClient({
 }) {
   return (
     <div className="space-y-6">
-      <KpiDineroDisponible
-        moneda={moneda}
-        valor={patrimonioHoy}
-        variacionAbs={variacionAbs}
-        variacionPct={variacionPct}
-        miniSerie={miniSerie}
-      />
+      <KpiDineroDisponible moneda={moneda} valor={patrimonioHoy} variacion={variacion} miniSerie={miniSerie} />
       <FlujoMensual moneda={moneda} datos={flujoPorMes} />
-      <MediaPorCategoria moneda={moneda} gasto={mediaGasto} ingreso={mediaIngreso} />
+      <MediaPorCategoria
+        moneda={moneda}
+        gasto={mediaGasto}
+        ingreso={mediaIngreso}
+        mesesUsados={mesesUsadosParaMedia}
+      />
       <EvolucionPorCategoria moneda={moneda} series={seriesGastoPorCategoria} etiquetas={etiquetasMeses} />
       <PrevistoVsReal moneda={moneda} filas={comparativa} etiquetaMes={etiquetaMesCerrado} />
       <PatrimonioYDeuda moneda={moneda} datos={patrimonioYDeuda} />

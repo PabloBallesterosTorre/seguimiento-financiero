@@ -191,10 +191,21 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
   const puntos = [...puntosHistoricos, ...puntosFuturos];
 
   // ---- 8.1 KPI dinero disponible ----
+  // Principio transversal (tanda 6, mejora 5): sin un mes anterior real con el que
+  // comparar, no se inventa una variación de 0% — se comunica explícitamente que no
+  // hay periodo anterior disponible.
   const patrimonioHoy = saldoLiquidoInicial + valorInversionInicial;
-  const patrimonioMesAnterior = puntosHistoricos.at(-1)?.patrimonioSinDeuda ?? patrimonioHoy;
-  const variacionAbs = patrimonioHoy - patrimonioMesAnterior;
-  const variacionPct = patrimonioMesAnterior !== 0 ? (variacionAbs / Math.abs(patrimonioMesAnterior)) * 100 : 0;
+  const patrimonioMesAnterior = puntosHistoricos.at(-1)?.patrimonioSinDeuda ?? null;
+  const variacion =
+    patrimonioMesAnterior === null
+      ? null
+      : {
+          abs: patrimonioHoy - patrimonioMesAnterior,
+          pct:
+            patrimonioMesAnterior !== 0
+              ? ((patrimonioHoy - patrimonioMesAnterior) / Math.abs(patrimonioMesAnterior)) * 100
+              : 0,
+        };
   const miniSerie = [
     ...puntosHistoricos.slice(-11).map((p) => ({ label: p.label, valor: p.patrimonioSinDeuda })),
     { label: "Hoy", valor: patrimonioHoy },
@@ -271,6 +282,9 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
   const mediaIngreso: CategoriaMedia[] = mediaPorCategoriaEnRango(ingresoPorCategoriaYMes, mesesParaCategoria.length).map(
     (m) => ({ nombre: nombreCategoria.get(m.categoriaId) ?? "Sin categoría", media: m.media })
   );
+  // La media ya se divide entre mesesParaCategoria.length (meses reales con datos, no el
+  // rango nominal elegido) — se expone aquí solo para que la interfaz lo comunique.
+  const mesesUsadosParaMedia = mesesParaCategoria.length;
 
   const etiquetasMeses = mesesParaCategoria.map((m) => `${m.year}-${String(m.month).padStart(2, "0")}`);
   const seriesGasto: SerieCategoria[] = Array.from(gastoPorCategoriaYMes.entries()).map(([categoriaId, porMes]) => ({
@@ -337,12 +351,12 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
         <InformesClient
           moneda={moneda}
           patrimonioHoy={patrimonioHoy}
-          variacionAbs={variacionAbs}
-          variacionPct={variacionPct}
+          variacion={variacion}
           miniSerie={miniSerie}
           flujoPorMes={flujoPorMes}
           mediaGasto={mediaGasto}
           mediaIngreso={mediaIngreso}
+          mesesUsadosParaMedia={mesesUsadosParaMedia}
           seriesGastoPorCategoria={seriesGasto}
           etiquetasMeses={mesesParaCategoria.map((m) => m.label || "Hoy")}
           comparativa={comparativa}

@@ -49,10 +49,12 @@ export function MediaPorCategoria({
   moneda,
   gasto,
   ingreso,
+  mesesUsados,
 }: {
   moneda: string;
   gasto: CategoriaMedia[];
   ingreso: CategoriaMedia[];
+  mesesUsados: number;
 }) {
   const formatEUR = (v: number) => formatMoneda(v, moneda);
   const [comoTabla, setComoTabla] = useState(false);
@@ -62,7 +64,10 @@ export function MediaPorCategoria({
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-medium text-slate-700">Gasto e ingreso medio mensual por categoría</h2>
-          <p className="text-xs text-slate-400">Media del periodo seleccionado (total dividido entre los meses del rango).</p>
+          <p className="text-xs text-slate-400">
+            Media de los últimos {mesesUsados} {mesesUsados === 1 ? "mes con datos" : "meses con datos"} (nunca se
+            divide entre más meses de los que realmente hay histórico).
+          </p>
         </div>
         <button
           type="button"
