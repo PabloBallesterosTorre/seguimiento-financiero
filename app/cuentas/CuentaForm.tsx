@@ -127,6 +127,10 @@ export function CuentaForm({
               <option value="trimestral">Trimestral</option>
               <option value="anual">Anual</option>
             </select>
+            <p className="mt-1 text-xs text-slate-400">
+              Solo informativo: la previsión de intereses siempre calcula y compone el interés mes
+              a mes, sin importar la periodicidad de pago real del banco.
+            </p>
           </div>
         </>
       )}
