@@ -50,6 +50,47 @@ export async function crearMovimientoPrevisto(formData: FormData) {
   revalidatePath("/prevision/previstos");
 }
 
+export async function actualizarMovimientoPrevisto(formData: FormData) {
+  const supabase = createClient();
+  const id = formData.get("id") as string;
+
+  const descripcion = formData.get("descripcion") as string;
+  const tipo = formData.get("tipo") as string;
+  const categoria_id = (formData.get("categoria_id") as string) || null;
+  const cuenta_id = (formData.get("cuenta_id") as string) || null;
+  const importe_estimado = Number(formData.get("importe_estimado") ?? 0);
+  const importeMinRaw = formData.get("importe_min") as string;
+  const importeMaxRaw = formData.get("importe_max") as string;
+  const importe_min = importeMinRaw ? Number(importeMinRaw) : null;
+  const importe_max = importeMaxRaw ? Number(importeMaxRaw) : null;
+  const tipo_recurrencia = formData.get("tipo_recurrencia") as string;
+  const periodicidad = (formData.get("periodicidad") as string) || null;
+  const fecha = (formData.get("fecha") as string) || null;
+  const fecha_inicio = (formData.get("fecha_inicio") as string) || null;
+  const fecha_fin = (formData.get("fecha_fin") as string) || null;
+
+  await supabase
+    .from("movimientos_previstos")
+    .update({
+      descripcion,
+      tipo,
+      categoria_id,
+      cuenta_id,
+      importe_estimado,
+      importe_min,
+      importe_max,
+      tipo_recurrencia,
+      periodicidad: tipo_recurrencia === "recurrente" ? periodicidad : null,
+      fecha: tipo_recurrencia === "unica_vez" ? fecha : null,
+      fecha_inicio: tipo_recurrencia === "recurrente" ? fecha_inicio : null,
+      fecha_fin: tipo_recurrencia === "recurrente" ? fecha_fin : null,
+    })
+    .eq("id", id);
+
+  revalidatePath("/prevision");
+  revalidatePath("/prevision/previstos");
+}
+
 export async function cambiarEstadoPrevisto(formData: FormData) {
   const supabase = createClient();
   const id = formData.get("id") as string;

@@ -5,28 +5,50 @@ import type { CategoriaJerarquica } from "@/lib/categorias";
 
 type Cuenta = { id: string; nombre: string; banco_nombre: string };
 
+export type PrevistoParaEditar = {
+  id: string;
+  descripcion: string;
+  tipo: "gasto" | "ingreso" | "traspaso";
+  categoria_id: string | null;
+  cuenta_id: string | null;
+  importe_estimado: number;
+  importe_min: number | null;
+  importe_max: number | null;
+  tipo_recurrencia: "unica_vez" | "recurrente";
+  periodicidad: string | null;
+  fecha: string | null;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+};
+
 export function MovimientoPrevistoForm({
   action,
   categorias,
   cuentas,
   hoy,
+  previsto,
 }: {
   action: (formData: FormData) => void;
   categorias: CategoriaJerarquica[];
   cuentas: Cuenta[];
   hoy: string;
+  previsto?: PrevistoParaEditar;
 }) {
-  const [tipo, setTipo] = useState<"gasto" | "ingreso" | "traspaso">("gasto");
-  const [tipoRecurrencia, setTipoRecurrencia] = useState<"unica_vez" | "recurrente">("recurrente");
-  const [esRango, setEsRango] = useState(false);
+  const [tipo, setTipo] = useState<"gasto" | "ingreso" | "traspaso">(previsto?.tipo ?? "gasto");
+  const [tipoRecurrencia, setTipoRecurrencia] = useState<"unica_vez" | "recurrente">(
+    previsto?.tipo_recurrencia ?? "recurrente"
+  );
+  const [esRango, setEsRango] = useState(previsto?.importe_min != null && previsto?.importe_max != null);
 
   return (
     <form action={action} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {previsto && <input type="hidden" name="id" value={previsto.id} />}
       <div className="sm:col-span-2">
         <label className="block text-xs text-slate-500">Descripción</label>
         <input
           name="descripcion"
           required
+          defaultValue={previsto?.descripcion}
           placeholder="Seguro del coche, Nómina, Ocio…"
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
@@ -50,6 +72,7 @@ export function MovimientoPrevistoForm({
           <label className="block text-xs text-slate-500">Categoría</label>
           <select
             name="categoria_id"
+            defaultValue={previsto?.categoria_id ?? ""}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="">Sin categoría</option>
@@ -63,7 +86,11 @@ export function MovimientoPrevistoForm({
       )}
       <div>
         <label className="block text-xs text-slate-500">Cuenta (opcional)</label>
-        <select name="cuenta_id" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+        <select
+          name="cuenta_id"
+          defaultValue={previsto?.cuenta_id ?? ""}
+          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        >
           <option value="">Sin especificar</option>
           {cuentas.map((c) => (
             <option key={c.id} value={c.id}>
@@ -90,6 +117,7 @@ export function MovimientoPrevistoForm({
               step="0.01"
               min="0"
               required
+              defaultValue={previsto?.importe_min ?? undefined}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
           </div>
@@ -101,6 +129,7 @@ export function MovimientoPrevistoForm({
               step="0.01"
               min="0"
               required
+              defaultValue={previsto?.importe_max ?? undefined}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
           </div>
@@ -115,6 +144,7 @@ export function MovimientoPrevistoForm({
             step="0.01"
             min="0"
             required
+            defaultValue={previsto?.importe_estimado ?? undefined}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
@@ -153,7 +183,7 @@ export function MovimientoPrevistoForm({
             name="fecha"
             type="date"
             required
-            defaultValue={hoy}
+            defaultValue={previsto?.fecha ?? hoy}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
@@ -163,6 +193,7 @@ export function MovimientoPrevistoForm({
             <label className="block text-xs text-slate-500">Periodicidad</label>
             <select
               name="periodicidad"
+              defaultValue={previsto?.periodicidad ?? "mensual"}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
               <option value="mensual">Mensual</option>
@@ -178,7 +209,7 @@ export function MovimientoPrevistoForm({
               name="fecha_inicio"
               type="date"
               required
-              defaultValue={hoy}
+              defaultValue={previsto?.fecha_inicio ?? hoy}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
           </div>
@@ -187,6 +218,7 @@ export function MovimientoPrevistoForm({
             <input
               name="fecha_fin"
               type="date"
+              defaultValue={previsto?.fecha_fin ?? undefined}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
           </div>
@@ -198,7 +230,7 @@ export function MovimientoPrevistoForm({
           type="submit"
           className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
         >
-          Añadir previsión
+          {previsto ? "Guardar cambios" : "Añadir previsión"}
         </button>
       </div>
     </form>

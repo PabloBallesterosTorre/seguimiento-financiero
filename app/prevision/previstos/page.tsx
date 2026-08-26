@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { cambiarEstadoPrevisto, crearMovimientoPrevisto, eliminarMovimientoPrevisto } from "../actions";
+import {
+  actualizarMovimientoPrevisto,
+  cambiarEstadoPrevisto,
+  crearMovimientoPrevisto,
+  eliminarMovimientoPrevisto,
+} from "../actions";
 import { NuevoPrevisto } from "./NuevoPrevisto";
 import { importeEfectivoPrevisto, categoriaEfectivaId } from "@/lib/prevision";
 import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccionPatrones";
@@ -65,8 +70,18 @@ export default async function PrevistosPage() {
     descripcion: p.descripcion,
     tipo: p.tipo,
     categoriaNombre: categoriaMostrada(p),
+    categoria_id: p.categoria_id,
+    cuenta_id: p.cuenta_id,
     importe: importeEfectivoPrevisto(p, mediaPorCategoria),
+    importe_estimado: Number(p.importe_estimado),
+    importe_min: p.importe_min !== null ? Number(p.importe_min) : null,
+    importe_max: p.importe_max !== null ? Number(p.importe_max) : null,
     recurrenciaLabel: p.tipo_recurrencia === "unica_vez" ? "Única vez" : `Recurrente (${p.periodicidad})`,
+    tipo_recurrencia: p.tipo_recurrencia,
+    periodicidad: p.periodicidad,
+    fecha: p.fecha,
+    fecha_inicio: p.fecha_inicio,
+    fecha_fin: p.fecha_fin,
     estado: p.estado,
     esMedia: p.origen_calculo === "media_categoria",
   }));
@@ -87,19 +102,23 @@ export default async function PrevistosPage() {
           </div>
         </div>
 
-        <PrevistosClient
-          filas={filas}
-          moneda={moneda}
-          cambiarEstadoPrevisto={cambiarEstadoPrevisto}
-          eliminarMovimientoPrevisto={eliminarMovimientoPrevisto}
-          ordenInicial={ordenInicial}
-        />
-
         <NuevoPrevisto
           action={crearMovimientoPrevisto}
           categorias={categoriasOrdenadas}
           cuentas={cuentas ?? []}
           hoy={hoy}
+        />
+
+        <PrevistosClient
+          filas={filas}
+          moneda={moneda}
+          categorias={categoriasOrdenadas}
+          cuentas={cuentas ?? []}
+          hoy={hoy}
+          cambiarEstadoPrevisto={cambiarEstadoPrevisto}
+          actualizarMovimientoPrevisto={actualizarMovimientoPrevisto}
+          eliminarMovimientoPrevisto={eliminarMovimientoPrevisto}
+          ordenInicial={ordenInicial}
         />
 
         <p className="text-sm text-slate-400">
