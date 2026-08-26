@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { detectarMediaPorCategoria, detectarPatronesPorDescripcion } from "@/lib/deteccionPatrones";
 import { crearMovimientoPrevisto, descartarSugerenciaPrevision } from "../actions";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { agruparIngresosPrimero } from "@/lib/ordenTabla";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
 
@@ -74,16 +75,22 @@ export default async function SugerenciasPage() {
     (descartados ?? []).filter((d) => d.nivel === "categoria").map((d) => d.clave)
   );
 
-  const candidatosDescripcion = detectarPatronesPorDescripcion(historico).filter(
+  const candidatosDescripcionSinOrdenar = detectarPatronesPorDescripcion(historico).filter(
     (c) =>
       !clavesExistentesDescripcion.has(c.clave) &&
       !descripcionesDescartadas.has(c.clave) &&
       !(c.categoria_id && clavesExistentesCategoria.has(`${c.tipo}:${c.categoria_id}`))
   );
-  const clavesCubiertas = new Set(candidatosDescripcion.map((c) => c.clave));
-  const candidatosCategoria = detectarMediaPorCategoria(historico, clavesCubiertas, categoriaEfectiva).filter(
-    (c) => !clavesExistentesCategoria.has(c.clave) && !categoriasDescartadas.has(c.clave)
-  );
+  const clavesCubiertas = new Set(candidatosDescripcionSinOrdenar.map((c) => c.clave));
+  const candidatosCategoriaSinOrdenar = detectarMediaPorCategoria(
+    historico,
+    clavesCubiertas,
+    categoriaEfectiva
+  ).filter((c) => !clavesExistentesCategoria.has(c.clave) && !categoriasDescartadas.has(c.clave));
+
+  // Orden por defecto (mejora 7): ingresos antes que gastos.
+  const candidatosDescripcion = agruparIngresosPrimero(candidatosDescripcionSinOrdenar, (c) => c.tipo);
+  const candidatosCategoria = agruparIngresosPrimero(candidatosCategoriaSinOrdenar, (c) => c.tipo);
 
   return (
     <>

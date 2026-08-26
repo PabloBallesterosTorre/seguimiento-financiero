@@ -4,7 +4,7 @@ import { Fragment, useState } from "react";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { MovimientoPrevistoForm } from "./MovimientoPrevistoForm";
 import { formatMoneda } from "@/lib/formato";
-import { ordenarFilas, type OrdenTabla } from "@/lib/ordenTabla";
+import { agruparIngresosPrimero, ordenarFilas, type OrdenTabla } from "@/lib/ordenTabla";
 import { useOrdenTabla, ThOrdenable } from "@/components/OrdenTabla";
 import type { CategoriaJerarquica } from "@/lib/categorias";
 
@@ -56,7 +56,10 @@ export function PrevistosClient({
   const { orden, toggle } = useOrdenTabla("movimientos_previstos", ordenInicial);
   const [editando, setEditando] = useState<string | null>(null);
 
-  const filasOrdenadas = ordenarFilas(filas, orden, {
+  // Orden por defecto (sin elección manual del usuario): ingresos antes que gastos.
+  // Un orden de columna elegido por el usuario siempre prevalece sobre este agrupado.
+  const filasBase = orden ? filas : agruparIngresosPrimero(filas, (f) => f.tipo);
+  const filasOrdenadas = ordenarFilas(filasBase, orden, {
     descripcion: (f) => f.descripcion,
     tipo: (f) => f.tipo,
     categoria: (f) => f.categoriaNombre,

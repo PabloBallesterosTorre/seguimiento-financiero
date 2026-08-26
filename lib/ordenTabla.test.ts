@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ordenarFilas } from "./ordenTabla";
+import { agruparIngresosPrimero, ordenarFilas } from "./ordenTabla";
 
 type Fila = { id: string; nombre: string; importe: number | null };
 
@@ -48,6 +48,38 @@ describe("ordenarFilas", () => {
   it("no muta el array original", () => {
     const copia = [...filas];
     ordenarFilas(filas, { columna: "nombre", direccion: "asc" }, accesores);
+    expect(filas).toEqual(copia);
+  });
+});
+
+describe("agruparIngresosPrimero", () => {
+  type FilaTipo = { id: string; tipo: string };
+
+  it("pone los ingresos antes que los gastos, y los traspasos al final", () => {
+    const filas: FilaTipo[] = [
+      { id: "g1", tipo: "gasto" },
+      { id: "t1", tipo: "traspaso" },
+      { id: "i1", tipo: "ingreso" },
+      { id: "g2", tipo: "gasto" },
+      { id: "i2", tipo: "ingreso" },
+    ];
+
+    const resultado = agruparIngresosPrimero(filas, (f) => f.tipo);
+    expect(resultado.map((f) => f.id)).toEqual(["i1", "i2", "g1", "g2", "t1"]);
+  });
+
+  it("mantiene el orden relativo dentro de cada grupo (sort estable)", () => {
+    const filas: FilaTipo[] = [
+      { id: "g-b", tipo: "gasto" },
+      { id: "g-a", tipo: "gasto" },
+    ];
+    expect(agruparIngresosPrimero(filas, (f) => f.tipo).map((f) => f.id)).toEqual(["g-b", "g-a"]);
+  });
+
+  it("no muta el array original", () => {
+    const filas: FilaTipo[] = [{ id: "g1", tipo: "gasto" }, { id: "i1", tipo: "ingreso" }];
+    const copia = [...filas];
+    agruparIngresosPrimero(filas, (f) => f.tipo);
     expect(filas).toEqual(copia);
   });
 });

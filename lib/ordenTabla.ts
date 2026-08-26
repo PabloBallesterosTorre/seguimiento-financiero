@@ -32,6 +32,16 @@ export function ordenarFilas<T>(
   });
 }
 
+// Orden por defecto del módulo de previsión (tanda 5, mejora 7): ingresos antes que
+// gastos (y traspasos al final), manteniendo el orden relativo que ya traían las
+// filas dentro de cada grupo (sort estable) como criterio secundario. Se usa solo
+// cuando el usuario no ha elegido un orden de columna manual — ese, si existe,
+// siempre prevalece sobre este agrupado por defecto.
+export function agruparIngresosPrimero<T>(filas: T[], tipoDe: (fila: T) => string): T[] {
+  const prioridad: Record<string, number> = { ingreso: 0, gasto: 1, traspaso: 2 };
+  return [...filas].sort((a, b) => (prioridad[tipoDe(a)] ?? 3) - (prioridad[tipoDe(b)] ?? 3));
+}
+
 // Orden guardado por el usuario para una tabla concreta (null si nunca ha elegido
 // uno para esa tabla, en cuyo caso la pantalla usa su orden por defecto).
 export async function obtenerOrdenTabla(

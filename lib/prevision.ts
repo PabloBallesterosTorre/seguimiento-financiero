@@ -236,7 +236,17 @@ export function construirDiagnosticoPrevision(
     return { categoriaId: padreClave, nombre: nombreDe(padreClave), importesPorMes, mediaPorMes, subfilas };
   });
 
-  return filas.sort((a, b) => a.nombre.localeCompare(b.nombre));
+  // Orden por defecto (tanda 5, mejora 7): ingresos antes que gastos. Una categoría
+  // no está ligada a un único tipo, así que se agrupa por el signo del total del
+  // periodo (positivo = se comporta como ingreso, negativo = como gasto); dentro de
+  // cada grupo, alfabético como ya hacía antes.
+  const sumaTotal = (fila: FilaDiagnostico) => fila.importesPorMes.reduce((s, v) => s + v, 0);
+  return filas.sort((a, b) => {
+    const grupoA = sumaTotal(a) >= 0 ? 0 : 1;
+    const grupoB = sumaTotal(b) >= 0 ? 0 : 1;
+    if (grupoA !== grupoB) return grupoA - grupoB;
+    return a.nombre.localeCompare(b.nombre);
+  });
 }
 
 export function generarMeses(n: number): { year: number; month: number; label: string }[] {
