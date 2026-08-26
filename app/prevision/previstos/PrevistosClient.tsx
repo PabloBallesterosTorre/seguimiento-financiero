@@ -1,6 +1,7 @@
 "use client";
 
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { formatMoneda } from "@/lib/formato";
 import { ordenarFilas, type OrdenTabla } from "@/lib/ordenTabla";
 import { useOrdenTabla, ThOrdenable } from "@/components/OrdenTabla";
 
@@ -17,17 +18,18 @@ export type FilaPrevisto = {
 
 export function PrevistosClient({
   filas,
-  formatEUR,
+  moneda,
   cambiarEstadoPrevisto,
   eliminarMovimientoPrevisto,
   ordenInicial = null,
 }: {
   filas: FilaPrevisto[];
-  formatEUR: (v: number) => string;
+  moneda: string;
   cambiarEstadoPrevisto: (formData: FormData) => void;
   eliminarMovimientoPrevisto: (formData: FormData) => void;
   ordenInicial?: OrdenTabla;
 }) {
+  const formatEUR = (v: number) => formatMoneda(v, moneda);
   const { orden, toggle } = useOrdenTabla("movimientos_previstos", ordenInicial);
 
   const filasOrdenadas = ordenarFilas(filas, orden, {

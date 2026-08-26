@@ -8,7 +8,6 @@ import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccion
 import { ordenarCategoriasJerarquia } from "@/lib/categorias";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { obtenerOrdenTabla } from "@/lib/ordenTabla";
-import { formatMoneda } from "@/lib/formato";
 import { PrevistosClient, type FilaPrevisto } from "./PrevistosClient";
 
 export default async function PrevistosPage() {
@@ -35,7 +34,7 @@ export default async function PrevistosPage() {
       user ? obtenerOrdenTabla(supabase, user.id, "movimientos_previstos") : null,
     ]);
 
-  const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
+  const moneda = config?.moneda_base ?? "EUR";
   const categoriaPadreId = new Map((categorias ?? []).map((c) => [c.id, c.categoria_padre_id as string | null]));
   const categoriaEfectiva = (id: string) => categoriaPadreId.get(id) ?? id;
   const historico = (historicoRaw ?? []) as MovimientoHistorico[];
@@ -90,7 +89,7 @@ export default async function PrevistosPage() {
 
         <PrevistosClient
           filas={filas}
-          formatEUR={formatEUR}
+          moneda={moneda}
           cambiarEstadoPrevisto={cambiarEstadoPrevisto}
           eliminarMovimientoPrevisto={eliminarMovimientoPrevisto}
           ordenInicial={ordenInicial}
