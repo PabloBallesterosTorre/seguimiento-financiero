@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { detectarMediaPorCategoria, detectarPatronesPorDescripcion } from "@/lib/deteccionPatrones";
-import { crearMovimientoPrevisto } from "../actions";
+import { crearMovimientoPrevisto, descartarSugerenciaPrevision } from "../actions";
+import { ConfirmForm } from "@/components/ConfirmForm";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
 
@@ -24,16 +25,18 @@ export default async function SugerenciasPage() {
   const desde = new Date();
   desde.setFullYear(desde.getFullYear() - 3);
 
-  const [{ data: movimientos }, { data: categorias }, { data: previstos }, config] = await Promise.all([
-    supabase
-      .from("movimientos")
-      .select("descripcion, categoria_id, tipo, importe, fecha")
-      .in("tipo", ["ingreso", "gasto"])
-      .gte("fecha", desde.toISOString().slice(0, 10)),
-    supabase.from("categorias").select("id, nombre, categoria_padre_id"),
-    supabase.from("movimientos_previstos").select("descripcion, categoria_id, tipo, tipo_recurrencia, estado"),
-    user ? obtenerConfiguracion(supabase, user.id) : null,
-  ]);
+  const [{ data: movimientos }, { data: categorias }, { data: previstos }, { data: descartados }, config] =
+    await Promise.all([
+      supabase
+        .from("movimientos")
+        .select("descripcion, categoria_id, tipo, importe, fecha")
+        .in("tipo", ["ingreso", "gasto"])
+        .gte("fecha", desde.toISOString().slice(0, 10)),
+      supabase.from("categorias").select("id, nombre, categoria_padre_id"),
+      supabase.from("movimientos_previstos").select("descripcion, categoria_id, tipo, tipo_recurrencia, estado"),
+      supabase.from("patrones_descartados").select("nivel, clave"),
+      user ? obtenerConfiguracion(supabase, user.id) : null,
+    ]);
 
   const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
 
@@ -64,14 +67,22 @@ export default async function SugerenciasPage() {
       .map((p) => `${p.tipo}:${p.categoria_id}`)
   );
 
+  const descripcionesDescartadas = new Set(
+    (descartados ?? []).filter((d) => d.nivel === "descripcion").map((d) => d.clave)
+  );
+  const categoriasDescartadas = new Set(
+    (descartados ?? []).filter((d) => d.nivel === "categoria").map((d) => d.clave)
+  );
+
   const candidatosDescripcion = detectarPatronesPorDescripcion(historico).filter(
     (c) =>
       !clavesExistentesDescripcion.has(c.clave) &&
+      !descripcionesDescartadas.has(c.clave) &&
       !(c.categoria_id && clavesExistentesCategoria.has(`${c.tipo}:${c.categoria_id}`))
   );
   const clavesCubiertas = new Set(candidatosDescripcion.map((c) => c.clave));
   const candidatosCategoria = detectarMediaPorCategoria(historico, clavesCubiertas, categoriaEfectiva).filter(
-    (c) => !clavesExistentesCategoria.has(c.clave)
+    (c) => !clavesExistentesCategoria.has(c.clave) && !categoriasDescartadas.has(c.clave)
   );
 
   return (
@@ -98,19 +109,10 @@ export default async function SugerenciasPage() {
           ) : (
             <div className="space-y-3">
               {candidatosDescripcion.map((c) => (
-                <form
+                <div
                   key={c.clave}
-                  action={crearMovimientoPrevisto}
                   className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-100 px-4 py-3"
                 >
-                  <input type="hidden" name="descripcion" value={c.descripcion} />
-                  <input type="hidden" name="tipo" value={c.tipo} />
-                  <input type="hidden" name="categoria_id" value={c.categoria_id ?? ""} />
-                  <input type="hidden" name="importe_estimado" value={c.importe_estimado} />
-                  <input type="hidden" name="tipo_recurrencia" value="recurrente" />
-                  <input type="hidden" name="periodicidad" value={c.periodicidad} />
-                  <input type="hidden" name="fecha_inicio" value={c.proximaFecha} />
-                  <input type="hidden" name="origen_calculo" value="fijo" />
                   <div>
                     <p className="text-sm font-medium text-slate-900">{c.descripcion}</p>
                     <p className="text-xs text-slate-500">
@@ -121,14 +123,38 @@ export default async function SugerenciasPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium">{formatEUR(c.importe_estimado)}</span>
-                    <button
-                      type="submit"
-                      className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700"
+                    <ConfirmForm
+                      action={descartarSugerenciaPrevision}
+                      mensaje={`¿Descartar "${c.descripcion}" como patrón? No se te volverá a proponer.`}
+                      className="inline"
                     >
-                      Aceptar
-                    </button>
+                      <input type="hidden" name="nivel" value="descripcion" />
+                      <input type="hidden" name="clave" value={c.clave} />
+                      <button
+                        type="submit"
+                        className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50"
+                      >
+                        Descartar
+                      </button>
+                    </ConfirmForm>
+                    <form action={crearMovimientoPrevisto}>
+                      <input type="hidden" name="descripcion" value={c.descripcion} />
+                      <input type="hidden" name="tipo" value={c.tipo} />
+                      <input type="hidden" name="categoria_id" value={c.categoria_id ?? ""} />
+                      <input type="hidden" name="importe_estimado" value={c.importe_estimado} />
+                      <input type="hidden" name="tipo_recurrencia" value="recurrente" />
+                      <input type="hidden" name="periodicidad" value={c.periodicidad} />
+                      <input type="hidden" name="fecha_inicio" value={c.proximaFecha} />
+                      <input type="hidden" name="origen_calculo" value="fijo" />
+                      <button
+                        type="submit"
+                        className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700"
+                      >
+                        Aceptar
+                      </button>
+                    </form>
                   </div>
-                </form>
+                </div>
               ))}
             </div>
           )}
@@ -150,33 +176,48 @@ export default async function SugerenciasPage() {
                 const nombre = nombreCategoria.get(c.categoria_id) ?? "Categoría eliminada";
                 const hoy = new Date().toISOString().slice(0, 10);
                 return (
-                  <form
+                  <div
                     key={c.clave}
-                    action={crearMovimientoPrevisto}
                     className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-100 px-4 py-3"
                   >
-                    <input type="hidden" name="descripcion" value={`Media mensual — ${nombre}`} />
-                    <input type="hidden" name="tipo" value={c.tipo} />
-                    <input type="hidden" name="categoria_id" value={c.categoria_id} />
-                    <input type="hidden" name="importe_estimado" value={c.importe_estimado} />
-                    <input type="hidden" name="tipo_recurrencia" value="recurrente" />
-                    <input type="hidden" name="periodicidad" value="mensual" />
-                    <input type="hidden" name="fecha_inicio" value={hoy} />
-                    <input type="hidden" name="origen_calculo" value="media_categoria" />
                     <div>
                       <p className="text-sm font-medium text-slate-900">{nombre}</p>
                       <p className="text-xs text-slate-500">Media sobre {c.mesesConDatos} meses con datos</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium">{formatEUR(c.importe_estimado)}/mes</span>
-                      <button
-                        type="submit"
-                        className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700"
+                      <ConfirmForm
+                        action={descartarSugerenciaPrevision}
+                        mensaje={`¿Descartar "${nombre}" como patrón? No se te volverá a proponer.`}
+                        className="inline"
                       >
-                        Aceptar
-                      </button>
+                        <input type="hidden" name="nivel" value="categoria" />
+                        <input type="hidden" name="clave" value={c.clave} />
+                        <button
+                          type="submit"
+                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50"
+                        >
+                          Descartar
+                        </button>
+                      </ConfirmForm>
+                      <form action={crearMovimientoPrevisto}>
+                        <input type="hidden" name="descripcion" value={`Media mensual — ${nombre}`} />
+                        <input type="hidden" name="tipo" value={c.tipo} />
+                        <input type="hidden" name="categoria_id" value={c.categoria_id} />
+                        <input type="hidden" name="importe_estimado" value={c.importe_estimado} />
+                        <input type="hidden" name="tipo_recurrencia" value="recurrente" />
+                        <input type="hidden" name="periodicidad" value="mensual" />
+                        <input type="hidden" name="fecha_inicio" value={hoy} />
+                        <input type="hidden" name="origen_calculo" value="media_categoria" />
+                        <button
+                          type="submit"
+                          className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700"
+                        >
+                          Aceptar
+                        </button>
+                      </form>
                     </div>
-                  </form>
+                  </div>
                 );
               })}
             </div>

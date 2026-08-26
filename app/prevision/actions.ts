@@ -112,6 +112,26 @@ export async function eliminarMovimientoPrevisto(formData: FormData) {
   revalidatePath("/prevision/previstos");
 }
 
+export async function descartarSugerenciaPrevision(formData: FormData) {
+  const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const nivel = formData.get("nivel") as string;
+  const clave = formData.get("clave") as string;
+
+  await supabase.from("patrones_descartados").upsert(
+    { usuario_id: user.id, nivel, clave },
+    { onConflict: "usuario_id,nivel,clave" }
+  );
+
+  revalidatePath("/prevision/sugerencias");
+}
+
 export async function vincularMovimientoPrevisto(formData: FormData) {
   const supabase = createClient();
   const previsto_id = formData.get("previsto_id") as string;
