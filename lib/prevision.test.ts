@@ -6,6 +6,7 @@ import {
   importeEstimado,
   previstoAplicaEnMes,
   previstoYaMaterializadoEnMes,
+  previstosCoincidentes,
   type CategoriaInfo,
   type MovimientoPrevisto,
 } from "./prevision";
@@ -114,6 +115,86 @@ describe("previstoAplicaEnMes", () => {
     expect(previstoAplicaEnMes(p, 2026, 9)).toBe(true);
     expect(previstoAplicaEnMes(p, 2027, 3)).toBe(true);
     expect(previstoAplicaEnMes(p, 2026, 6)).toBe(false);
+  });
+});
+
+describe("previstosCoincidentes (conciliación al importar)", () => {
+  it("encuentra un previsto con mismo tipo, categoría, mes e importe parecido", () => {
+    const p = previsto({ tipo: "gasto", categoria_id: "hipoteca", importe_estimado: 800, fecha_inicio: "2026-01-01" });
+    const candidatos = previstosCoincidentes(
+      { fecha: "2026-03-05", tipo: "gasto", categoria_id: "hipoteca", importe: -805 },
+      [p]
+    );
+    expect(candidatos).toHaveLength(1);
+  });
+
+  it("no coincide si la categoría es distinta", () => {
+    const p = previsto({ tipo: "gasto", categoria_id: "hipoteca", importe_estimado: 800, fecha_inicio: "2026-01-01" });
+    const candidatos = previstosCoincidentes(
+      { fecha: "2026-03-05", tipo: "gasto", categoria_id: "ocio", importe: -800 },
+      [p]
+    );
+    expect(candidatos).toHaveLength(0);
+  });
+
+  it("no coincide si el importe se aleja demasiado del estimado", () => {
+    const p = previsto({ tipo: "gasto", categoria_id: "ocio", importe_estimado: 100, fecha_inicio: "2026-01-01" });
+    const candidatos = previstosCoincidentes(
+      { fecha: "2026-03-05", tipo: "gasto", categoria_id: "ocio", importe: -400 },
+      [p]
+    );
+    expect(candidatos).toHaveLength(0);
+  });
+
+  it("con importe en rango (min/max), coincide dentro del rango", () => {
+    const p = previsto({
+      tipo: "gasto",
+      categoria_id: "ocio",
+      importe_estimado: 0,
+      importe_min: 50,
+      importe_max: 150,
+      fecha_inicio: "2026-01-01",
+    });
+    const candidatos = previstosCoincidentes(
+      { fecha: "2026-03-05", tipo: "gasto", categoria_id: "ocio", importe: -140 },
+      [p]
+    );
+    expect(candidatos).toHaveLength(1);
+  });
+
+  it("no coincide si el previsto no aplica ese mes (única vez de otro mes)", () => {
+    const p = previsto({
+      tipo: "gasto",
+      categoria_id: "ocio",
+      importe_estimado: 100,
+      tipo_recurrencia: "unica_vez",
+      fecha: "2026-06-15",
+      fecha_inicio: null,
+    });
+    const candidatos = previstosCoincidentes(
+      { fecha: "2026-03-05", tipo: "gasto", categoria_id: "ocio", importe: -100 },
+      [p]
+    );
+    expect(candidatos).toHaveLength(0);
+  });
+
+  it("devuelve varios candidatos si más de un previsto coincide (ambigüedad, no elige uno)", () => {
+    const p1 = previsto({ id: "p1", tipo: "gasto", categoria_id: "ocio", importe_estimado: 100, fecha_inicio: "2026-01-01" });
+    const p2 = previsto({ id: "p2", tipo: "gasto", categoria_id: "ocio", importe_estimado: 110, fecha_inicio: "2026-01-01" });
+    const candidatos = previstosCoincidentes(
+      { fecha: "2026-03-05", tipo: "gasto", categoria_id: "ocio", importe: -105 },
+      [p1, p2]
+    );
+    expect(candidatos.map((c) => c.id).sort()).toEqual(["p1", "p2"]);
+  });
+
+  it("sin categoría en el movimiento, no propone nada", () => {
+    const p = previsto({ tipo: "gasto", categoria_id: "ocio", importe_estimado: 100, fecha_inicio: "2026-01-01" });
+    const candidatos = previstosCoincidentes(
+      { fecha: "2026-03-05", tipo: "gasto", categoria_id: null, importe: -100 },
+      [p]
+    );
+    expect(candidatos).toHaveLength(0);
   });
 });
 

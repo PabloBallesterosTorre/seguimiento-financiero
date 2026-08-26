@@ -13,6 +13,7 @@ import {
 } from "@/lib/importarCsv";
 import { sugerirCategoria, type ReglaCategorizacion } from "@/lib/categorizacion";
 import type { CategoriaJerarquica } from "@/lib/categorias";
+import { importeEstimado, previstosCoincidentes, type MovimientoPrevisto } from "@/lib/prevision";
 import { importarMovimientos, importarTraspasos, type FilaImportar } from "./actions";
 import { formatMoneda } from "@/lib/formato";
 
@@ -67,12 +68,14 @@ export function ImportarCSV({
   categorias,
   reglas,
   existentes,
+  previstos,
   moneda,
 }: {
   cuentas: Cuenta[];
   categorias: CategoriaJerarquica[];
   reglas: ReglaCategorizacion[];
   existentes: MovimientoExistente[];
+  previstos: MovimientoPrevisto[];
   moneda: string;
 }) {
   const router = useRouter();
@@ -306,6 +309,7 @@ export function ImportarCSV({
         importe: importe ?? 0,
         tipo,
         categoria_id,
+        previstoId: null,
         original: fila.join(" | "),
         valida,
         esTraspaso,
@@ -322,8 +326,12 @@ export function ImportarCSV({
 
   function actualizarCategoria(index: number, categoriaId: string) {
     setFilasPreview((prev) =>
-      prev.map((f, i) => (i === index ? { ...f, categoria_id: categoriaId || null } : f))
+      prev.map((f, i) => (i === index ? { ...f, categoria_id: categoriaId || null, previstoId: null } : f))
     );
+  }
+
+  function actualizarPrevisto(index: number, previstoId: string) {
+    setFilasPreview((prev) => prev.map((f, i) => (i === index ? { ...f, previstoId: previstoId || null } : f)));
   }
 
   function toggleTraspaso(index: number, esTraspaso: boolean) {
@@ -364,15 +372,16 @@ export function ImportarCSV({
       filasNormales.length > 0
         ? importarMovimientos(
             cuentaId,
-            filasNormales.map(({ fecha, descripcion, importe, tipo, categoria_id }) => ({
+            filasNormales.map(({ fecha, descripcion, importe, tipo, categoria_id, previstoId }) => ({
               fecha,
               descripcion,
               importe,
               tipo,
               categoria_id,
+              previstoId,
             }))
           )
-        : Promise.resolve({ ok: true as const, importados: 0 }),
+        : Promise.resolve({ ok: true as const, importados: 0, conciliados: 0 }),
       filasTraspaso.length > 0
         ? importarTraspasos(
             cuentaId,
@@ -392,7 +401,9 @@ export function ImportarCSV({
       const partes = [];
       if (respuestaMovimientos.importados > 0) partes.push(`${respuestaMovimientos.importados} movimientos`);
       if (respuestaTraspasos.importados > 0) partes.push(`${respuestaTraspasos.importados} traspasos`);
-      setResultado(`Se han importado ${partes.join(" y ")} correctamente.`);
+      const conciliados = "conciliados" in respuestaMovimientos ? respuestaMovimientos.conciliados : 0;
+      const sufijo = conciliados > 0 ? ` (${conciliados} conciliados con su previsión)` : "";
+      setResultado(`Se han importado ${partes.join(" y ")} correctamente${sufijo}.`);
       setPaso("subir");
       setNombreArchivo("");
       setTextoOriginal("");
@@ -797,18 +808,46 @@ export function ImportarCSV({
                               ))}
                             </select>
                           ) : (
-                            <select
-                              value={fila.categoria_id ?? ""}
-                              onChange={(e) => actualizarCategoria(index, e.target.value)}
-                              className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
-                            >
-                              <option value="">Sin categoría</option>
-                              {categorias.map((cat) => (
-                                <option key={cat.id} value={cat.id}>
-                                  {cat.label}
-                                </option>
-                              ))}
-                            </select>
+                            <>
+                              <select
+                                value={fila.categoria_id ?? ""}
+                                onChange={(e) => actualizarCategoria(index, e.target.value)}
+                                className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                              >
+                                <option value="">Sin categoría</option>
+                                {categorias.map((cat) => (
+                                  <option key={cat.id} value={cat.id}>
+                                    {cat.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {(() => {
+                                const candidatos = previstosCoincidentes(
+                                  {
+                                    fecha: fila.fecha,
+                                    tipo: fila.tipo,
+                                    categoria_id: fila.categoria_id,
+                                    importe: fila.importe,
+                                  },
+                                  previstos
+                                );
+                                if (candidatos.length === 0) return null;
+                                return (
+                                  <select
+                                    value={fila.previstoId ?? ""}
+                                    onChange={(e) => actualizarPrevisto(index, e.target.value)}
+                                    className="w-full rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-xs text-sky-700"
+                                  >
+                                    <option value="">¿Es una previsión? — no vincular</option>
+                                    {candidatos.map((p) => (
+                                      <option key={p.id} value={p.id}>
+                                        {p.descripcion} ({formatEUR(importeEstimado(p))})
+                                      </option>
+                                    ))}
+                                  </select>
+                                );
+                              })()}
+                            </>
                           )}
                         </div>
                       )}

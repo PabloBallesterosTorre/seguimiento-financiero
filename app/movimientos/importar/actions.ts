@@ -11,6 +11,7 @@ export type FilaImportar = {
   importe: number;
   tipo: "ingreso" | "gasto";
   categoria_id: string | null;
+  previstoId?: string | null;
 };
 
 export type FilaTraspasoImportar = {
@@ -30,21 +31,57 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
   if (!user) return { ok: false as const, error: "No autenticado." };
   if (filas.length === 0) return { ok: false as const, error: "No hay filas que importar." };
 
-  const { error } = await supabase.from("movimientos").insert(
-    filas.map((fila) => ({
-      usuario_id: user.id,
-      cuenta_id,
-      fecha: fila.fecha,
-      descripcion: fila.descripcion,
-      importe: fila.importe,
-      tipo: fila.tipo,
-      categoria_id: fila.categoria_id,
-      origen: "importado",
-      moneda: "EUR",
-    }))
-  );
+  // Las filas sin previsión que conciliar se insertan en bloque (rápido). Las que sí
+  // se van a conciliar se insertan una a una para poder recuperar su id real y
+  // vincularlo al Movimiento previsto correspondiente, sin depender de que el orden
+  // de un insert múltiple con RETURNING coincida con el de entrada.
+  const filasConPrevisto = filas.filter((f) => f.previstoId);
+  const filasSinPrevisto = filas.filter((f) => !f.previstoId);
 
-  if (error) return { ok: false as const, error: error.message };
+  if (filasSinPrevisto.length > 0) {
+    const { error } = await supabase.from("movimientos").insert(
+      filasSinPrevisto.map((fila) => ({
+        usuario_id: user.id,
+        cuenta_id,
+        fecha: fila.fecha,
+        descripcion: fila.descripcion,
+        importe: fila.importe,
+        tipo: fila.tipo,
+        categoria_id: fila.categoria_id,
+        origen: "importado",
+        moneda: "EUR",
+      }))
+    );
+
+    if (error) return { ok: false as const, error: error.message };
+  }
+
+  for (const fila of filasConPrevisto) {
+    const { data: insertado, error } = await supabase
+      .from("movimientos")
+      .insert({
+        usuario_id: user.id,
+        cuenta_id,
+        fecha: fila.fecha,
+        descripcion: fila.descripcion,
+        importe: fila.importe,
+        tipo: fila.tipo,
+        categoria_id: fila.categoria_id,
+        origen: "importado",
+        moneda: "EUR",
+      })
+      .select("id")
+      .single();
+
+    if (error) return { ok: false as const, error: error.message };
+
+    if (insertado) {
+      await supabase
+        .from("movimientos_previstos")
+        .update({ movimiento_real_id: insertado.id })
+        .eq("id", fila.previstoId!);
+    }
+  }
 
   const totalImporte = filas.reduce((suma, fila) => suma + fila.importe, 0);
 
@@ -70,8 +107,12 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
   revalidatePath("/movimientos");
   revalidatePath("/cuentas");
   revalidatePath("/dashboard");
+  if (filasConPrevisto.length > 0) {
+    revalidatePath("/prevision");
+    revalidatePath("/prevision/previstos");
+  }
 
-  return { ok: true as const, importados: filas.length };
+  return { ok: true as const, importados: filas.length, conciliados: filasConPrevisto.length };
 }
 
 export async function importarTraspasos(cuentaId: string, filas: FilaTraspasoImportar[]) {

@@ -90,6 +90,39 @@ export function previstoYaMaterializadoEnMes(
   return f.getFullYear() === year && f.getMonth() + 1 === month;
 }
 
+// Previstos recurrentes o de única vez que podrían corresponder a un movimiento (al
+// importar o dar de alta a mano): mismo tipo, misma categoría exacta, aplicable en el
+// mes de la fecha del movimiento, e importe "parecido". Puede haber más de un
+// candidato (ambigüedad) — el llamador decide cómo resolverlo (p. ej. mostrando un
+// desplegable con todos y dejando "sin vincular" como opción por defecto), nunca se
+// elige uno automáticamente aquí.
+export function previstosCoincidentes(
+  movimiento: { fecha: string; tipo: "ingreso" | "gasto"; categoria_id: string | null; importe: number },
+  previstos: MovimientoPrevisto[]
+): MovimientoPrevisto[] {
+  if (movimiento.categoria_id === null) return [];
+
+  const f = new Date(`${movimiento.fecha}T00:00:00`);
+  const year = f.getFullYear();
+  const month = f.getMonth() + 1;
+  const importeAbs = Math.abs(movimiento.importe);
+
+  return previstos.filter((p) => {
+    if (p.tipo !== movimiento.tipo) return false;
+    if (p.categoria_id !== movimiento.categoria_id) return false;
+    if (!previstoAplicaEnMes(p, year, month)) return false;
+
+    if (p.importe_min != null && p.importe_max != null) {
+      const margen = (p.importe_max - p.importe_min) * 0.15;
+      return importeAbs >= p.importe_min - margen && importeAbs <= p.importe_max + margen;
+    }
+
+    const estimado = importeEstimado(p);
+    const tolerancia = Math.max(estimado * 0.3, 20);
+    return Math.abs(importeAbs - estimado) <= tolerancia;
+  });
+}
+
 // Categoría "real" de una previsión: si ya está conciliada con un movimiento real,
 // manda la categoría de ese movimiento (puede haberse categorizado o corregido
 // después de crear la previsión), no la que tenía la previsión al crearse. Evita el
