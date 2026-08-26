@@ -13,7 +13,7 @@ export type CandidatoDescripcion = {
   descripcion: string;
   categoria_id: string | null;
   tipo: "ingreso" | "gasto";
-  periodicidad: "mensual" | "anual";
+  periodicidad: "mensual" | "bimensual" | "trimestral" | "semestral" | "anual";
   importe_estimado: number;
   ocurrencias: number;
   proximaFecha: string;
@@ -68,8 +68,11 @@ export function detectarPatronesPorDescripcion(movimientos: MovimientoHistorico[
     }
     const avgDelta = deltas.reduce((s, d) => s + d, 0) / deltas.length;
 
-    let periodicidad: "mensual" | "anual" | null = null;
+    let periodicidad: CandidatoDescripcion["periodicidad"] | null = null;
     if (avgDelta >= 25 && avgDelta <= 35 && ordenado.length >= 3) periodicidad = "mensual";
+    else if (avgDelta >= 50 && avgDelta <= 70 && ordenado.length >= 3) periodicidad = "bimensual";
+    else if (avgDelta >= 80 && avgDelta <= 100 && ordenado.length >= 2) periodicidad = "trimestral";
+    else if (avgDelta >= 165 && avgDelta <= 195 && ordenado.length >= 2) periodicidad = "semestral";
     else if (avgDelta >= 330 && avgDelta <= 400 && ordenado.length >= 2) periodicidad = "anual";
     if (!periodicidad) continue;
 

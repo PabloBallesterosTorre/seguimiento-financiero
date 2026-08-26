@@ -34,6 +34,39 @@ describe("detectarPatronesPorDescripcion", () => {
     expect(candidato?.importe_estimado).toBeCloseTo(2100, 0);
   });
 
+  it("detecta un patrón bimensual con al menos 3 repeticiones ~60 días", () => {
+    const movimientos = ["2026-01-10", "2026-03-11", "2026-05-09", "2026-07-08"].map((fecha) =>
+      mov({ descripcion: "Cuota Gimnasio Bimensual", categoria_id: "gimnasio", importe: -80, fecha })
+    );
+
+    const candidatos = detectarPatronesPorDescripcion(movimientos);
+    const candidato = candidatos.find((c) => c.clave === "gasto:cuota gimnasio bimensual");
+
+    expect(candidato?.periodicidad).toBe("bimensual");
+  });
+
+  it("detecta un patrón trimestral con al menos 2 repeticiones ~90 días", () => {
+    const movimientos = ["2026-01-15", "2026-04-15", "2026-07-14"].map((fecha) =>
+      mov({ descripcion: "Seguro Trimestral", categoria_id: "seguro", importe: -120, fecha })
+    );
+
+    const candidatos = detectarPatronesPorDescripcion(movimientos);
+    const candidato = candidatos.find((c) => c.clave === "gasto:seguro trimestral");
+
+    expect(candidato?.periodicidad).toBe("trimestral");
+  });
+
+  it("detecta un patrón semestral con al menos 2 repeticiones ~180 días", () => {
+    const movimientos = ["2026-01-01", "2026-06-30", "2026-12-27"].map((fecha) =>
+      mov({ descripcion: "Suscripcion Semestral", categoria_id: "suscripcion", importe: -60, fecha })
+    );
+
+    const candidatos = detectarPatronesPorDescripcion(movimientos);
+    const candidato = candidatos.find((c) => c.clave === "gasto:suscripcion semestral");
+
+    expect(candidato?.periodicidad).toBe("semestral");
+  });
+
   it("detecta un patrón anual/estacional con al menos 2 repeticiones ~365 días", () => {
     const movimientos = [
       mov({ descripcion: "Seguro coche", categoria_id: "seguro", importe: -450, fecha: "2024-06-10" }),

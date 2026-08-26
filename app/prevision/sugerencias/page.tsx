@@ -6,6 +6,14 @@ import { crearMovimientoPrevisto } from "../actions";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
 
+const ETIQUETA_PERIODICIDAD: Record<string, string> = {
+  mensual: "Mensual",
+  bimensual: "Bimensual",
+  trimestral: "Trimestral",
+  semestral: "Semestral",
+  anual: "Anual",
+};
+
 export default async function SugerenciasPage() {
   const supabase = createClient();
 
@@ -106,7 +114,7 @@ export default async function SugerenciasPage() {
                   <div>
                     <p className="text-sm font-medium text-slate-900">{c.descripcion}</p>
                     <p className="text-xs text-slate-500">
-                      {c.periodicidad === "mensual" ? "Mensual" : "Anual"} · {c.ocurrencias} repeticiones ·{" "}
+                      {ETIQUETA_PERIODICIDAD[c.periodicidad]} · {c.ocurrencias} repeticiones ·{" "}
                       {c.categoria_id ? nombreCategoria.get(c.categoria_id) ?? "Categoría eliminada" : "Sin categoría"}{" "}
                       · próxima estimada {c.proximaFecha}
                     </p>

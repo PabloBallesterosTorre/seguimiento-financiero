@@ -8,7 +8,7 @@ export type MovimientoPrevisto = {
   importe_min: number | null;
   importe_max: number | null;
   tipo_recurrencia: "unica_vez" | "recurrente";
-  periodicidad: "mensual" | "anual" | null;
+  periodicidad: "mensual" | "bimensual" | "trimestral" | "semestral" | "anual" | null;
   fecha: string | null;
   fecha_inicio: string | null;
   fecha_fin: string | null;
@@ -64,6 +64,9 @@ export function previstoAplicaEnMes(p: MovimientoPrevisto, year: number, month: 
   }
 
   if (p.periodicidad === "mensual") return true;
+  if (p.periodicidad === "bimensual") return (actualYM - inicioYM) % 2 === 0;
+  if (p.periodicidad === "trimestral") return (actualYM - inicioYM) % 3 === 0;
+  if (p.periodicidad === "semestral") return (actualYM - inicioYM) % 6 === 0;
   if (p.periodicidad === "anual") return inicio.getMonth() + 1 === month;
 
   return false;

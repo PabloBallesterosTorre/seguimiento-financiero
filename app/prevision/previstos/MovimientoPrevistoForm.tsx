@@ -166,6 +166,9 @@ export function MovimientoPrevistoForm({
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
               <option value="mensual">Mensual</option>
+              <option value="bimensual">Bimensual (cada 2 meses)</option>
+              <option value="trimestral">Trimestral (cada 3 meses)</option>
+              <option value="semestral">Semestral (cada 6 meses)</option>
               <option value="anual">Anual (estacional)</option>
             </select>
           </div>

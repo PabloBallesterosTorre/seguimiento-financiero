@@ -91,6 +91,30 @@ describe("previstoAplicaEnMes", () => {
     expect(previstoAplicaEnMes(p, 2027, 6)).toBe(true);
     expect(previstoAplicaEnMes(p, 2026, 7)).toBe(false);
   });
+
+  it("recurrente bimensual: aplica cada 2 meses desde fecha_inicio", () => {
+    const p = previsto({ periodicidad: "bimensual", fecha_inicio: "2026-01-01" });
+    expect(previstoAplicaEnMes(p, 2026, 1)).toBe(true);
+    expect(previstoAplicaEnMes(p, 2026, 2)).toBe(false);
+    expect(previstoAplicaEnMes(p, 2026, 3)).toBe(true);
+    expect(previstoAplicaEnMes(p, 2026, 4)).toBe(false);
+  });
+
+  it("recurrente trimestral: aplica cada 3 meses desde fecha_inicio", () => {
+    const p = previsto({ periodicidad: "trimestral", fecha_inicio: "2026-02-01" });
+    expect(previstoAplicaEnMes(p, 2026, 2)).toBe(true);
+    expect(previstoAplicaEnMes(p, 2026, 4)).toBe(false);
+    expect(previstoAplicaEnMes(p, 2026, 5)).toBe(true);
+    expect(previstoAplicaEnMes(p, 2026, 8)).toBe(true);
+  });
+
+  it("recurrente semestral: aplica cada 6 meses desde fecha_inicio", () => {
+    const p = previsto({ periodicidad: "semestral", fecha_inicio: "2026-03-01" });
+    expect(previstoAplicaEnMes(p, 2026, 3)).toBe(true);
+    expect(previstoAplicaEnMes(p, 2026, 9)).toBe(true);
+    expect(previstoAplicaEnMes(p, 2027, 3)).toBe(true);
+    expect(previstoAplicaEnMes(p, 2026, 6)).toBe(false);
+  });
 });
 
 describe("previstoYaMaterializadoEnMes (evita doble conteo en el mes en curso)", () => {
