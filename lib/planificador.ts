@@ -28,6 +28,7 @@ export type PuntoProyeccion = {
   valorInversion: number;
   patrimonioConDeuda: number;
   patrimonioSinDeuda: number;
+  esReal: boolean;
 };
 
 // Proyecta, mes a mes, el flujo de caja (previstos + intereses de cuentas
@@ -117,6 +118,7 @@ export function construirProyeccionPatrimonio(params: {
       valorInversion,
       patrimonioConDeuda: saldoLiquido + valorInversion - deudaPendiente,
       patrimonioSinDeuda: saldoLiquido + valorInversion,
+      esReal: false,
     };
   });
 }
@@ -129,10 +131,13 @@ export type PuntoAnual = {
   valorInversion: number;
   patrimonioConDeuda: number;
   patrimonioSinDeuda: number;
+  esReal: boolean;
 };
 
 // Vista anual: una fila por año, con el flujo neto sumado y el resto de magnitudes
-// tomadas al cierre (último mes del horizonte incluido en ese año).
+// tomadas al cierre (último mes del horizonte incluido en ese año). Un año que mezcla
+// meses reales y proyectados (el año en curso) se marca esReal según su último mes,
+// ya que los saldos mostrados son los de ese cierre.
 export function agruparPorAnio(puntos: PuntoProyeccion[]): PuntoAnual[] {
   const porAnio = new Map<number, PuntoProyeccion[]>();
   for (const p of puntos) {
@@ -152,6 +157,116 @@ export function agruparPorAnio(puntos: PuntoProyeccion[]): PuntoAnual[] {
         valorInversion: ultimo.valorInversion,
         patrimonioConDeuda: ultimo.patrimonioConDeuda,
         patrimonioSinDeuda: ultimo.patrimonioSinDeuda,
+        esReal: ultimo.esReal,
       };
     });
+}
+
+function finDeMesISO(year: number, month: number): string {
+  const ultimoDia = new Date(year, month, 0).getDate();
+  return `${year}-${String(month).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
+}
+
+function mesesEntre(fechaInicioISO: string, year: number, month: number): number {
+  const [anioIni, mesIni] = fechaInicioISO.split("-").map(Number);
+  return year * 12 + (month - 1) - (anioIni * 12 + (mesIni - 1));
+}
+
+export type MovimientoParaHistorico = {
+  fecha: string;
+  importe: number;
+  categoria_id: string | null;
+  tipo: "ingreso" | "gasto" | "traspaso";
+};
+
+export type DeudaParaHistorico = {
+  id: string;
+  capital_inicial: number;
+  fecha_inicio: string;
+  cuota: number;
+  tipo_interes: number | null;
+  valor_residual: number;
+};
+
+// Reconstruye, mes a mes, lo que de verdad pasó: líquido (saldo actual menos todos los
+// movimientos posteriores a cada cierre de mes — exacto, viene del histórico real),
+// deuda pendiente (simulando cada deuda hacia adelante desde su capital inicial y
+// fecha de inicio, con las amortizaciones extra ya aplicadas en su fecha real — exacto
+// salvo que la cuota haya cambiado por una reducción de cuota anterior al periodo
+// simulado, ya que solo se guarda la cuota vigente, no su historial) e inversión
+// aportada (suma acumulada de aportaciones categorizadas como inversión — coste, NO
+// el valor de mercado histórico, que no se registra en ningún sitio).
+export function construirHistoricoPatrimonio(params: {
+  meses: MesProyeccion[];
+  movimientos: MovimientoParaHistorico[];
+  saldoLiquidoActual: number;
+  deudas: DeudaParaHistorico[];
+  amortizacionesAplicadasPorDeuda: Map<string, AmortizacionProgramadaDeuda[]>;
+  esCategoriaInversion: (categoriaId: string | null) => boolean;
+}): PuntoProyeccion[] {
+  const { meses, movimientos, saldoLiquidoActual, deudas, amortizacionesAplicadasPorDeuda, esCategoriaInversion } =
+    params;
+
+  const finesDeMes = meses.map((mes) => finDeMesISO(mes.year, mes.month));
+
+  const liquidoPorMes = finesDeMes.map((fin) => {
+    const sumaPosterior = movimientos.filter((m) => m.fecha > fin).reduce((s, m) => s + Number(m.importe), 0);
+    return saldoLiquidoActual - sumaPosterior;
+  });
+
+  const inversionPorMes = finesDeMes.map((fin) =>
+    movimientos
+      .filter((m) => m.tipo === "gasto" && esCategoriaInversion(m.categoria_id) && m.fecha <= fin)
+      .reduce((s, m) => s + Math.abs(Number(m.importe)), 0)
+  );
+
+  const ultimoMes = meses[meses.length - 1];
+  const simulacionesPorDeuda = deudas.map((deuda) => {
+    const programadas = (amortizacionesAplicadasPorDeuda.get(deuda.id) ?? []).map((a) => ({
+      fecha: a.fecha,
+      importe: a.importe,
+      tipoReduccion: a.tipoReduccion,
+    }));
+    const mesesNecesarios = ultimoMes ? mesesEntre(deuda.fecha_inicio, ultimoMes.year, ultimoMes.month) : 0;
+    const resultado = simularConProgramadas(
+      deuda.capital_inicial,
+      deuda.tipo_interes ?? 0,
+      deuda.cuota,
+      deuda.valor_residual,
+      deuda.fecha_inicio,
+      programadas,
+      Math.max(mesesNecesarios + 1, 600)
+    );
+    return { filas: resultado.filas, fechaInicio: deuda.fecha_inicio, valorResidual: deuda.valor_residual };
+  });
+
+  const deudaPorMes = meses.map((mes) =>
+    simulacionesPorDeuda.reduce((suma, d) => {
+      const indice = mesesEntre(d.fechaInicio, mes.year, mes.month);
+      if (indice < 0) return suma; // la deuda todavía no existía ese mes
+      const fila = d.filas[indice];
+      const saldo = fila ? fila.saldo : d.valorResidual;
+      return suma + saldo;
+    }, 0)
+  );
+
+  return meses.map((mes, i) => {
+    const finAnterior = i === 0 ? null : finesDeMes[i - 1];
+    const flujoNeto = movimientos
+      .filter((m) => m.fecha <= finesDeMes[i] && (finAnterior === null || m.fecha > finAnterior))
+      .reduce((s, m) => s + Number(m.importe), 0);
+
+    return {
+      year: mes.year,
+      month: mes.month,
+      label: mes.label,
+      flujoNeto,
+      saldoLiquido: liquidoPorMes[i],
+      deudaPendiente: deudaPorMes[i],
+      valorInversion: inversionPorMes[i],
+      patrimonioConDeuda: liquidoPorMes[i] + inversionPorMes[i] - deudaPorMes[i],
+      patrimonioSinDeuda: liquidoPorMes[i] + inversionPorMes[i],
+      esReal: true,
+    };
+  });
 }

@@ -1,10 +1,18 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { generarMeses, type MovimientoPrevisto } from "@/lib/prevision";
+import { generarMeses, generarMesesHaciaAtras, type MovimientoPrevisto } from "@/lib/prevision";
 import { calcularInteresesPrevistos } from "@/lib/intereses";
 import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccionPatrones";
-import { construirProyeccionPatrimonio, agruparPorAnio, type DeudaParaProyeccion } from "@/lib/planificador";
+import {
+  construirProyeccionPatrimonio,
+  construirHistoricoPatrimonio,
+  agruparPorAnio,
+  type DeudaParaProyeccion,
+  type DeudaParaHistorico,
+  type AmortizacionProgramadaDeuda,
+  type PuntoProyeccion,
+} from "@/lib/planificador";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
 
@@ -36,20 +44,23 @@ export default async function PlanificadorPage({
     { data: cuentas },
     { data: inversiones },
     { data: deudasRaw },
-    { data: amortizacionesRaw },
+    { data: amortizacionesFuturasRaw },
+    { data: amortizacionesAplicadasRaw },
     { data: previstosRaw },
     { data: categorias },
     { data: historicoRaw },
+    { data: historicoCompletoRaw },
     config,
   ] = await Promise.all([
     supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
     supabase.from("inversiones").select("valor_actual"),
-    supabase.from("deudas").select("id, capital_pendiente, cuota, tipo_interes, valor_residual"),
+    supabase.from("deudas").select("id, capital_inicial, capital_pendiente, cuota, tipo_interes, valor_residual, fecha_inicio"),
     supabase
       .from("amortizaciones_extra")
       .select("deuda_id, fecha, importe, tipo_reduccion")
       .eq("aplicado", false)
       .gt("fecha", hoy),
+    supabase.from("amortizaciones_extra").select("deuda_id, fecha, importe, tipo_reduccion").eq("aplicado", true),
     supabase.from("movimientos_previstos").select("*"),
     supabase.from("categorias").select("id, es_categoria_inversion, categoria_padre_id"),
     supabase
@@ -57,6 +68,7 @@ export default async function PlanificadorPage({
       .select("descripcion, categoria_id, tipo, importe, fecha")
       .in("tipo", ["ingreso", "gasto"])
       .gte("fecha", desde.toISOString().slice(0, 10)),
+    supabase.from("movimientos").select("categoria_id, tipo, importe, fecha").in("tipo", ["ingreso", "gasto", "traspaso"]),
     user ? obtenerConfiguracion(supabase, user.id) : null,
   ]);
 
@@ -75,12 +87,33 @@ export default async function PlanificadorPage({
     valor_residual: Number(d.valor_residual ?? 0),
   }));
 
-  const amortizacionesProgramadas = (amortizacionesRaw ?? []).map((a) => ({
+  const amortizacionesProgramadas = (amortizacionesFuturasRaw ?? []).map((a) => ({
     deuda_id: a.deuda_id,
     fecha: a.fecha,
     importe: Number(a.importe),
     tipoReduccion: a.tipo_reduccion as "reducir_cuota" | "reducir_plazo",
   }));
+
+  const deudasHistorico: DeudaParaHistorico[] = (deudasRaw ?? []).map((d) => ({
+    id: d.id,
+    capital_inicial: Number(d.capital_inicial),
+    fecha_inicio: d.fecha_inicio,
+    cuota: Number(d.cuota),
+    tipo_interes: d.tipo_interes === null ? null : Number(d.tipo_interes),
+    valor_residual: Number(d.valor_residual ?? 0),
+  }));
+
+  const amortizacionesAplicadasPorDeuda = new Map<string, AmortizacionProgramadaDeuda[]>();
+  for (const a of amortizacionesAplicadasRaw ?? []) {
+    const fila = {
+      deuda_id: a.deuda_id,
+      fecha: a.fecha,
+      importe: Number(a.importe),
+      tipoReduccion: a.tipo_reduccion as "reducir_cuota" | "reducir_plazo",
+    };
+    if (!amortizacionesAplicadasPorDeuda.has(a.deuda_id)) amortizacionesAplicadasPorDeuda.set(a.deuda_id, []);
+    amortizacionesAplicadasPorDeuda.get(a.deuda_id)!.push(fila);
+  }
 
   const cuentasRemuneradas = (cuentas ?? [])
     .filter((c) => c.es_remunerada && c.tipo_interes !== null)
@@ -99,7 +132,7 @@ export default async function PlanificadorPage({
   const meses = generarMeses(horizonteMeses);
   const interesesPorMes = calcularInteresesPrevistos(cuentasRemuneradas, previstos, meses, mediaPorCategoria);
 
-  const puntos = construirProyeccionPatrimonio({
+  const puntosFuturos = construirProyeccionPatrimonio({
     meses,
     fechaInicio: hoy,
     saldoLiquidoInicial,
@@ -112,6 +145,37 @@ export default async function PlanificadorPage({
     esCategoriaInversion,
   });
 
+  const historicoCompleto = (historicoCompletoRaw ?? []) as {
+    categoria_id: string | null;
+    tipo: "ingreso" | "gasto" | "traspaso";
+    importe: number;
+    fecha: string;
+  }[];
+  const primeraFecha = historicoCompleto.reduce(
+    (min, m) => (min === null || m.fecha < min ? m.fecha : min),
+    null as string | null
+  );
+
+  const mesesPasadosSolicitados = generarMesesHaciaAtras(horizonteMeses);
+  const mesesPasadosDisponibles = primeraFecha
+    ? mesesPasadosSolicitados.filter(
+        (m) => `${m.year}-${String(m.month).padStart(2, "0")}` >= primeraFecha.slice(0, 7)
+      )
+    : [];
+
+  const puntosHistoricos: PuntoProyeccion[] =
+    mesesPasadosDisponibles.length > 0
+      ? construirHistoricoPatrimonio({
+          meses: mesesPasadosDisponibles,
+          movimientos: historicoCompleto,
+          saldoLiquidoActual: saldoLiquidoInicial,
+          deudas: deudasHistorico,
+          amortizacionesAplicadasPorDeuda,
+          esCategoriaInversion,
+        })
+      : [];
+
+  const puntos = [...puntosHistoricos, ...puntosFuturos];
   const filasAnuales = vista === "anual" ? agruparPorAnio(puntos) : [];
 
   return (
@@ -125,10 +189,12 @@ export default async function PlanificadorPage({
           </Link>
         </div>
         <p className="text-sm text-slate-400">
-          Proyección conjunta de líquido, deuda e inversión combinando la previsión de flujo de
-          caja, el calendario de amortización de tus deudas y los intereses previstos de cuentas
-          remuneradas. La inversión proyectada solo suma las aportaciones previstas — no asume
-          ninguna rentabilidad futura.
+          Evolución de líquido, deuda e inversión, hacia atrás (reconstruido a partir de tu
+          histórico real) y hacia adelante (previsión de flujo de caja, calendario de amortización
+          e intereses de cuentas remuneradas). El horizonte elegido aplica en ambas direcciones.
+          Para los meses pasados, la inversión es lo aportado hasta esa fecha (coste, no el valor
+          de mercado histórico, que no se registra); para hoy y los meses futuros, es el valor real
+          de hoy más las aportaciones previstas — no se asume ninguna rentabilidad futura.
         </p>
 
         <div className="rounded-lg border border-slate-200 bg-white p-6">
@@ -161,9 +227,10 @@ export default async function PlanificadorPage({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">Proyección</span>
-            <p className="text-sm text-slate-500">a partir de aquí, todo es previsión, no histórico</p>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-500">Real</span>
+            <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-700">Proyección</span>
+            <p className="text-sm text-slate-500">cada fila indica si es histórico real o previsión</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex rounded-md border border-slate-300 text-sm">
@@ -200,6 +267,7 @@ export default async function PlanificadorPage({
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-slate-500">
               <tr>
+                <th className="whitespace-nowrap px-4 py-2 font-medium"></th>
                 <th className="whitespace-nowrap px-4 py-2 font-medium">{vista === "mensual" ? "Mes" : "Año"}</th>
                 <th className="whitespace-nowrap px-4 py-2 text-right font-medium">
                   {vista === "mensual" ? "Flujo neto" : "Flujo neto anual"}
@@ -214,7 +282,19 @@ export default async function PlanificadorPage({
             <tbody>
               {vista === "mensual"
                 ? puntos.map((p) => (
-                    <tr key={`${p.year}-${p.month}`} className="border-t border-slate-100">
+                    <tr
+                      key={`${p.year}-${p.month}`}
+                      className={`border-t border-slate-100 ${p.esReal ? "" : "bg-sky-50/40"}`}
+                    >
+                      <td className="whitespace-nowrap px-2 py-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            p.esReal ? "bg-slate-100 text-slate-500" : "bg-sky-100 text-sky-700"
+                          }`}
+                        >
+                          {p.esReal ? "Real" : "Proy."}
+                        </span>
+                      </td>
                       <td className="whitespace-nowrap px-4 py-2 text-slate-600">{p.label}</td>
                       <td
                         className={`whitespace-nowrap px-4 py-2 text-right ${
@@ -235,7 +315,16 @@ export default async function PlanificadorPage({
                     </tr>
                   ))
                 : filasAnuales.map((f) => (
-                    <tr key={f.year} className="border-t border-slate-100">
+                    <tr key={f.year} className={`border-t border-slate-100 ${f.esReal ? "" : "bg-sky-50/40"}`}>
+                      <td className="whitespace-nowrap px-2 py-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            f.esReal ? "bg-slate-100 text-slate-500" : "bg-sky-100 text-sky-700"
+                          }`}
+                        >
+                          {f.esReal ? "Real" : "Proy."}
+                        </span>
+                      </td>
                       <td className="whitespace-nowrap px-4 py-2 text-slate-600">{f.year}</td>
                       <td
                         className={`whitespace-nowrap px-4 py-2 text-right ${

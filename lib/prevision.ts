@@ -201,3 +201,23 @@ export function generarMeses(n: number): { year: number; month: number; label: s
 
   return meses;
 }
+
+// n meses anteriores al mes actual, en orden cronológico ascendente (el más antiguo
+// primero, terminando justo antes del mes actual) — para la vista histórica del
+// Planificador, complementaria a `generarMeses`.
+export function generarMesesHaciaAtras(n: number): { year: number; month: number; label: string }[] {
+  const hoy = new Date();
+  const meses = [];
+
+  for (let i = n; i >= 1; i--) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    const raw = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(d);
+    meses.push({
+      year: d.getFullYear(),
+      month: d.getMonth() + 1,
+      label: raw.charAt(0).toUpperCase() + raw.slice(1),
+    });
+  }
+
+  return meses;
+}

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { agruparPorAnio, construirProyeccionPatrimonio, type PuntoProyeccion } from "./planificador";
+import {
+  agruparPorAnio,
+  construirHistoricoPatrimonio,
+  construirProyeccionPatrimonio,
+  type PuntoProyeccion,
+} from "./planificador";
 import type { MovimientoPrevisto } from "./prevision";
 
 function previsto(overrides: Partial<MovimientoPrevisto> = {}): MovimientoPrevisto {
@@ -162,6 +167,7 @@ describe("agruparPorAnio", () => {
       valorInversion: 0,
       patrimonioConDeuda: 0,
       patrimonioSinDeuda: 0,
+      esReal: false,
       ...overrides,
     };
   }
@@ -178,5 +184,109 @@ describe("agruparPorAnio", () => {
     expect(anual).toHaveLength(2);
     expect(anual[0]).toMatchObject({ year: 2026, flujoNetoAnual: 200, saldoLiquido: 1200, patrimonioConDeuda: 1000 });
     expect(anual[1]).toMatchObject({ year: 2027, flujoNetoAnual: 50, saldoLiquido: 1250, patrimonioConDeuda: 1050 });
+  });
+
+  it("un año que mezcla meses reales y proyectados hereda esReal de su último mes", () => {
+    const puntos = [
+      punto({ year: 2026, month: 6, esReal: true }),
+      punto({ year: 2026, month: 7, esReal: false }),
+    ];
+    expect(agruparPorAnio(puntos)[0].esReal).toBe(false);
+  });
+});
+
+describe("construirHistoricoPatrimonio", () => {
+  const mesesPasados = [
+    { year: 2026, month: 1, label: "Enero 2026" },
+    { year: 2026, month: 2, label: "Febrero 2026" },
+    { year: 2026, month: 3, label: "Marzo 2026" },
+  ];
+
+  it("reconstruye el líquido histórico restando del saldo actual los movimientos posteriores", () => {
+    const movimientos = [
+      { fecha: "2026-01-15", importe: 1000, categoria_id: null, tipo: "ingreso" as const },
+      { fecha: "2026-02-10", importe: -200, categoria_id: null, tipo: "gasto" as const },
+      { fecha: "2026-03-05", importe: -100, categoria_id: null, tipo: "gasto" as const },
+    ];
+
+    const puntos = construirHistoricoPatrimonio({
+      meses: mesesPasados,
+      movimientos,
+      saldoLiquidoActual: 700,
+      deudas: [],
+      amortizacionesAplicadasPorDeuda: new Map(),
+      esCategoriaInversion: () => false,
+    });
+
+    expect(puntos[0].saldoLiquido).toBeCloseTo(1000, 2);
+    expect(puntos[1].saldoLiquido).toBeCloseTo(800, 2);
+    expect(puntos[2].saldoLiquido).toBeCloseTo(700, 2);
+    expect(puntos.every((p) => p.esReal)).toBe(true);
+  });
+
+  it("acumula el coste aportado a inversión mes a mes", () => {
+    const movimientos = [
+      { fecha: "2026-01-10", importe: -50, categoria_id: "inversion", tipo: "gasto" as const },
+      { fecha: "2026-02-10", importe: -50, categoria_id: "inversion", tipo: "gasto" as const },
+      { fecha: "2026-03-10", importe: -50, categoria_id: "inversion", tipo: "gasto" as const },
+    ];
+
+    const puntos = construirHistoricoPatrimonio({
+      meses: mesesPasados,
+      movimientos,
+      saldoLiquidoActual: 0,
+      deudas: [],
+      amortizacionesAplicadasPorDeuda: new Map(),
+      esCategoriaInversion: (id) => id === "inversion",
+    });
+
+    expect(puntos[0].valorInversion).toBeCloseTo(50, 2);
+    expect(puntos[1].valorInversion).toBeCloseTo(100, 2);
+    expect(puntos[2].valorInversion).toBeCloseTo(150, 2);
+  });
+
+  it("reconstruye el capital pendiente de una deuda desde su origen y no antes de que existiera", () => {
+    const puntos = construirHistoricoPatrimonio({
+      meses: [
+        { year: 2025, month: 12, label: "" },
+        { year: 2026, month: 1, label: "" },
+        { year: 2026, month: 2, label: "" },
+      ],
+      movimientos: [],
+      saldoLiquidoActual: 0,
+      deudas: [{ id: "d1", capital_inicial: 150000, fecha_inicio: "2026-01-01", cuota: 831.9, tipo_interes: 3, valor_residual: 0 }],
+      amortizacionesAplicadasPorDeuda: new Map(),
+      esCategoriaInversion: () => false,
+    });
+
+    expect(puntos[0].deudaPendiente).toBe(0);
+    expect(puntos[1].deudaPendiente).toBeGreaterThan(0);
+    expect(puntos[1].deudaPendiente).toBeLessThan(150000);
+    expect(puntos[2].deudaPendiente).toBeLessThan(puntos[1].deudaPendiente);
+  });
+
+  it("una amortización ya aplicada en el pasado reduce el capital pendiente reconstruido desde esa fecha", () => {
+    const deudas = [{ id: "d1", capital_inicial: 150000, fecha_inicio: "2025-01-01", cuota: 831.9, tipo_interes: 3, valor_residual: 0 }];
+    const sinExtra = construirHistoricoPatrimonio({
+      meses: mesesPasados,
+      movimientos: [],
+      saldoLiquidoActual: 0,
+      deudas,
+      amortizacionesAplicadasPorDeuda: new Map(),
+      esCategoriaInversion: () => false,
+    });
+
+    const conExtra = construirHistoricoPatrimonio({
+      meses: mesesPasados,
+      movimientos: [],
+      saldoLiquidoActual: 0,
+      deudas,
+      amortizacionesAplicadasPorDeuda: new Map([
+        ["d1", [{ deuda_id: "d1", fecha: "2025-06-01", importe: 20000, tipoReduccion: "reducir_plazo" as const }]],
+      ]),
+      esCategoriaInversion: () => false,
+    });
+
+    expect(conExtra[0].deudaPendiente).toBeLessThan(sinExtra[0].deudaPendiente);
   });
 });
