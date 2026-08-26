@@ -6,6 +6,7 @@ import {
   importeEfectivoPrevisto,
   importeEstimado,
   mapaCategoriaPorPrevistoMasReciente,
+  ocurrenciasEnMes,
   previstoAplicaEnMes,
   previstoYaMaterializadoEnMes,
   previstosCoincidentes,
@@ -116,6 +117,38 @@ describe("previstoAplicaEnMes", () => {
     expect(previstoAplicaEnMes(p, 2026, 9)).toBe(true);
     expect(previstoAplicaEnMes(p, 2027, 3)).toBe(true);
     expect(previstoAplicaEnMes(p, 2026, 6)).toBe(false);
+  });
+
+  it("recurrente semanal: aplica en cualquier mes con al menos una ocurrencia, no antes de fecha_inicio", () => {
+    const p = previsto({ periodicidad: "semanal", fecha_inicio: "2026-01-05" });
+    expect(previstoAplicaEnMes(p, 2025, 12)).toBe(false);
+    expect(previstoAplicaEnMes(p, 2026, 1)).toBe(true);
+    expect(previstoAplicaEnMes(p, 2026, 2)).toBe(true);
+  });
+});
+
+describe("ocurrenciasEnMes", () => {
+  it("para periodicidades que no son semanal, da 1 si aplica y 0 si no", () => {
+    const p = previsto({ periodicidad: "mensual", fecha_inicio: "2026-01-01" });
+    expect(ocurrenciasEnMes(p, 2026, 3)).toBe(1);
+    expect(ocurrenciasEnMes(p, 2025, 12)).toBe(0);
+  });
+
+  it("semanal cuenta las ocurrencias reales dentro del mes (4 o 5 según el mes)", () => {
+    const p = previsto({ periodicidad: "semanal", fecha_inicio: "2026-01-05" });
+    expect(ocurrenciasEnMes(p, 2026, 1)).toBe(4);
+    expect(ocurrenciasEnMes(p, 2026, 2)).toBe(4);
+  });
+
+  it("semanal no cuenta ocurrencias posteriores a fecha_fin", () => {
+    const p = previsto({ periodicidad: "semanal", fecha_inicio: "2026-01-05", fecha_fin: "2026-01-20" });
+    expect(ocurrenciasEnMes(p, 2026, 1)).toBe(3);
+    expect(ocurrenciasEnMes(p, 2026, 2)).toBe(0);
+  });
+
+  it("semanal da 0 en un mes anterior a fecha_inicio", () => {
+    const p = previsto({ periodicidad: "semanal", fecha_inicio: "2026-01-05" });
+    expect(ocurrenciasEnMes(p, 2025, 12)).toBe(0);
   });
 });
 
@@ -276,6 +309,18 @@ describe("construirDiagnosticoPrevision", () => {
     { id: "cine", nombre: "Cine", categoria_padre_id: "ocio" },
     { id: "hipoteca", nombre: "Pago Hipoteca", categoria_padre_id: null },
   ];
+
+  it("un previsto semanal multiplica el importe por las ocurrencias del mes", () => {
+    const previstos = [
+      previsto({ categoria_id: "hipoteca", importe_estimado: 50, periodicidad: "semanal", fecha_inicio: "2026-01-05" }),
+    ];
+
+    const filas = construirDiagnosticoPrevision(previstos, meses, categorias);
+    const hipoteca = filas.find((f) => f.categoriaId === "hipoteca");
+
+    expect(hipoteca?.importesPorMes[0]).toBeCloseTo(-200, 2); // 4 ocurrencias en enero
+    expect(hipoteca?.importesPorMes[1]).toBeCloseTo(-200, 2); // 4 ocurrencias en febrero
+  });
 
   it("agrega el importe de las subcategorías en la fila de su categoría padre", () => {
     const previstos = [

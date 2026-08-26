@@ -39,6 +39,7 @@ export function MovimientoPrevistoForm({
     previsto?.tipo_recurrencia ?? "recurrente"
   );
   const [esRango, setEsRango] = useState(previsto?.importe_min != null && previsto?.importe_max != null);
+  const [periodicidad, setPeriodicidad] = useState(previsto?.periodicidad ?? "mensual");
 
   return (
     <form action={action} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -193,15 +194,22 @@ export function MovimientoPrevistoForm({
             <label className="block text-xs text-slate-500">Periodicidad</label>
             <select
               name="periodicidad"
-              defaultValue={previsto?.periodicidad ?? "mensual"}
+              value={periodicidad}
+              onChange={(e) => setPeriodicidad(e.target.value)}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
+              <option value="semanal">Semanal</option>
               <option value="mensual">Mensual</option>
               <option value="bimensual">Bimensual (cada 2 meses)</option>
               <option value="trimestral">Trimestral (cada 3 meses)</option>
               <option value="semestral">Semestral (cada 6 meses)</option>
               <option value="anual">Anual (estacional)</option>
             </select>
+            {periodicidad === "semanal" && (
+              <p className="mt-1 text-xs text-slate-400">
+                El importe se entiende por semana: se multiplica por las semanas que caigan en cada mes (4 o 5).
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-xs text-slate-500">Desde</label>

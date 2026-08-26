@@ -5,6 +5,7 @@ import {
   construirPeriodosConciliados,
   generarMeses,
   importeEfectivoPrevisto,
+  ocurrenciasEnMes,
   previstoAplicaEnMes,
   previstoYaMaterializadoEnMes,
   type MovimientoPrevisto,
@@ -108,7 +109,7 @@ export default async function PrevisionPage({
       const nombre = p.categoria_id ? nombreCategoria.get(p.categoria_id) ?? "Categoría eliminada" : "Sin categoría";
       const signo = p.tipo === "ingreso" ? 1 : -1;
       const actual = porCategoria.get(clave) ?? { nombre, importe: 0 };
-      actual.importe += signo * importeEfectivoPrevisto(p, mediaPorCategoria);
+      actual.importe += signo * importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrenciasEnMes(p, mes.year, mes.month);
       porCategoria.set(clave, actual);
     }
 

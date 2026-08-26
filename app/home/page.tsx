@@ -7,6 +7,7 @@ import {
   construirPeriodosConciliados,
   generarMeses,
   generarMesesHaciaAtras,
+  ocurrenciasEnMes,
   previstoAplicaEnMes,
   previstoYaMaterializadoEnMes,
   importeEfectivoPrevisto,
@@ -219,7 +220,7 @@ export default async function HomePage({
       if (p.tipo !== "gasto" || !esCategoriaInversion(p.categoria_id)) continue;
       if (!previstoAplicaEnMes(p, year, month)) continue;
       if (previstoYaMaterializadoEnMes(p.id, year, month, periodosConciliados)) continue;
-      suma += importeEfectivoPrevisto(p, mediaPorCategoria);
+      suma += importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrenciasEnMes(p, year, month);
     }
     return suma;
   }

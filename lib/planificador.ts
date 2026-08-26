@@ -1,5 +1,6 @@
 import {
   importeEfectivoPrevisto,
+  ocurrenciasEnMes,
   previstoAplicaEnMes,
   previstoYaMaterializadoEnMes,
   type MovimientoPrevisto,
@@ -107,7 +108,7 @@ export function construirProyeccionPatrimonio(params: {
     let aportacionInversion = 0;
 
     for (const p of aplicables) {
-      const importe = importeEfectivoPrevisto(p, mediaPorCategoria);
+      const importe = importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrenciasEnMes(p, mes.year, mes.month);
       const signo = p.tipo === "ingreso" ? 1 : -1;
       flujoNeto += signo * importe;
       if (p.tipo === "gasto" && esCategoriaInversion(p.categoria_id)) {

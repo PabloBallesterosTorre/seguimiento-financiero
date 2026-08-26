@@ -5,6 +5,7 @@ import {
   construirPeriodosConciliados,
   generarMeses,
   generarMesesHaciaAtras,
+  ocurrenciasEnMes,
   previstoAplicaEnMes,
   previstoYaMaterializadoEnMes,
   importeEfectivoPrevisto,
@@ -228,7 +229,7 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
       if (p.tipo === "traspaso") continue;
       if (!previstoAplicaEnMes(p, year, month)) continue;
       if (previstoYaMaterializadoEnMes(p.id, year, month, periodosConciliados)) continue;
-      const importe = importeEfectivoPrevisto(p, mediaPorCategoria);
+      const importe = importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrenciasEnMes(p, year, month);
       if (p.tipo === "ingreso") ingresos += importe;
       else gastos += -importe;
     }

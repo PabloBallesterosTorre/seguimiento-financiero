@@ -1,5 +1,6 @@
 import {
   importeEfectivoPrevisto,
+  ocurrenciasEnMes,
   previstoAplicaEnMes,
   previstoYaMaterializadoEnMes,
   type MovimientoPrevisto,
@@ -44,7 +45,7 @@ export function calcularInteresesPrevistos(
           !previstoYaMaterializadoEnMes(p.id, mes.year, mes.month, periodosConciliados)
       );
       const netoOtros = otrosPrevistos.reduce((suma, p) => {
-        const importe = importeEfectivoPrevisto(p, mediaPorCategoria);
+        const importe = importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrenciasEnMes(p, mes.year, mes.month);
         return suma + (p.tipo === "ingreso" ? importe : -importe);
       }, 0);
 

@@ -8,7 +8,7 @@ export type MovimientoPrevisto = {
   importe_min: number | null;
   importe_max: number | null;
   tipo_recurrencia: "unica_vez" | "recurrente";
-  periodicidad: "mensual" | "bimensual" | "trimestral" | "semestral" | "anual" | null;
+  periodicidad: "semanal" | "mensual" | "bimensual" | "trimestral" | "semestral" | "anual" | null;
   fecha: string | null;
   fecha_inicio: string | null;
   fecha_fin: string | null;
@@ -73,6 +73,29 @@ export function importeEfectivoPrevisto(
   return importeEstimado(p);
 }
 
+// Nº de ocurrencias semanales (cada 7 días desde fechaInicio) que caen dentro del mes
+// (year, month) indicado, sin contar las posteriores a fechaFin si la hay. A diferencia
+// del resto de periodicidades (una vez cada N meses), semanal puede dar varias
+// ocurrencias en un mismo mes (normalmente 4, a veces 5).
+function contarOcurrenciasSemanales(fechaInicio: Date, fechaFin: Date | null, year: number, month: number): number {
+  const primerDiaMes = new Date(year, month - 1, 1);
+  const ultimoDiaMes = new Date(year, month, 0);
+  const inicioEfectivo = fechaInicio > primerDiaMes ? fechaInicio : primerDiaMes;
+
+  const diasDesdeInicio = Math.round((inicioEfectivo.getTime() - fechaInicio.getTime()) / 86400000);
+  const resto = ((diasDesdeInicio % 7) + 7) % 7;
+  const primeraOcurrencia = new Date(inicioEfectivo);
+  if (resto !== 0) primeraOcurrencia.setDate(primeraOcurrencia.getDate() + (7 - resto));
+
+  let ocurrencias = 0;
+  const cursor = new Date(primeraOcurrencia);
+  while (cursor <= ultimoDiaMes) {
+    if (!fechaFin || cursor <= fechaFin) ocurrencias++;
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  return ocurrencias;
+}
+
 // ¿Aplica este movimiento previsto al mes (year, month 1-12) indicado?
 export function previstoAplicaEnMes(p: MovimientoPrevisto, year: number, month: number): boolean {
   if (p.estado !== "activo") return false;
@@ -95,6 +118,10 @@ export function previstoAplicaEnMes(p: MovimientoPrevisto, year: number, month: 
     if (actualYM > finYM) return false;
   }
 
+  if (p.periodicidad === "semanal") {
+    const fin = p.fecha_fin ? new Date(`${p.fecha_fin}T00:00:00`) : null;
+    return contarOcurrenciasSemanales(inicio, fin, year, month) > 0;
+  }
   if (p.periodicidad === "mensual") return true;
   if (p.periodicidad === "bimensual") return (actualYM - inicioYM) % 2 === 0;
   if (p.periodicidad === "trimestral") return (actualYM - inicioYM) % 3 === 0;
@@ -102,6 +129,20 @@ export function previstoAplicaEnMes(p: MovimientoPrevisto, year: number, month: 
   if (p.periodicidad === "anual") return inicio.getMonth() + 1 === month;
 
   return false;
+}
+
+// Nº de veces que un previsto cae dentro del mes indicado. Para todas las
+// periodicidades salvo semanal es como mucho 1 (previstoAplicaEnMes ya decide si esa
+// única ocurrencia cae o no en el mes); semanal puede dar varias, y el importe
+// introducido se entiende como el de UNA semana, así que hay que multiplicarlo por
+// esta cantidad para obtener el total del mes.
+export function ocurrenciasEnMes(p: MovimientoPrevisto, year: number, month: number): number {
+  if (!previstoAplicaEnMes(p, year, month)) return 0;
+  if (p.periodicidad !== "semanal" || !p.fecha_inicio) return 1;
+
+  const inicio = new Date(`${p.fecha_inicio}T00:00:00`);
+  const fin = p.fecha_fin ? new Date(`${p.fecha_fin}T00:00:00`) : null;
+  return contarOcurrenciasSemanales(inicio, fin, year, month);
 }
 
 // ¿Ya se materializó este previsto para el mes (year, month) indicado? Es decir, ¿existe
@@ -219,8 +260,9 @@ export function construirDiagnosticoPrevision(
     const signo = p.tipo === "ingreso" ? 1 : -1;
     const esMedia = p.origen_calculo === "media_categoria";
     meses.forEach((mes, i) => {
-      if (!previstoAplicaEnMes(p, mes.year, mes.month)) return;
-      fila[i] += signo * importeEfectivoPrevisto(p, mediaPorCategoria);
+      const ocurrencias = ocurrenciasEnMes(p, mes.year, mes.month);
+      if (ocurrencias === 0) return;
+      fila[i] += signo * importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrencias;
       if (esMedia) filaMedia[i] = true;
     });
   }
