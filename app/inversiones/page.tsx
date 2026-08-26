@@ -36,6 +36,8 @@ export default async function InversionesPage() {
           </p>
         </div>
 
+        <NuevaInversion action={crearInversion} />
+
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-slate-500">
@@ -97,8 +99,6 @@ export default async function InversionesPage() {
             </tbody>
           </table>
         </div>
-
-        <NuevaInversion action={crearInversion} />
 
         <p className="text-sm text-slate-400">
           El valor de cada inversión se actualiza a mano por ahora — la sincronización automática con

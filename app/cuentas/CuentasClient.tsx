@@ -48,6 +48,21 @@ export function CuentasClient({
 
   return (
     <div className="space-y-8">
+      {abierto === "nueva" ? (
+        <div className="rounded-lg border border-slate-200 bg-white p-6">
+          <h2 className="mb-4 text-sm font-medium text-slate-700">Añadir cuenta</h2>
+          <CuentaForm action={crearCuenta} onCancelar={() => setAbierto(null)} />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAbierto("nueva")}
+          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+        >
+          Nueva cuenta
+        </button>
+      )}
+
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-slate-500">
@@ -117,21 +132,6 @@ export function CuentasClient({
           </tbody>
         </table>
       </div>
-
-      {abierto === "nueva" ? (
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-medium text-slate-700">Añadir cuenta</h2>
-          <CuentaForm action={crearCuenta} onCancelar={() => setAbierto(null)} />
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setAbierto("nueva")}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
-          Nueva cuenta
-        </button>
-      )}
     </div>
   );
 }

@@ -104,6 +104,20 @@ export default async function MovimientosPage() {
           </div>
         </div>
 
+        {!hayCuentas ? (
+          <p className="text-sm text-slate-400">
+            Antes de añadir movimientos, da de alta una cuenta en la sección Cuentas.
+          </p>
+        ) : (
+          <NuevoMovimiento
+            action={crearMovimiento}
+            cuentas={cuentas ?? []}
+            categorias={categoriasOrdenadas}
+            reglas={reglasCategorizacion}
+            hoy={hoy}
+          />
+        )}
+
         {filasSinCategorizar.length > 0 && (
           <div className="overflow-hidden rounded-lg border border-amber-200 bg-white">
             <div className="border-b border-amber-100 bg-amber-50 px-4 py-2">
@@ -139,20 +153,6 @@ export default async function MovimientosPage() {
             eliminarMovimiento={eliminarMovimiento}
           />
         </div>
-
-        {!hayCuentas ? (
-          <p className="text-sm text-slate-400">
-            Antes de añadir movimientos, da de alta una cuenta en la sección Cuentas.
-          </p>
-        ) : (
-          <NuevoMovimiento
-            action={crearMovimiento}
-            cuentas={cuentas ?? []}
-            categorias={categoriasOrdenadas}
-            reglas={reglasCategorizacion}
-            hoy={hoy}
-          />
-        )}
       </main>
     </>
   );

@@ -25,14 +25,14 @@ export default async function DeudasPage() {
       <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
         <h1 className="text-xl font-semibold">Deuda</h1>
 
+        <NuevaDeuda action={crearDeuda} />
+
         <DeudasClient
           deudas={deudas ?? []}
           moneda={config?.moneda_base ?? "EUR"}
           eliminarDeuda={eliminarDeuda}
           ordenInicial={ordenInicial}
         />
-
-        <NuevaDeuda action={crearDeuda} />
       </main>
     </>
   );
