@@ -23,7 +23,7 @@ function leerCamposCuenta(formData: FormData) {
 }
 
 export async function crearCuenta(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -43,7 +43,7 @@ export async function crearCuenta(formData: FormData) {
 }
 
 export async function actualizarCuenta(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const id = formData.get("id") as string;
 
   await supabase.from("cuentas").update(leerCamposCuenta(formData)).eq("id", id);
@@ -53,7 +53,7 @@ export async function actualizarCuenta(formData: FormData) {
 }
 
 export async function eliminarCuenta(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const id = formData.get("id") as string;
 
   await supabase.from("cuentas").delete().eq("id", id);

@@ -7,7 +7,7 @@ import { obtenerConfiguracion } from "@/lib/configuracion";
 import type { MovimientoPrevisto } from "@/lib/prevision";
 
 export default async function ImportarPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

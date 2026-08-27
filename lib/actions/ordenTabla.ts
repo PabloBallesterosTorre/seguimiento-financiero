@@ -9,7 +9,7 @@ import type { Direccion } from "@/lib/ordenTabla";
 // un <form> — no hace falta revalidar ninguna ruta, la propia tabla ya se reordena
 // en el cliente de forma optimista.
 export async function guardarOrdenTabla(tabla: string, columna: string, direccion: Direccion) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

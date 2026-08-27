@@ -23,14 +23,15 @@ const HORIZONTES_ANIOS = [5, 10, 20];
 export default async function PlanificadorPage({
   searchParams,
 }: {
-  searchParams: { vista?: string; horizonte?: string };
+  searchParams: Promise<{ vista?: string; horizonte?: string }>;
 }) {
-  const supabase = createClient();
-  const vista = searchParams.vista === "anual" ? "anual" : "mensual";
+  const { vista: vistaParam, horizonte: horizonteParam } = await searchParams;
+  const supabase = await createClient();
+  const vista = vistaParam === "anual" ? "anual" : "mensual";
   const horizonteElegido =
     vista === "mensual"
-      ? HORIZONTES_MESES.includes(Number(searchParams.horizonte)) ? Number(searchParams.horizonte) : 12
-      : HORIZONTES_ANIOS.includes(Number(searchParams.horizonte)) ? Number(searchParams.horizonte) : 10;
+      ? HORIZONTES_MESES.includes(Number(horizonteParam)) ? Number(horizonteParam) : 12
+      : HORIZONTES_ANIOS.includes(Number(horizonteParam)) ? Number(horizonteParam) : 10;
   const horizonteMeses = vista === "mensual" ? horizonteElegido : horizonteElegido * 12;
 
   const {

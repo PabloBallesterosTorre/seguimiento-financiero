@@ -21,7 +21,7 @@ const btnGhostClass =
   "rounded-btn border border-border-strong px-3.5 py-2 text-xs font-semibold text-ink-secondary hover:bg-chip";
 
 export default async function SugerenciasPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

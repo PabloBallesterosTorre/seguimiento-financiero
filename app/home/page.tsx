@@ -35,10 +35,11 @@ const MESES_FUTUROS = 6;
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: { sinDeuda?: string };
+  searchParams: Promise<{ sinDeuda?: string }>;
 }) {
-  const supabase = createClient();
-  const conDeuda = searchParams.sinDeuda !== "1";
+  const { sinDeuda } = await searchParams;
+  const supabase = await createClient();
+  const conDeuda = sinDeuda !== "1";
 
   const {
     data: { user },

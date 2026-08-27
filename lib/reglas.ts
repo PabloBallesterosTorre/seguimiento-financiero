@@ -1,7 +1,7 @@
 import { normalizarDescripcion } from "@/lib/categorizacion";
 import type { createClient } from "@/lib/supabase/server";
 
-type SupabaseServerClient = ReturnType<typeof createClient>;
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 // Refuerza (o crea) la regla de categorización aprendida para una descripción.
 export async function reforzarRegla(

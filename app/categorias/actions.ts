@@ -12,7 +12,7 @@ function leerCamposCategoria(formData: FormData) {
 }
 
 export async function crearCategoria(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -29,7 +29,7 @@ export async function crearCategoria(formData: FormData) {
 }
 
 export async function actualizarCategoria(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const id = formData.get("id") as string;
 
   await supabase.from("categorias").update(leerCamposCategoria(formData)).eq("id", id);
@@ -38,7 +38,7 @@ export async function actualizarCategoria(formData: FormData) {
 }
 
 export async function eliminarCategoria(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const id = formData.get("id") as string;
 
   await supabase.from("categorias").delete().eq("id", id);
@@ -62,7 +62,7 @@ const CATEGORIAS_SUGERIDAS = [
 ];
 
 export async function crearCategoriasSugeridas() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -95,7 +95,7 @@ export type MovimientoAsociado = {
 // el llamador decide qué ids incluir (solo la propia si es una subcategoría,
 // o ella más sus subcategorías si es una categoría padre).
 export async function obtenerMovimientosDeCategoria(categoriaIds: string[]): Promise<MovimientoAsociado[]> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   if (categoriaIds.length === 0) return [];
 

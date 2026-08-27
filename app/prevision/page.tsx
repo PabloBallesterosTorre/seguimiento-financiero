@@ -21,10 +21,11 @@ const HORIZONTES = [3, 6, 12];
 export default async function PrevisionPage({
   searchParams,
 }: {
-  searchParams: { meses?: string };
+  searchParams: Promise<{ meses?: string }>;
 }) {
-  const supabase = createClient();
-  const horizonte = HORIZONTES.includes(Number(searchParams.meses)) ? Number(searchParams.meses) : 3;
+  const { meses: mesesParam } = await searchParams;
+  const supabase = await createClient();
+  const horizonte = HORIZONTES.includes(Number(mesesParam)) ? Number(mesesParam) : 3;
 
   const {
     data: { user },

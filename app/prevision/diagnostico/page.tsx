@@ -12,10 +12,11 @@ const HORIZONTES = [3, 6, 12];
 export default async function DiagnosticoPrevisionPage({
   searchParams,
 }: {
-  searchParams: { meses?: string };
+  searchParams: Promise<{ meses?: string }>;
 }) {
-  const supabase = createClient();
-  const horizonte = HORIZONTES.includes(Number(searchParams.meses)) ? Number(searchParams.meses) : 6;
+  const { meses } = await searchParams;
+  const supabase = await createClient();
+  const horizonte = HORIZONTES.includes(Number(meses)) ? Number(meses) : 6;
 
   const {
     data: { user },

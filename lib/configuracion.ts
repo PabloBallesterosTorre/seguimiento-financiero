@@ -1,6 +1,6 @@
 import type { createClient } from "@/lib/supabase/server";
 
-type SupabaseServerClient = ReturnType<typeof createClient>;
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 export type ConfiguracionUsuario = {
   nombre: string | null;

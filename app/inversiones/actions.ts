@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 export async function crearInversion(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -49,7 +49,7 @@ export async function crearInversion(formData: FormData) {
 }
 
 export async function editarInversion(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const id = formData.get("id") as string;
   const tipo_activo = formData.get("tipo_activo") as string;
   const nombre = formData.get("nombre") as string;
@@ -74,7 +74,7 @@ export async function editarInversion(formData: FormData) {
 // mismo día solo puede tener un punto por inversión (tanda 8, mejora 2b) — un
 // segundo guardado el mismo día corrige el valor de ese día en vez de duplicarlo.
 export async function registrarValoracionInversion(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -118,7 +118,7 @@ export async function registrarValoracionInversion(formData: FormData) {
 }
 
 export async function eliminarInversion(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const id = formData.get("id") as string;
 
   await supabase.from("inversiones").delete().eq("id", id);

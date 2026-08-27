@@ -5,8 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { SimuladorAmortizacion } from "../SimuladorAmortizacion";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 
-export default async function SimularAmortizacionPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+export default async function SimularAmortizacionPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -16,7 +17,7 @@ export default async function SimularAmortizacionPage({ params }: { params: { id
     supabase
       .from("deudas")
       .select("nombre, capital_pendiente, cuota, tipo_interes, valor_residual")
-      .eq("id", params.id)
+      .eq("id", id)
       .single(),
     user ? obtenerConfiguracion(supabase, user.id) : null,
   ]);
@@ -31,7 +32,7 @@ export default async function SimularAmortizacionPage({ params }: { params: { id
       <main className="mx-auto max-w-4xl space-y-6 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
           <h1 className="font-sora text-[26px] font-bold text-ink">Simular amortización — {deuda.nombre}</h1>
-          <Link href={`/deudas/${params.id}`} className="text-sm font-semibold text-ink-tertiary hover:text-ink">
+          <Link href={`/deudas/${id}`} className="text-sm font-semibold text-ink-tertiary hover:text-ink">
             ← Volver al detalle
           </Link>
         </div>

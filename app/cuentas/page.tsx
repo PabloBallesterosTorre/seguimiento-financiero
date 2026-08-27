@@ -6,7 +6,7 @@ import { crearCuenta, actualizarCuenta, eliminarCuenta } from "./actions";
 import { CuentasClient } from "./CuentasClient";
 
 export default async function CuentasPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

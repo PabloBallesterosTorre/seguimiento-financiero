@@ -23,21 +23,22 @@ function InfoCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function InversionDetallePage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+export default async function InversionDetallePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: inversion } = await supabase.from("inversiones").select("*").eq("id", params.id).single();
+  const { data: inversion } = await supabase.from("inversiones").select("*").eq("id", id).single();
   if (!inversion) notFound();
 
   const [{ data: valoraciones }, { data: previsto }, config] = await Promise.all([
     supabase
       .from("inversion_valoraciones")
       .select("fecha, valor, origen")
-      .eq("inversion_id", params.id)
+      .eq("inversion_id", id)
       .order("fecha", { ascending: false }),
     inversion.movimiento_previsto_id
       ? supabase.from("movimientos_previstos").select("descripcion, importe_estimado").eq("id", inversion.movimiento_previsto_id).maybeSingle()

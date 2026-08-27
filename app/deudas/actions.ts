@@ -4,10 +4,10 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { calcularCuota, simularAmortizacion, type Recurrencia, type TipoReduccion } from "@/lib/amortizacion";
 
-type SupabaseServerClient = ReturnType<typeof createClient>;
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 export async function crearDeuda(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -77,7 +77,7 @@ export async function crearDeuda(formData: FormData) {
 }
 
 export async function eliminarDeuda(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const id = formData.get("id") as string;
 
   await supabase.from("deudas").delete().eq("id", id);
@@ -143,7 +143,7 @@ async function aplicarFilaAmortizacion(
 }
 
 export async function registrarAmortizacionExtra(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -183,7 +183,7 @@ export async function registrarAmortizacionExtra(formData: FormData) {
 }
 
 export async function marcarAmortizacionAplicada(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const id = formData.get("id") as string;
   const deuda_id = formData.get("deuda_id") as string;
   const importe = Number(formData.get("importe"));
@@ -197,7 +197,7 @@ export async function marcarAmortizacionAplicada(formData: FormData) {
 }
 
 export async function eliminarAmortizacionExtra(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const id = formData.get("id") as string;
   const deuda_id = formData.get("deuda_id") as string;
 

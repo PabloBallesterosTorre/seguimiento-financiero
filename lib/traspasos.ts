@@ -1,6 +1,6 @@
 import type { createClient } from "@/lib/supabase/server";
 
-type SupabaseServerClient = ReturnType<typeof createClient>;
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 // Registra un traspaso entre dos cuentas propias como dos movimientos enlazados
 // (uno por cuenta, con el signo correcto para cada una) y actualiza ambos saldos.

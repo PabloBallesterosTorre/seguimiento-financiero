@@ -23,7 +23,7 @@ export type FilaTraspasoImportar = {
 };
 
 export async function importarMovimientos(cuenta_id: string, filas: FilaImportar[]) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -116,7 +116,7 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
 }
 
 export async function importarTraspasos(cuentaId: string, filas: FilaTraspasoImportar[]) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

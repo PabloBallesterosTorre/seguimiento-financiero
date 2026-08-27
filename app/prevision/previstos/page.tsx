@@ -16,7 +16,7 @@ import { obtenerOrdenTabla } from "@/lib/ordenTabla";
 import { PrevistosClient, type FilaPrevisto } from "./PrevistosClient";
 
 export default async function PrevistosPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

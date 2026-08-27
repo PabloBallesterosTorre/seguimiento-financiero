@@ -37,9 +37,10 @@ import { InformesClient, type MesFlujo, type CategoriaMedia, type SerieCategoria
 const RANGOS = ["6", "12", "todos"] as const;
 type Rango = (typeof RANGOS)[number];
 
-export default async function InformesPage({ searchParams }: { searchParams: { rango?: string } }) {
-  const supabase = createClient();
-  const rango: Rango = RANGOS.includes(searchParams.rango as Rango) ? (searchParams.rango as Rango) : "12";
+export default async function InformesPage({ searchParams }: { searchParams: Promise<{ rango?: string }> }) {
+  const { rango: rangoParam } = await searchParams;
+  const supabase = await createClient();
+  const rango: Rango = RANGOS.includes(rangoParam as Rango) ? (rangoParam as Rango) : "12";
 
   const {
     data: { user },

@@ -7,7 +7,7 @@ import { obtenerConfiguracion } from "@/lib/configuracion";
 import { obtenerOrdenTabla } from "@/lib/ordenTabla";
 
 export default async function DeudasPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

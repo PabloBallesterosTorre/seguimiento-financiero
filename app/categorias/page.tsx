@@ -11,7 +11,7 @@ import { CategoriasClient } from "./CategoriasClient";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 
 export default async function CategoriasPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

@@ -5,7 +5,7 @@ import { guardarConfiguracionGeneral, guardarObjetivoAhorroGlobal } from "./acti
 import { ConfiguracionTabs } from "./ConfiguracionTabs";
 
 export default async function ConfiguracionPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

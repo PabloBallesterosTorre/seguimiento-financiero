@@ -33,7 +33,7 @@ type Movimiento = {
 };
 
 export default async function MovimientosPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

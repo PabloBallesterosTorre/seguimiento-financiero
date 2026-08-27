@@ -24,21 +24,22 @@ function InfoCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function DeudaDetallePage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+export default async function DeudaDetallePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: deuda } = await supabase.from("deudas").select("*").eq("id", params.id).single();
+  const { data: deuda } = await supabase.from("deudas").select("*").eq("id", id).single();
   if (!deuda) notFound();
 
   const [{ data: categoriaPago }, { data: amortizacionesExtra }, config] = await Promise.all([
     deuda.categoria_id
       ? supabase.from("categorias").select("nombre").eq("id", deuda.categoria_id).maybeSingle()
       : Promise.resolve({ data: null }),
-    supabase.from("amortizaciones_extra").select("*").eq("deuda_id", params.id).order("fecha", { ascending: false }),
+    supabase.from("amortizaciones_extra").select("*").eq("deuda_id", id).order("fecha", { ascending: false }),
     user ? obtenerConfiguracion(supabase, user.id) : null,
   ]);
 

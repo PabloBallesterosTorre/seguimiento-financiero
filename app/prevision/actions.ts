@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 export async function crearMovimientoPrevisto(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -51,7 +51,7 @@ export async function crearMovimientoPrevisto(formData: FormData) {
 }
 
 export async function actualizarMovimientoPrevisto(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const id = formData.get("id") as string;
 
   const descripcion = formData.get("descripcion") as string;
@@ -92,7 +92,7 @@ export async function actualizarMovimientoPrevisto(formData: FormData) {
 }
 
 export async function cambiarEstadoPrevisto(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const id = formData.get("id") as string;
   const estado = formData.get("estado") as string;
 
@@ -103,7 +103,7 @@ export async function cambiarEstadoPrevisto(formData: FormData) {
 }
 
 export async function eliminarMovimientoPrevisto(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const id = formData.get("id") as string;
 
   await supabase.from("movimientos_previstos").delete().eq("id", id);
@@ -113,7 +113,7 @@ export async function eliminarMovimientoPrevisto(formData: FormData) {
 }
 
 export async function descartarSugerenciaPrevision(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -133,7 +133,7 @@ export async function descartarSugerenciaPrevision(formData: FormData) {
 }
 
 export async function vincularMovimientoPrevisto(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -156,7 +156,7 @@ export async function vincularMovimientoPrevisto(formData: FormData) {
 }
 
 export async function desvincularMovimientoPrevisto(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const previsto_id = formData.get("previsto_id") as string;
   const periodo = formData.get("periodo") as string;
 

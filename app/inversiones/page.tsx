@@ -9,7 +9,7 @@ import { cardClass } from "@/components/formStyles";
 import type { PrevistoInversionOption } from "./InversionForm";
 
 export default async function InversionesPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

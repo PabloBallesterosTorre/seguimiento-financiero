@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 async function upsertConfiguracion(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   usuarioId: string,
   campos: Record<string, unknown>
 ) {
@@ -17,7 +17,7 @@ async function upsertConfiguracion(
 }
 
 export async function guardarConfiguracionGeneral(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -35,7 +35,7 @@ export async function guardarConfiguracionGeneral(formData: FormData) {
 }
 
 export async function guardarObjetivoAhorroGlobal(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

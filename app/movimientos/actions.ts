@@ -7,7 +7,7 @@ import { reforzarRegla } from "@/lib/reglas";
 import { registrarTraspaso } from "@/lib/traspasos";
 
 export async function actualizarCategoriaMovimiento(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -29,7 +29,7 @@ export async function actualizarCategoriaMovimiento(formData: FormData) {
 }
 
 export async function crearMovimiento(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -90,7 +90,7 @@ export async function crearMovimiento(formData: FormData) {
 }
 
 export async function crearTraspaso(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -131,7 +131,7 @@ export async function crearTraspaso(formData: FormData) {
 }
 
 export async function vincularComoTraspaso(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -171,7 +171,7 @@ export async function vincularComoTraspaso(formData: FormData) {
 }
 
 export async function eliminarTraspaso(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const traspaso_grupo_id = formData.get("traspaso_grupo_id") as string;
 
   const { data: filas } = await supabase
@@ -221,7 +221,7 @@ export async function eliminarTraspaso(formData: FormData) {
 }
 
 export async function eliminarMovimiento(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const id = formData.get("id") as string;
 
   const { data: movimiento } = await supabase
