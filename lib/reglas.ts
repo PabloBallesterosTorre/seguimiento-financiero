@@ -28,12 +28,16 @@ export async function reforzarRegla(
         veces_usada: reglaExistente.veces_usada + 1,
         ultima_fecha_uso: new Date().toISOString(),
       })
-      .eq("id", reglaExistente.id);
+      .eq("id", reglaExistente.id)
+      .throwOnError();
   } else {
-    await supabase.from("reglas_categorizacion").insert({
-      usuario_id: usuarioId,
-      patron_descripcion: patron,
-      categoria_id: categoriaId,
-    });
+    await supabase
+      .from("reglas_categorizacion")
+      .insert({
+        usuario_id: usuarioId,
+        patron_descripcion: patron,
+        categoria_id: categoriaId,
+      })
+      .throwOnError();
   }
 }

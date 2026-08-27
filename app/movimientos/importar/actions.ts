@@ -39,68 +39,89 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
   const filasConPrevisto = filas.filter((f) => f.previstoId);
   const filasSinPrevisto = filas.filter((f) => !f.previstoId);
 
-  if (filasSinPrevisto.length > 0) {
-    const { error } = await supabase.from("movimientos").insert(
-      filasSinPrevisto.map((fila) => ({
-        usuario_id: user.id,
-        cuenta_id,
-        fecha: fila.fecha,
-        descripcion: fila.descripcion,
-        importe: fila.importe,
-        tipo: fila.tipo,
-        categoria_id: fila.categoria_id,
-        origen: "importado",
-        moneda: "EUR",
-      }))
-    );
-
-    if (error) return { ok: false as const, error: error.message };
-  }
-
-  for (const fila of filasConPrevisto) {
-    const { data: insertado, error } = await supabase
-      .from("movimientos")
-      .insert({
-        usuario_id: user.id,
-        cuenta_id,
-        fecha: fila.fecha,
-        descripcion: fila.descripcion,
-        importe: fila.importe,
-        tipo: fila.tipo,
-        categoria_id: fila.categoria_id,
-        origen: "importado",
-        moneda: "EUR",
-      })
-      .select("id")
-      .single();
-
-    if (error) return { ok: false as const, error: error.message };
-
-    if (insertado) {
-      const periodo = `${fila.fecha.slice(0, 7)}-01`;
-      await supabase.from("previsto_conciliaciones").upsert(
-        { usuario_id: user.id, previsto_id: fila.previstoId!, periodo, movimiento_real_id: insertado.id },
-        { onConflict: "previsto_id,periodo" }
-      );
+  // Todo lo que sigue puede lanzar (.throwOnError() en cualquier escritura, incluida
+  // la de los saldos, que es crítica: los movimientos ya se han insertado en ese
+  // punto y un fallo silencioso dejaría el saldo desincronizado del extracto
+  // importado). Se envuelve en un try/catch para seguir devolviendo el mismo
+  // {ok:false, error} que ya espera ImportarCSV.tsx en vez de una excepción sin
+  // capturar que dejaría el botón de "Importando…" colgado sin ningún aviso.
+  try {
+    if (filasSinPrevisto.length > 0) {
+      await supabase
+        .from("movimientos")
+        .insert(
+          filasSinPrevisto.map((fila) => ({
+            usuario_id: user.id,
+            cuenta_id,
+            fecha: fila.fecha,
+            descripcion: fila.descripcion,
+            importe: fila.importe,
+            tipo: fila.tipo,
+            categoria_id: fila.categoria_id,
+            origen: "importado",
+            moneda: "EUR",
+          }))
+        )
+        .throwOnError();
     }
-  }
 
-  const { data: cuenta } = await supabase
-    .from("cuentas")
-    .select("saldo_actual")
-    .eq("id", cuenta_id)
-    .single();
+    for (const fila of filasConPrevisto) {
+      const { data: insertado } = await supabase
+        .from("movimientos")
+        .insert({
+          usuario_id: user.id,
+          cuenta_id,
+          fecha: fila.fecha,
+          descripcion: fila.descripcion,
+          importe: fila.importe,
+          tipo: fila.tipo,
+          categoria_id: fila.categoria_id,
+          origen: "importado",
+          moneda: "EUR",
+        })
+        .select("id")
+        .single()
+        .throwOnError();
 
-  if (cuenta) {
+      const periodo = `${fila.fecha.slice(0, 7)}-01`;
+      await supabase
+        .from("previsto_conciliaciones")
+        .upsert(
+          { usuario_id: user.id, previsto_id: fila.previstoId!, periodo, movimiento_real_id: insertado.id },
+          { onConflict: "previsto_id,periodo" }
+        )
+        .throwOnError();
+    }
+
+    const { data: cuenta } = await supabase
+      .from("cuentas")
+      .select("saldo_actual")
+      .eq("id", cuenta_id)
+      .single()
+      .throwOnError();
+
     await supabase
       .from("cuentas")
       .update({ saldo_actual: calcularSaldoTrasImportar(Number(cuenta.saldo_actual), filas) })
-      .eq("id", cuenta_id);
+      .eq("id", cuenta_id)
+      .throwOnError();
+  } catch (e) {
+    const error = e as Error;
+    console.error("importarMovimientos", error);
+    return { ok: false as const, error: error.message };
   }
 
+  // El aprendizaje de reglas es una mejora, no parte del contrato de la importación:
+  // los movimientos ya se han guardado correctamente en el try/catch de arriba, así
+  // que un fallo aquí se registra pero no debe convertir una importación que sí
+  // funcionó en un {ok:false} engañoso para el usuario.
   for (const fila of filas) {
     if (fila.categoria_id) {
-      await reforzarRegla(supabase, user.id, fila.descripcion, fila.categoria_id);
+      try {
+        await reforzarRegla(supabase, user.id, fila.descripcion, fila.categoria_id);
+      } catch (e) {
+        console.error("importarMovimientos: reforzarRegla", e);
+      }
     }
   }
 
@@ -125,19 +146,25 @@ export async function importarTraspasos(cuentaId: string, filas: FilaTraspasoImp
   if (!user) return { ok: false as const, error: "No autenticado." };
   if (filas.length === 0) return { ok: false as const, error: "No hay traspasos que importar." };
 
-  for (const fila of filas) {
-    const importeAbsoluto = Math.abs(fila.importe);
-    const esSalida = fila.importe < 0;
+  try {
+    for (const fila of filas) {
+      const importeAbsoluto = Math.abs(fila.importe);
+      const esSalida = fila.importe < 0;
 
-    await registrarTraspaso(supabase, user.id, {
-      cuentaOrigenId: esSalida ? cuentaId : fila.cuentaContraparteId,
-      cuentaDestinoId: esSalida ? fila.cuentaContraparteId : cuentaId,
-      fecha: fila.fecha,
-      importe: importeAbsoluto,
-      descripcionOrigen: fila.descripcion,
-      descripcionDestino: fila.descripcion,
-      origenMovimiento: "importado",
-    });
+      await registrarTraspaso(supabase, user.id, {
+        cuentaOrigenId: esSalida ? cuentaId : fila.cuentaContraparteId,
+        cuentaDestinoId: esSalida ? fila.cuentaContraparteId : cuentaId,
+        fecha: fila.fecha,
+        importe: importeAbsoluto,
+        descripcionOrigen: fila.descripcion,
+        descripcionDestino: fila.descripcion,
+        origenMovimiento: "importado",
+      });
+    }
+  } catch (e) {
+    const error = e as Error;
+    console.error("importarTraspasos", error);
+    return { ok: false as const, error: error.message };
   }
 
   revalidatePath("/movimientos");

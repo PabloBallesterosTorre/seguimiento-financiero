@@ -28,23 +28,26 @@ export async function crearMovimientoPrevisto(formData: FormData) {
   const fecha_fin = (formData.get("fecha_fin") as string) || null;
   const origen_calculo = (formData.get("origen_calculo") as string) === "media_categoria" ? "media_categoria" : "fijo";
 
-  await supabase.from("movimientos_previstos").insert({
-    usuario_id: user.id,
-    descripcion,
-    tipo,
-    categoria_id,
-    cuenta_id,
-    importe_estimado,
-    importe_min,
-    importe_max,
-    tipo_recurrencia,
-    periodicidad: tipo_recurrencia === "recurrente" ? periodicidad : null,
-    fecha: tipo_recurrencia === "unica_vez" ? fecha : null,
-    fecha_inicio: tipo_recurrencia === "recurrente" ? fecha_inicio : null,
-    fecha_fin: tipo_recurrencia === "recurrente" ? fecha_fin : null,
-    estado: "activo",
-    origen_calculo,
-  });
+  await supabase
+    .from("movimientos_previstos")
+    .insert({
+      usuario_id: user.id,
+      descripcion,
+      tipo,
+      categoria_id,
+      cuenta_id,
+      importe_estimado,
+      importe_min,
+      importe_max,
+      tipo_recurrencia,
+      periodicidad: tipo_recurrencia === "recurrente" ? periodicidad : null,
+      fecha: tipo_recurrencia === "unica_vez" ? fecha : null,
+      fecha_inicio: tipo_recurrencia === "recurrente" ? fecha_inicio : null,
+      fecha_fin: tipo_recurrencia === "recurrente" ? fecha_fin : null,
+      estado: "activo",
+      origen_calculo,
+    })
+    .throwOnError();
 
   revalidatePath("/prevision");
   revalidatePath("/prevision/previstos");
@@ -85,7 +88,8 @@ export async function actualizarMovimientoPrevisto(formData: FormData) {
       fecha_inicio: tipo_recurrencia === "recurrente" ? fecha_inicio : null,
       fecha_fin: tipo_recurrencia === "recurrente" ? fecha_fin : null,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .throwOnError();
 
   revalidatePath("/prevision");
   revalidatePath("/prevision/previstos");
@@ -96,7 +100,7 @@ export async function cambiarEstadoPrevisto(formData: FormData) {
   const id = formData.get("id") as string;
   const estado = formData.get("estado") as string;
 
-  await supabase.from("movimientos_previstos").update({ estado }).eq("id", id);
+  await supabase.from("movimientos_previstos").update({ estado }).eq("id", id).throwOnError();
 
   revalidatePath("/prevision");
   revalidatePath("/prevision/previstos");
@@ -106,7 +110,7 @@ export async function eliminarMovimientoPrevisto(formData: FormData) {
   const supabase = await createClient();
   const id = formData.get("id") as string;
 
-  await supabase.from("movimientos_previstos").delete().eq("id", id);
+  await supabase.from("movimientos_previstos").delete().eq("id", id).throwOnError();
 
   revalidatePath("/prevision");
   revalidatePath("/prevision/previstos");
@@ -124,10 +128,10 @@ export async function descartarSugerenciaPrevision(formData: FormData) {
   const nivel = formData.get("nivel") as string;
   const clave = formData.get("clave") as string;
 
-  await supabase.from("patrones_descartados").upsert(
-    { usuario_id: user.id, nivel, clave },
-    { onConflict: "usuario_id,nivel,clave" }
-  );
+  await supabase
+    .from("patrones_descartados")
+    .upsert({ usuario_id: user.id, nivel, clave }, { onConflict: "usuario_id,nivel,clave" })
+    .throwOnError();
 
   revalidatePath("/prevision/sugerencias");
 }
@@ -147,10 +151,13 @@ export async function vincularMovimientoPrevisto(formData: FormData) {
 
   if (!movimiento_id || !periodo) return;
 
-  await supabase.from("previsto_conciliaciones").upsert(
-    { usuario_id: user.id, previsto_id, periodo, movimiento_real_id: movimiento_id },
-    { onConflict: "previsto_id,periodo" }
-  );
+  await supabase
+    .from("previsto_conciliaciones")
+    .upsert(
+      { usuario_id: user.id, previsto_id, periodo, movimiento_real_id: movimiento_id },
+      { onConflict: "previsto_id,periodo" }
+    )
+    .throwOnError();
 
   revalidatePath("/prevision");
 }
@@ -164,7 +171,8 @@ export async function desvincularMovimientoPrevisto(formData: FormData) {
     .from("previsto_conciliaciones")
     .delete()
     .eq("previsto_id", previsto_id)
-    .eq("periodo", periodo);
+    .eq("periodo", periodo)
+    .throwOnError();
 
   revalidatePath("/prevision");
 }

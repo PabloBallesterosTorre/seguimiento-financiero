@@ -13,7 +13,8 @@ async function upsertConfiguracion(
     .upsert(
       { usuario_id: usuarioId, ...campos, updated_at: new Date().toISOString() },
       { onConflict: "usuario_id" }
-    );
+    )
+    .throwOnError();
 }
 
 export async function guardarConfiguracionGeneral(formData: FormData) {

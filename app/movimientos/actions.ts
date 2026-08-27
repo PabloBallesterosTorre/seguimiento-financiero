@@ -19,10 +19,18 @@ export async function actualizarCategoriaMovimiento(formData: FormData) {
   const descripcion = formData.get("descripcion") as string;
   const categoria_id = (formData.get("categoria_id") as string) || null;
 
-  await supabase.from("movimientos").update({ categoria_id }).eq("id", id);
+  await supabase.from("movimientos").update({ categoria_id }).eq("id", id).throwOnError();
 
+  // El aprendizaje de la regla es una mejora, no parte del contrato de este cambio:
+  // la categoría del movimiento ya se ha guardado arriba, así que un fallo aquí se
+  // registra pero no debe convertirse en una pantalla de error para algo que sí
+  // funcionó.
   if (categoria_id) {
-    await reforzarRegla(supabase, user.id, descripcion, categoria_id);
+    try {
+      await reforzarRegla(supabase, user.id, descripcion, categoria_id);
+    } catch (e) {
+      console.error("actualizarCategoriaMovimiento: reforzarRegla", e);
+    }
   }
 
   revalidatePath("/movimientos");
@@ -55,33 +63,47 @@ export async function crearMovimiento(formData: FormData) {
     categoria_id = sugerirCategoria(descripcion, reglas ?? []);
   }
 
-  await supabase.from("movimientos").insert({
-    usuario_id: user.id,
-    cuenta_id,
-    fecha,
-    descripcion,
-    importe,
-    tipo,
-    categoria_id,
-    origen: "manual",
-    moneda: "EUR",
-  });
+  await supabase
+    .from("movimientos")
+    .insert({
+      usuario_id: user.id,
+      cuenta_id,
+      fecha,
+      descripcion,
+      importe,
+      tipo,
+      categoria_id,
+      origen: "manual",
+      moneda: "EUR",
+    })
+    .throwOnError();
 
+  // .throwOnError() aquí es importante: el movimiento de arriba ya se ha insertado,
+  // así que si esta lectura fallara y se dejara pasar en silencio, el saldo de la
+  // cuenta se quedaría desincronizado de sus movimientos sin ningún aviso.
   const { data: cuenta } = await supabase
     .from("cuentas")
     .select("saldo_actual")
     .eq("id", cuenta_id)
-    .single();
+    .single()
+    .throwOnError();
 
-  if (cuenta) {
-    await supabase
-      .from("cuentas")
-      .update({ saldo_actual: Number(cuenta.saldo_actual) + importe })
-      .eq("id", cuenta_id);
-  }
+  await supabase
+    .from("cuentas")
+    .update({ saldo_actual: Number(cuenta.saldo_actual) + importe })
+    .eq("id", cuenta_id)
+    .throwOnError();
 
+  // El aprendizaje de la regla es una mejora, no parte del contrato de esta alta: el
+  // movimiento y el saldo ya se han guardado arriba, así que un fallo aquí se
+  // registra pero no debe convertirse en una pantalla de error para algo que sí
+  // funcionó.
   if (categoria_id) {
-    await reforzarRegla(supabase, user.id, descripcion, categoria_id);
+    try {
+      await reforzarRegla(supabase, user.id, descripcion, categoria_id);
+    } catch (e) {
+      console.error("crearMovimiento: reforzarRegla", e);
+    }
   }
 
   revalidatePath("/movimientos");
@@ -109,11 +131,9 @@ export async function crearTraspaso(formData: FormData) {
   }
 
   const [{ data: origen }, { data: destino }] = await Promise.all([
-    supabase.from("cuentas").select("saldo_actual, nombre").eq("id", cuenta_origen_id).single(),
-    supabase.from("cuentas").select("saldo_actual, nombre").eq("id", cuenta_destino_id).single(),
+    supabase.from("cuentas").select("saldo_actual, nombre").eq("id", cuenta_origen_id).single().throwOnError(),
+    supabase.from("cuentas").select("saldo_actual, nombre").eq("id", cuenta_destino_id).single().throwOnError(),
   ]);
-
-  if (!origen || !destino) return;
 
   await registrarTraspaso(supabase, user.id, {
     cuentaOrigenId: cuenta_origen_id,
@@ -163,6 +183,7 @@ export async function vincularComoTraspaso(formData: FormData) {
         .from("movimientos")
         .update({ tipo: "traspaso", categoria_id: null, traspaso_grupo_id, tipo_original: f.tipo })
         .eq("id", f.id)
+        .throwOnError()
     )
   );
 
@@ -194,24 +215,28 @@ export async function eliminarTraspaso(formData: FormData) {
           .from("movimientos")
           .update({ tipo: f.tipo_original, tipo_original: null, traspaso_grupo_id: null })
           .eq("id", f.id)
+          .throwOnError()
       )
     );
   } else {
-    await supabase.from("movimientos").delete().eq("traspaso_grupo_id", traspaso_grupo_id);
+    await supabase.from("movimientos").delete().eq("traspaso_grupo_id", traspaso_grupo_id).throwOnError();
 
     for (const fila of filas) {
+      // .throwOnError() aquí es importante: los movimientos ya se han borrado arriba,
+      // así que un fallo silencioso en esta lectura dejaría el saldo de la cuenta sin
+      // revertir, desincronizado de sus movimientos reales.
       const { data: cuenta } = await supabase
         .from("cuentas")
         .select("saldo_actual")
         .eq("id", fila.cuenta_id)
-        .single();
+        .single()
+        .throwOnError();
 
-      if (cuenta) {
-        await supabase
-          .from("cuentas")
-          .update({ saldo_actual: Number(cuenta.saldo_actual) - Number(fila.importe) })
-          .eq("id", fila.cuenta_id);
-      }
+      await supabase
+        .from("cuentas")
+        .update({ saldo_actual: Number(cuenta.saldo_actual) - Number(fila.importe) })
+        .eq("id", fila.cuenta_id)
+        .throwOnError();
     }
   }
 
@@ -224,28 +249,30 @@ export async function eliminarMovimiento(formData: FormData) {
   const supabase = await createClient();
   const id = formData.get("id") as string;
 
+  // Se lee el movimiento (con throwOnError) ANTES de borrarlo: si esta lectura
+  // fallara, abortar aquí es mejor que borrar el movimiento y dejar el saldo de la
+  // cuenta sin revertir en silencio.
   const { data: movimiento } = await supabase
     .from("movimientos")
     .select("cuenta_id, importe")
     .eq("id", id)
-    .single();
+    .single()
+    .throwOnError();
 
-  await supabase.from("movimientos").delete().eq("id", id);
+  await supabase.from("movimientos").delete().eq("id", id).throwOnError();
 
-  if (movimiento) {
-    const { data: cuenta } = await supabase
-      .from("cuentas")
-      .select("saldo_actual")
-      .eq("id", movimiento.cuenta_id)
-      .single();
+  const { data: cuenta } = await supabase
+    .from("cuentas")
+    .select("saldo_actual")
+    .eq("id", movimiento.cuenta_id)
+    .single()
+    .throwOnError();
 
-    if (cuenta) {
-      await supabase
-        .from("cuentas")
-        .update({ saldo_actual: Number(cuenta.saldo_actual) - Number(movimiento.importe) })
-        .eq("id", movimiento.cuenta_id);
-    }
-  }
+  await supabase
+    .from("cuentas")
+    .update({ saldo_actual: Number(cuenta.saldo_actual) - Number(movimiento.importe) })
+    .eq("id", movimiento.cuenta_id)
+    .throwOnError();
 
   revalidatePath("/movimientos");
   revalidatePath("/cuentas");

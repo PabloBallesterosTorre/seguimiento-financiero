@@ -35,13 +35,13 @@ export async function crearInversion(formData: FormData) {
       rentabilidad_anual_asumida,
     })
     .select("id")
-    .single();
+    .single()
+    .throwOnError();
 
-  if (inversion) {
-    await supabase
-      .from("inversion_valoraciones")
-      .insert({ usuario_id: user.id, inversion_id: inversion.id, fecha: hoy, valor: valor_actual, origen: "manual" });
-  }
+  await supabase
+    .from("inversion_valoraciones")
+    .insert({ usuario_id: user.id, inversion_id: inversion.id, fecha: hoy, valor: valor_actual, origen: "manual" })
+    .throwOnError();
 
   revalidatePath("/inversiones");
   revalidatePath("/home");
@@ -61,7 +61,8 @@ export async function editarInversion(formData: FormData) {
   await supabase
     .from("inversiones")
     .update({ tipo_activo, nombre, es_recurrente, movimiento_previsto_id, rentabilidad_anual_asumida })
-    .eq("id", id);
+    .eq("id", id)
+    .throwOnError();
 
   revalidatePath("/inversiones");
   revalidatePath(`/inversiones/${id}`);
@@ -92,24 +93,26 @@ export async function registrarValoracionInversion(formData: FormData) {
     .upsert(
       { usuario_id: user.id, inversion_id: id, fecha, valor: valor_actual, origen: "manual" },
       { onConflict: "inversion_id,fecha" }
-    );
+    )
+    .throwOnError();
 
-  // El valor_actual/fecha_actualizacion de la inversión siempre refleja el punto más
-  // reciente conocido, aunque el punto que se acaba de guardar sea una fecha pasada.
+  // .throwOnError() aquí es importante: la valoración ya se ha guardado arriba, así
+  // que un fallo silencioso en esta lectura dejaría el valor_actual "en caché" de la
+  // inversión desincronizado de su histórico real.
   const { data: masReciente } = await supabase
     .from("inversion_valoraciones")
     .select("fecha, valor")
     .eq("inversion_id", id)
     .order("fecha", { ascending: false })
     .limit(1)
-    .single();
+    .single()
+    .throwOnError();
 
-  if (masReciente) {
-    await supabase
-      .from("inversiones")
-      .update({ valor_actual: masReciente.valor, fecha_actualizacion: new Date(masReciente.fecha).toISOString() })
-      .eq("id", id);
-  }
+  await supabase
+    .from("inversiones")
+    .update({ valor_actual: masReciente.valor, fecha_actualizacion: new Date(masReciente.fecha).toISOString() })
+    .eq("id", id)
+    .throwOnError();
 
   revalidatePath("/inversiones");
   revalidatePath(`/inversiones/${id}`);
@@ -121,7 +124,7 @@ export async function eliminarInversion(formData: FormData) {
   const supabase = await createClient();
   const id = formData.get("id") as string;
 
-  await supabase.from("inversiones").delete().eq("id", id);
+  await supabase.from("inversiones").delete().eq("id", id).throwOnError();
 
   revalidatePath("/inversiones");
   revalidatePath("/home");

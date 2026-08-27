@@ -34,39 +34,46 @@ export async function crearDeuda(formData: FormData) {
     .from("categorias")
     .insert({ usuario_id: user.id, nombre: `Pago ${nombre}`, es_categoria_inversion: false })
     .select("id")
-    .single();
+    .single()
+    .throwOnError();
 
-  await supabase.from("deudas").insert({
-    usuario_id: user.id,
-    tipo,
-    nombre,
-    capital_inicial,
-    capital_pendiente,
-    cuota,
-    tipo_interes,
-    modalidad_interes,
-    fecha_inicio,
-    fecha_fin,
-    valor_residual,
-    categoria_id: categoria?.id ?? null,
-    moneda: "EUR",
-  });
+  await supabase
+    .from("deudas")
+    .insert({
+      usuario_id: user.id,
+      tipo,
+      nombre,
+      capital_inicial,
+      capital_pendiente,
+      cuota,
+      tipo_interes,
+      modalidad_interes,
+      fecha_inicio,
+      fecha_fin,
+      valor_residual,
+      categoria_id: categoria?.id ?? null,
+      moneda: "EUR",
+    })
+    .throwOnError();
 
   // Previsión automática de la cuota, para que aparezca en el flujo de caja futuro
   // sin tener que darla de alta a mano como Movimiento previsto.
   if (categoria?.id && cuota > 0) {
-    await supabase.from("movimientos_previstos").insert({
-      usuario_id: user.id,
-      descripcion: `Cuota ${nombre}`,
-      tipo: "gasto",
-      categoria_id: categoria.id,
-      importe_estimado: cuota,
-      tipo_recurrencia: "recurrente",
-      periodicidad: "mensual",
-      fecha_inicio,
-      fecha_fin,
-      estado: "activo",
-    });
+    await supabase
+      .from("movimientos_previstos")
+      .insert({
+        usuario_id: user.id,
+        descripcion: `Cuota ${nombre}`,
+        tipo: "gasto",
+        categoria_id: categoria.id,
+        importe_estimado: cuota,
+        tipo_recurrencia: "recurrente",
+        periodicidad: "mensual",
+        fecha_inicio,
+        fecha_fin,
+        estado: "activo",
+      })
+      .throwOnError();
   }
 
   revalidatePath("/deudas");
@@ -80,7 +87,7 @@ export async function eliminarDeuda(formData: FormData) {
   const supabase = await createClient();
   const id = formData.get("id") as string;
 
-  await supabase.from("deudas").delete().eq("id", id);
+  await supabase.from("deudas").delete().eq("id", id).throwOnError();
 
   revalidatePath("/deudas");
   revalidatePath("/home");
@@ -96,17 +103,22 @@ async function aplicarFilaAmortizacion(
   importe: number,
   tipoReduccion: TipoReduccion
 ) {
+  // .throwOnError() aquí es importante: sin él, un fallo de lectura (no solo una
+  // deuda sin interés, que es un caso legítimo) caía en la misma rama de abajo y
+  // marcaba la amortización como aplicada sin tocar el capital pendiente.
   const { data: deuda } = await supabase
     .from("deudas")
     .select("capital_pendiente, cuota, tipo_interes, valor_residual")
     .eq("id", deudaId)
-    .single();
+    .single()
+    .throwOnError();
 
-  if (!deuda || deuda.tipo_interes === null) {
+  if (deuda.tipo_interes === null) {
     await supabase
       .from("amortizaciones_extra")
       .update({ aplicado: true, aplicado_en: new Date().toISOString() })
-      .eq("id", filaId);
+      .eq("id", filaId)
+      .throwOnError();
     return;
   }
 
@@ -134,12 +146,14 @@ async function aplicarFilaAmortizacion(
       cuota: cuotaNueva,
       fecha_fin: nuevaFechaFin.toISOString().slice(0, 10),
     })
-    .eq("id", deudaId);
+    .eq("id", deudaId)
+    .throwOnError();
 
   await supabase
     .from("amortizaciones_extra")
     .update({ aplicado: true, aplicado_en: new Date().toISOString() })
-    .eq("id", filaId);
+    .eq("id", filaId)
+    .throwOnError();
 }
 
 export async function registrarAmortizacionExtra(formData: FormData) {
@@ -201,7 +215,7 @@ export async function eliminarAmortizacionExtra(formData: FormData) {
   const id = formData.get("id") as string;
   const deuda_id = formData.get("deuda_id") as string;
 
-  await supabase.from("amortizaciones_extra").delete().eq("id", id);
+  await supabase.from("amortizaciones_extra").delete().eq("id", id).throwOnError();
 
   revalidatePath(`/deudas/${deuda_id}`);
 }

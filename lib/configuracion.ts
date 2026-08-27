@@ -24,12 +24,16 @@ export async function obtenerConfiguracion(
   supabase: SupabaseServerClient,
   usuarioId: string
 ): Promise<ConfiguracionUsuario> {
-  const { data } = await supabase
+  // Deliberadamente sin throwOnError: se lee en casi cada carga de página, y ante un
+  // fallo puntual es mejor degradar a los valores por defecto que romper la
+  // pantalla entera — pero sí se registra, para no perder visibilidad del fallo.
+  const { data, error } = await supabase
     .from("configuracion_usuario")
     .select("nombre, moneda_base, idioma, objetivo_ahorro_mensual, incluir_inversion_en_ahorro")
     .eq("usuario_id", usuarioId)
     .maybeSingle();
 
+  if (error) console.error("obtenerConfiguracion", error);
   if (!data) return DEFAULTS;
 
   return {

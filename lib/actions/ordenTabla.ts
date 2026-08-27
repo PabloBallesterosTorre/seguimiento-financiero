@@ -19,5 +19,6 @@ export async function guardarOrdenTabla(tabla: string, columna: string, direccio
 
   await supabase
     .from("preferencias_tabla")
-    .upsert({ usuario_id: user.id, tabla, columna, direccion }, { onConflict: "usuario_id,tabla" });
+    .upsert({ usuario_id: user.id, tabla, columna, direccion }, { onConflict: "usuario_id,tabla" })
+    .throwOnError();
 }

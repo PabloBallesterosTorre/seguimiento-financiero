@@ -31,12 +31,15 @@ export async function crearCuenta(formData: FormData) {
 
   if (!user) return;
 
-  await supabase.from("cuentas").insert({
-    usuario_id: user.id,
-    ...leerCamposCuenta(formData),
-    moneda: "EUR",
-    activa: true,
-  });
+  await supabase
+    .from("cuentas")
+    .insert({
+      usuario_id: user.id,
+      ...leerCamposCuenta(formData),
+      moneda: "EUR",
+      activa: true,
+    })
+    .throwOnError();
 
   revalidatePath("/cuentas");
   revalidatePath("/home");
@@ -46,7 +49,7 @@ export async function actualizarCuenta(formData: FormData) {
   const supabase = await createClient();
   const id = formData.get("id") as string;
 
-  await supabase.from("cuentas").update(leerCamposCuenta(formData)).eq("id", id);
+  await supabase.from("cuentas").update(leerCamposCuenta(formData)).eq("id", id).throwOnError();
 
   revalidatePath("/cuentas");
   revalidatePath("/home");
@@ -56,7 +59,7 @@ export async function eliminarCuenta(formData: FormData) {
   const supabase = await createClient();
   const id = formData.get("id") as string;
 
-  await supabase.from("cuentas").delete().eq("id", id);
+  await supabase.from("cuentas").delete().eq("id", id).throwOnError();
 
   revalidatePath("/cuentas");
   revalidatePath("/home");

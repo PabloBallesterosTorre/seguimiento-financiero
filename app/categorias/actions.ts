@@ -20,10 +20,13 @@ export async function crearCategoria(formData: FormData) {
 
   if (!user) return;
 
-  await supabase.from("categorias").insert({
-    usuario_id: user.id,
-    ...leerCamposCategoria(formData),
-  });
+  await supabase
+    .from("categorias")
+    .insert({
+      usuario_id: user.id,
+      ...leerCamposCategoria(formData),
+    })
+    .throwOnError();
 
   revalidatePath("/categorias");
 }
@@ -32,7 +35,7 @@ export async function actualizarCategoria(formData: FormData) {
   const supabase = await createClient();
   const id = formData.get("id") as string;
 
-  await supabase.from("categorias").update(leerCamposCategoria(formData)).eq("id", id);
+  await supabase.from("categorias").update(leerCamposCategoria(formData)).eq("id", id).throwOnError();
 
   revalidatePath("/categorias");
 }
@@ -41,7 +44,7 @@ export async function eliminarCategoria(formData: FormData) {
   const supabase = await createClient();
   const id = formData.get("id") as string;
 
-  await supabase.from("categorias").delete().eq("id", id);
+  await supabase.from("categorias").delete().eq("id", id).throwOnError();
 
   revalidatePath("/categorias");
 }
@@ -70,14 +73,17 @@ export async function crearCategoriasSugeridas() {
 
   if (!user) return;
 
-  await supabase.from("categorias").insert(
-    CATEGORIAS_SUGERIDAS.map((nombre) => ({
-      usuario_id: user.id,
-      nombre,
-      categoria_padre_id: null,
-      es_categoria_inversion: nombre === "Ahorro e Inversión",
-    }))
-  );
+  await supabase
+    .from("categorias")
+    .insert(
+      CATEGORIAS_SUGERIDAS.map((nombre) => ({
+        usuario_id: user.id,
+        nombre,
+        categoria_padre_id: null,
+        es_categoria_inversion: nombre === "Ahorro e Inversión",
+      }))
+    )
+    .throwOnError();
 
   revalidatePath("/categorias");
 }

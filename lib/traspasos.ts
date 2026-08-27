@@ -29,48 +29,52 @@ export async function registrarTraspaso(
 
   const traspaso_grupo_id = crypto.randomUUID();
 
-  await supabase.from("movimientos").insert([
-    {
-      usuario_id: usuarioId,
-      cuenta_id: cuentaOrigenId,
-      fecha,
-      descripcion: descripcionOrigen,
-      importe: -importe,
-      tipo: "traspaso",
-      origen: origenMovimiento,
-      moneda: "EUR",
-      traspaso_grupo_id,
-    },
-    {
-      usuario_id: usuarioId,
-      cuenta_id: cuentaDestinoId,
-      fecha,
-      descripcion: descripcionDestino,
-      importe,
-      tipo: "traspaso",
-      origen: origenMovimiento,
-      moneda: "EUR",
-      traspaso_grupo_id,
-    },
-  ]);
+  await supabase
+    .from("movimientos")
+    .insert([
+      {
+        usuario_id: usuarioId,
+        cuenta_id: cuentaOrigenId,
+        fecha,
+        descripcion: descripcionOrigen,
+        importe: -importe,
+        tipo: "traspaso",
+        origen: origenMovimiento,
+        moneda: "EUR",
+        traspaso_grupo_id,
+      },
+      {
+        usuario_id: usuarioId,
+        cuenta_id: cuentaDestinoId,
+        fecha,
+        descripcion: descripcionDestino,
+        importe,
+        tipo: "traspaso",
+        origen: origenMovimiento,
+        moneda: "EUR",
+        traspaso_grupo_id,
+      },
+    ])
+    .throwOnError();
 
+  // .throwOnError() aquí es importante: los dos movimientos ya se han insertado
+  // arriba, así que un fallo silencioso en esta lectura dejaría uno o los dos saldos
+  // desincronizados de sus movimientos reales.
   const [{ data: origen }, { data: destino }] = await Promise.all([
-    supabase.from("cuentas").select("saldo_actual").eq("id", cuentaOrigenId).single(),
-    supabase.from("cuentas").select("saldo_actual").eq("id", cuentaDestinoId).single(),
+    supabase.from("cuentas").select("saldo_actual").eq("id", cuentaOrigenId).single().throwOnError(),
+    supabase.from("cuentas").select("saldo_actual").eq("id", cuentaDestinoId).single().throwOnError(),
   ]);
 
-  if (origen) {
-    await supabase
-      .from("cuentas")
-      .update({ saldo_actual: Number(origen.saldo_actual) - importe })
-      .eq("id", cuentaOrigenId);
-  }
-  if (destino) {
-    await supabase
-      .from("cuentas")
-      .update({ saldo_actual: Number(destino.saldo_actual) + importe })
-      .eq("id", cuentaDestinoId);
-  }
+  await supabase
+    .from("cuentas")
+    .update({ saldo_actual: Number(origen.saldo_actual) - importe })
+    .eq("id", cuentaOrigenId)
+    .throwOnError();
+  await supabase
+    .from("cuentas")
+    .update({ saldo_actual: Number(destino.saldo_actual) + importe })
+    .eq("id", cuentaDestinoId)
+    .throwOnError();
 }
 
 export type MovimientoParaEmparejar = {
