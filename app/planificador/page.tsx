@@ -15,6 +15,7 @@ import {
 } from "@/lib/planificador";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
+import { rentabilidadPonderada } from "@/lib/inversiones";
 
 const HORIZONTES_MESES = [3, 6, 12];
 const HORIZONTES_ANIOS = [5, 10, 20];
@@ -54,7 +55,7 @@ export default async function PlanificadorPage({
     { data: conciliacionesRaw },
   ] = await Promise.all([
     supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
-    supabase.from("inversiones").select("valor_actual"),
+    supabase.from("inversiones").select("valor_actual, rentabilidad_anual_asumida"),
     supabase.from("deudas").select("id, capital_inicial, capital_pendiente, cuota, tipo_interes, valor_residual, fecha_inicio"),
     supabase
       .from("amortizaciones_extra")
@@ -80,6 +81,12 @@ export default async function PlanificadorPage({
   const saldoLiquidoInicial = (cuentas ?? []).reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
   const valorInversionInicial = (inversiones ?? []).reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
   const deudaActual = (deudasRaw ?? []).reduce((sum, d) => sum + Number(d.capital_pendiente ?? 0), 0);
+  const rentabilidadAsumida = rentabilidadPonderada(
+    (inversiones ?? []).map((i) => ({
+      valor_actual: Number(i.valor_actual ?? 0),
+      rentabilidad_anual_asumida: i.rentabilidad_anual_asumida !== null ? Number(i.rentabilidad_anual_asumida) : null,
+    }))
+  );
 
   const deudas: DeudaParaProyeccion[] = (deudasRaw ?? []).map((d) => ({
     id: d.id,
@@ -99,6 +106,7 @@ export default async function PlanificadorPage({
   const deudasHistorico: DeudaParaHistorico[] = (deudasRaw ?? []).map((d) => ({
     id: d.id,
     capital_inicial: Number(d.capital_inicial),
+    capital_pendiente: Number(d.capital_pendiente),
     fecha_inicio: d.fecha_inicio,
     cuota: Number(d.cuota),
     tipo_interes: d.tipo_interes === null ? null : Number(d.tipo_interes),
@@ -154,6 +162,7 @@ export default async function PlanificadorPage({
     amortizacionesProgramadas,
     esCategoriaInversion,
     periodosConciliados,
+    rentabilidadAnualAsumidaInversion: rentabilidadAsumida,
   });
 
   const historicoCompleto = (historicoCompletoRaw ?? []) as {
@@ -183,6 +192,7 @@ export default async function PlanificadorPage({
           deudas: deudasHistorico,
           amortizacionesAplicadasPorDeuda,
           esCategoriaInversion,
+          hoy,
         })
       : [];
 
@@ -193,85 +203,97 @@ export default async function PlanificadorPage({
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-5xl px-4 py-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Planificador</h1>
-          <Link href="/prevision" className="text-sm text-slate-500 hover:text-slate-900">
+      <main className="mx-auto max-w-5xl space-y-5 px-5 py-8 sm:px-10">
+        <div className="flex items-start justify-between">
+          <h1 className="font-sora text-[26px] font-bold text-ink">Planificador</h1>
+          <Link href="/prevision" className="text-[13px] font-semibold text-accent hover:underline">
             Ver previsión de flujo →
           </Link>
         </div>
-        <p className="text-sm text-slate-400">
+        <p className="max-w-3xl text-[13px] leading-relaxed text-ink-secondary">
           Evolución de líquido, deuda e inversión, hacia atrás (reconstruido a partir de tu
           histórico real) y hacia adelante (previsión de flujo de caja, calendario de amortización
           e intereses de cuentas remuneradas). El horizonte elegido aplica en ambas direcciones.
           Para los meses pasados, la inversión es lo aportado hasta esa fecha (coste, no el valor
           de mercado histórico, que no se registra); para hoy y los meses futuros, es el valor real
-          de hoy más las aportaciones previstas — no se asume ninguna rentabilidad futura. Un
-          previsto ya vinculado a un movimiento real de este mes no se suma también como previsión
-          — el saldo de hoy ya lo incluye.
+          de hoy más las aportaciones previstas
+          {rentabilidadAsumida !== null && rentabilidadAsumida !== 0 ? (
+            <>
+              {" "}
+              compuestas a la rentabilidad anual asumida de cada inversión (
+              <span className="font-semibold text-ink">{rentabilidadAsumida.toFixed(1)}% de media ponderada</span> —
+              es una <span className="font-semibold">proyección estimada</span>, no una previsión real)
+            </>
+          ) : (
+            " — no se asume ninguna rentabilidad futura mientras no definas una en cada inversión"
+          )}
+          . Un previsto ya vinculado a un movimiento real de este mes no se suma también como
+          previsión — el saldo de hoy ya lo incluye.
         </p>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <div className="rounded-card border border-border bg-surface p-6 shadow-card">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-700">Hoy — patrimonio real</p>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">Real</span>
+            <p className="text-sm font-semibold text-ink">Hoy — patrimonio real</p>
+            <span className="rounded-full bg-success/12 px-2.5 py-0.5 text-[10px] font-bold text-success">Real</span>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-5">
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-5">
             <div>
-              <p className="text-xs text-slate-500">Líquido</p>
-              <p className="text-sm font-medium">{formatEUR(saldoLiquidoInicial)}</p>
+              <p className="text-xs text-ink-tertiary">Líquido</p>
+              <p className="mt-1.5 font-sora text-lg font-bold text-ink">{formatEUR(saldoLiquidoInicial)}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Inversión</p>
-              <p className="text-sm font-medium">{formatEUR(valorInversionInicial)}</p>
+              <p className="text-xs text-ink-tertiary">Inversión</p>
+              <p className="mt-1.5 font-sora text-lg font-bold text-ink">{formatEUR(valorInversionInicial)}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Deuda pendiente</p>
-              <p className="text-sm font-medium">{formatEUR(deudaActual)}</p>
+              <p className="text-xs text-ink-tertiary">Deuda pendiente</p>
+              <p className="mt-1.5 font-sora text-lg font-bold text-ink">{formatEUR(deudaActual)}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Patrimonio con deuda</p>
-              <p className="text-sm font-medium">{formatEUR(saldoLiquidoInicial + valorInversionInicial - deudaActual)}</p>
+              <p className="text-xs text-ink-tertiary">Patrimonio con deuda</p>
+              <p className={`mt-1.5 font-sora text-lg font-bold ${saldoLiquidoInicial + valorInversionInicial - deudaActual < 0 ? "text-danger" : "text-ink"}`}>
+                {formatEUR(saldoLiquidoInicial + valorInversionInicial - deudaActual)}
+              </p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Patrimonio sin deuda</p>
-              <p className="text-sm font-medium">{formatEUR(saldoLiquidoInicial + valorInversionInicial)}</p>
+              <p className="text-xs text-ink-tertiary">Patrimonio sin deuda</p>
+              <p className="mt-1.5 font-sora text-lg font-bold text-ink">{formatEUR(saldoLiquidoInicial + valorInversionInicial)}</p>
             </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-500">Real</span>
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-700">Mixto</span>
-            <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-700">Proyección</span>
-            <p className="text-sm text-slate-500">
+          <div>
+            <div className="flex w-fit gap-2 text-[10px] font-bold">
+              <span className="rounded-full bg-success/12 px-2.5 py-1 text-success">Real</span>
+              <span className="rounded-full bg-forecast/15 px-2.5 py-1 text-forecast">Mixto</span>
+              <span className="rounded-full bg-accent-soft px-2.5 py-1 text-accent">Proyección</span>
+            </div>
+            <p className="mt-1.5 text-[11px] text-ink-tertiary">
               histórico real, el mes en curso (real + lo que falta) o previsión futura
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex rounded-md border border-slate-300 text-sm">
+          <div className="flex items-center gap-2.5">
+            <div className="flex rounded-full bg-chip p-1">
               <Link
                 href={`/planificador?vista=mensual`}
-                className={`px-3 py-1.5 rounded-l-md ${vista === "mensual" ? "bg-slate-900 text-white" : "hover:bg-slate-100"}`}
+                className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${vista === "mensual" ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"}`}
               >
                 Mensual
               </Link>
               <Link
                 href={`/planificador?vista=anual`}
-                className={`px-3 py-1.5 rounded-r-md ${vista === "anual" ? "bg-slate-900 text-white" : "hover:bg-slate-100"}`}
+                className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${vista === "anual" ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"}`}
               >
                 Anual
               </Link>
             </div>
-            <div className="flex rounded-md border border-slate-300 text-sm">
-              {(vista === "mensual" ? HORIZONTES_MESES : HORIZONTES_ANIOS).map((h, idx, arr) => (
+            <div className="flex rounded-full bg-chip p-1">
+              {(vista === "mensual" ? HORIZONTES_MESES : HORIZONTES_ANIOS).map((h) => (
                 <Link
                   key={h}
                   href={`/planificador?vista=${vista}&horizonte=${h}`}
-                  className={`px-3 py-1.5 ${horizonteElegido === h ? "bg-slate-900 text-white" : "hover:bg-slate-100"} ${
-                    idx === 0 ? "rounded-l-md" : idx === arr.length - 1 ? "rounded-r-md" : ""
-                  }`}
+                  className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${horizonteElegido === h ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"}`}
                 >
                   {h} {vista === "mensual" ? "meses" : "años"}
                 </Link>
@@ -280,20 +302,20 @@ export default async function PlanificadorPage({
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="overflow-x-auto rounded-card border border-border bg-surface shadow-card">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-slate-500">
-              <tr>
-                <th className="whitespace-nowrap px-4 py-2 font-medium"></th>
-                <th className="whitespace-nowrap px-4 py-2 font-medium">{vista === "mensual" ? "Mes" : "Año"}</th>
-                <th className="whitespace-nowrap px-4 py-2 text-right font-medium">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="whitespace-nowrap px-3 py-3"></th>
+                <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-ink-tertiary">{vista === "mensual" ? "Mes" : "Año"}</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold text-ink-tertiary">
                   {vista === "mensual" ? "Flujo neto" : "Flujo neto anual"}
                 </th>
-                <th className="whitespace-nowrap px-4 py-2 text-right font-medium">Líquido</th>
-                <th className="whitespace-nowrap px-4 py-2 text-right font-medium">Inversión</th>
-                <th className="whitespace-nowrap px-4 py-2 text-right font-medium">Deuda pendiente</th>
-                <th className="whitespace-nowrap px-4 py-2 text-right font-medium">Patrimonio (con deuda)</th>
-                <th className="whitespace-nowrap px-4 py-2 text-right font-medium">Patrimonio (sin deuda)</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold text-ink-tertiary">Líquido</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold text-ink-tertiary">Inversión</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold text-ink-tertiary">Deuda pendiente</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold text-ink-tertiary">Patrimonio (con deuda)</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold text-ink-tertiary">Patrimonio (sin deuda)</th>
               </tr>
             </thead>
             <tbody>
@@ -301,69 +323,58 @@ export default async function PlanificadorPage({
                 ? puntos.map((p, i) => {
                     const esMesActual = i === indiceMesActual;
                     return (
-                    <tr
-                      key={`${p.year}-${p.month}`}
-                      className={`border-t border-slate-100 ${p.esReal ? "" : "bg-sky-50/40"}`}
-                    >
-                      <td className="whitespace-nowrap px-2 py-2">
+                    <tr key={`${p.year}-${p.month}`} className="border-t border-border">
+                      <td className="whitespace-nowrap px-3 py-2.5">
                         <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
                             p.esReal
-                              ? "bg-slate-100 text-slate-500"
+                              ? "bg-success/12 text-success"
                               : esMesActual
-                                ? "bg-amber-100 text-amber-700"
-                                : "bg-sky-100 text-sky-700"
+                                ? "bg-forecast/15 text-forecast"
+                                : "bg-accent-soft text-accent"
                           }`}
                         >
                           {p.esReal ? "Real" : esMesActual ? "Mixto" : "Proy."}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-2 text-slate-600">{p.label}</td>
-                      <td
-                        className={`whitespace-nowrap px-4 py-2 text-right ${
-                          p.flujoNeto >= 0 ? "text-emerald-600" : "text-slate-900"
-                        }`}
-                      >
+                      <td className="whitespace-nowrap px-4 py-2.5 text-ink-secondary">{p.label}</td>
+                      <td className={`whitespace-nowrap px-4 py-2.5 text-right ${p.flujoNeto >= 0 ? "text-success" : "text-ink"}`}>
                         {formatEUR(p.flujoNeto)}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-2 text-right">{formatEUR(p.saldoLiquido)}</td>
-                      <td className="whitespace-nowrap px-4 py-2 text-right">{formatEUR(p.valorInversion)}</td>
-                      <td className="whitespace-nowrap px-4 py-2 text-right">{formatEUR(p.deudaPendiente)}</td>
-                      <td className="whitespace-nowrap px-4 py-2 text-right font-medium">
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right text-ink">{formatEUR(p.saldoLiquido)}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right text-ink">{formatEUR(p.valorInversion)}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right text-ink">{formatEUR(p.deudaPendiente)}</td>
+                      <td className={`whitespace-nowrap px-4 py-2.5 text-right font-semibold ${p.patrimonioConDeuda < 0 ? "text-danger" : "text-ink"}`}>
                         {formatEUR(p.patrimonioConDeuda)}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-2 text-right font-medium">
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right font-semibold text-ink">
                         {formatEUR(p.patrimonioSinDeuda)}
                       </td>
                     </tr>
                     );
                   })
                 : filasAnuales.map((f) => (
-                    <tr key={f.year} className={`border-t border-slate-100 ${f.esReal ? "" : "bg-sky-50/40"}`}>
-                      <td className="whitespace-nowrap px-2 py-2">
+                    <tr key={f.year} className="border-t border-border">
+                      <td className="whitespace-nowrap px-3 py-2.5">
                         <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            f.esReal ? "bg-slate-100 text-slate-500" : "bg-sky-100 text-sky-700"
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            f.esReal ? "bg-success/12 text-success" : "bg-accent-soft text-accent"
                           }`}
                         >
                           {f.esReal ? "Real" : "Proy."}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-2 text-slate-600">{f.year}</td>
-                      <td
-                        className={`whitespace-nowrap px-4 py-2 text-right ${
-                          f.flujoNetoAnual >= 0 ? "text-emerald-600" : "text-slate-900"
-                        }`}
-                      >
+                      <td className="whitespace-nowrap px-4 py-2.5 text-ink-secondary">{f.year}</td>
+                      <td className={`whitespace-nowrap px-4 py-2.5 text-right ${f.flujoNetoAnual >= 0 ? "text-success" : "text-ink"}`}>
                         {formatEUR(f.flujoNetoAnual)}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-2 text-right">{formatEUR(f.saldoLiquido)}</td>
-                      <td className="whitespace-nowrap px-4 py-2 text-right">{formatEUR(f.valorInversion)}</td>
-                      <td className="whitespace-nowrap px-4 py-2 text-right">{formatEUR(f.deudaPendiente)}</td>
-                      <td className="whitespace-nowrap px-4 py-2 text-right font-medium">
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right text-ink">{formatEUR(f.saldoLiquido)}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right text-ink">{formatEUR(f.valorInversion)}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right text-ink">{formatEUR(f.deudaPendiente)}</td>
+                      <td className={`whitespace-nowrap px-4 py-2.5 text-right font-semibold ${f.patrimonioConDeuda < 0 ? "text-danger" : "text-ink"}`}>
                         {formatEUR(f.patrimonioConDeuda)}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-2 text-right font-medium">
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right font-semibold text-ink">
                         {formatEUR(f.patrimonioSinDeuda)}
                       </td>
                     </tr>

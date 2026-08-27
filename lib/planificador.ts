@@ -40,8 +40,9 @@ export type PuntoProyeccion = {
 // Proyecta, mes a mes, el flujo de caja (previstos + intereses de cuentas
 // remuneradas), el capital pendiente de cada deuda (vía simularConProgramadas, con
 // las amortizaciones ya planificadas) y el valor de inversión (partiendo del valor
-// actual y sumando las aportaciones previstas categorizadas como inversión — sin
-// asumir ninguna rentabilidad futura, solo lo que se sabe que se va a aportar).
+// actual, componiendo la rentabilidad anual asumida — tanda 8, mejora 2c; 0% si no se
+// pasa — y sumando las aportaciones previstas categorizadas como inversión, que
+// empiezan a componer desde el mes siguiente al que se aportan).
 // El capital pendiente de cada mes usa el mismo índice relativo que el resto de la
 // previsión (mes 0 = mes actual), igual que ya hace el simulador de amortización —
 // no pretende una sincronía exacta día a día entre el cargo de la cuota y el resto
@@ -61,6 +62,7 @@ export function construirProyeccionPatrimonio(params: {
   esCategoriaInversion: (categoriaId: string | null) => boolean;
   mediaPorCategoria?: Map<string, number>;
   periodosConciliados?: Set<string>;
+  rentabilidadAnualAsumidaInversion?: number | null;
 }): PuntoProyeccion[] {
   const {
     meses,
@@ -74,7 +76,11 @@ export function construirProyeccionPatrimonio(params: {
     esCategoriaInversion,
     mediaPorCategoria = new Map(),
     periodosConciliados = new Set(),
+    rentabilidadAnualAsumidaInversion = null,
   } = params;
+  const tasaMensualInversion = rentabilidadAnualAsumidaInversion
+    ? Math.pow(1 + rentabilidadAnualAsumidaInversion / 100, 1 / 12) - 1
+    : 0;
 
   const deudaPorMes = deudas.map((deuda) => {
     const programadas = amortizacionesProgramadas
@@ -117,7 +123,7 @@ export function construirProyeccionPatrimonio(params: {
     }
 
     saldoLiquido += flujoNeto;
-    valorInversion += aportacionInversion;
+    valorInversion = valorInversion * (1 + tasaMensualInversion) + aportacionInversion;
 
     const deudaPendiente = deudaPorMes.reduce((suma, d) => {
       const saldo = d.filas[i] ?? d.filas[d.filas.length - 1] ?? d.capitalInicial;
@@ -198,6 +204,7 @@ export type MovimientoParaHistorico = {
 export type DeudaParaHistorico = {
   id: string;
   capital_inicial: number;
+  capital_pendiente: number;
   fecha_inicio: string;
   cuota: number;
   tipo_interes: number | null;
@@ -207,11 +214,16 @@ export type DeudaParaHistorico = {
 // Reconstruye, mes a mes, lo que de verdad pasó: líquido (saldo actual menos todos los
 // movimientos posteriores a cada cierre de mes — exacto, viene del histórico real),
 // deuda pendiente (simulando cada deuda hacia adelante desde su capital inicial y
-// fecha de inicio, con las amortizaciones extra ya aplicadas en su fecha real — exacto
-// salvo que la cuota haya cambiado por una reducción de cuota anterior al periodo
-// simulado, ya que solo se guarda la cuota vigente, no su historial) e inversión
-// aportada (suma acumulada de aportaciones categorizadas como inversión — coste, NO
-// el valor de mercado histórico, que no se registra en ningún sitio).
+// fecha de inicio, con las amortizaciones extra ya aplicadas en su fecha real, y
+// ANCLANDO la curva resultante al capital pendiente real de hoy — se calcula el saldo
+// teórico que la simulación daría hoy y se le suma a toda la curva histórica la
+// diferencia frente al capital pendiente real, para que conecte sin salto con el
+// primer punto de la proyección futura, que sí parte del dato real. Sin este ajuste,
+// cualquier diferencia entre la amortización teórica y la cuota/capital realmente
+// vigente hoy (o una cuota que cambió y de la que no se guarda historial) se traduce en
+// un salto discontinuo justo en el mes de hoy) e inversión aportada (suma acumulada de
+// aportaciones categorizadas como inversión — coste, NO el valor de mercado histórico,
+// que no se registra en ningún sitio).
 export function construirHistoricoPatrimonio(params: {
   meses: MesProyeccion[];
   movimientos: MovimientoParaHistorico[];
@@ -219,9 +231,18 @@ export function construirHistoricoPatrimonio(params: {
   deudas: DeudaParaHistorico[];
   amortizacionesAplicadasPorDeuda: Map<string, AmortizacionProgramadaDeuda[]>;
   esCategoriaInversion: (categoriaId: string | null) => boolean;
+  hoy: string;
 }): PuntoProyeccion[] {
-  const { meses, movimientos, saldoLiquidoActual, deudas, amortizacionesAplicadasPorDeuda, esCategoriaInversion } =
-    params;
+  const {
+    meses,
+    movimientos,
+    saldoLiquidoActual,
+    deudas,
+    amortizacionesAplicadasPorDeuda,
+    esCategoriaInversion,
+    hoy,
+  } = params;
+  const [hoyYear, hoyMonth] = hoy.split("-").map(Number);
 
   const finesDeMes = meses.map((mes) => finDeMesISO(mes.year, mes.month));
 
@@ -243,7 +264,11 @@ export function construirHistoricoPatrimonio(params: {
       importe: a.importe,
       tipoReduccion: a.tipoReduccion,
     }));
-    const mesesNecesarios = ultimoMes ? mesesEntre(deuda.fecha_inicio, ultimoMes.year, ultimoMes.month) : 0;
+    const indiceHoy = mesesEntre(deuda.fecha_inicio, hoyYear, hoyMonth);
+    const mesesNecesarios = Math.max(
+      indiceHoy,
+      ultimoMes ? mesesEntre(deuda.fecha_inicio, ultimoMes.year, ultimoMes.month) : 0
+    );
     const resultado = simularConProgramadas(
       deuda.capital_inicial,
       deuda.tipo_interes ?? 0,
@@ -253,7 +278,9 @@ export function construirHistoricoPatrimonio(params: {
       programadas,
       Math.max(mesesNecesarios + 1, 600)
     );
-    return { filas: resultado.filas, fechaInicio: deuda.fecha_inicio, valorResidual: deuda.valor_residual };
+    const teoricoHoy = indiceHoy >= 0 ? (resultado.filas[indiceHoy]?.saldo ?? deuda.valor_residual) : deuda.capital_inicial;
+    const offset = deuda.capital_pendiente - teoricoHoy;
+    return { filas: resultado.filas, fechaInicio: deuda.fecha_inicio, valorResidual: deuda.valor_residual, offset };
   });
 
   const deudaPorMes = meses.map((mes) =>
@@ -261,7 +288,7 @@ export function construirHistoricoPatrimonio(params: {
       const indice = mesesEntre(d.fechaInicio, mes.year, mes.month);
       if (indice < 0) return suma; // la deuda todavía no existía ese mes
       const fila = d.filas[indice];
-      const saldo = fila ? fila.saldo : d.valorResidual;
+      const saldo = fila ? fila.saldo + d.offset : d.valorResidual;
       return suma + saldo;
     }, 0)
   );

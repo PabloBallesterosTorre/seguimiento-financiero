@@ -1,14 +1,12 @@
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { crearInversion, actualizarValorInversion, eliminarInversion } from "./actions";
-import { ConfirmForm } from "@/components/ConfirmForm";
+import { crearInversion, editarInversion, registrarValoracionInversion, eliminarInversion } from "./actions";
 import { NuevaInversion } from "./NuevaInversion";
+import { InversionesClient } from "./InversionesClient";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
-
-function formatFecha(value: string) {
-  return new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(new Date(value));
-}
+import { cardClass } from "@/components/formStyles";
+import type { PrevistoInversionOption } from "./InversionForm";
 
 export default async function InversionesPage() {
   const supabase = createClient();
@@ -17,93 +15,72 @@ export default async function InversionesPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: inversiones }, config] = await Promise.all([
+  const [{ data: inversiones }, { data: categorias }, { data: previstosRaw }, config] = await Promise.all([
     supabase.from("inversiones").select("*").order("created_at", { ascending: true }),
+    supabase.from("categorias").select("id, categoria_padre_id, es_categoria_inversion"),
+    supabase
+      .from("movimientos_previstos")
+      .select("id, descripcion, importe_estimado, tipo, categoria_id, tipo_recurrencia")
+      .eq("tipo", "gasto")
+      .eq("tipo_recurrencia", "recurrente"),
     user ? obtenerConfiguracion(supabase, user.id) : null,
   ]);
 
   const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
   const total = (inversiones ?? []).reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
 
+  const categoriaPadreId = new Map((categorias ?? []).map((c) => [c.id, c.categoria_padre_id as string | null]));
+  const categoriaEsInversion = new Map((categorias ?? []).map((c) => [c.id, c.es_categoria_inversion === true]));
+  const esCategoriaInversion = (categoriaId: string | null) => {
+    if (!categoriaId) return false;
+    const efectiva = categoriaPadreId.get(categoriaId) ?? categoriaId;
+    return categoriaEsInversion.get(efectiva) === true || categoriaEsInversion.get(categoriaId) === true;
+  };
+
+  const previstosInversion: PrevistoInversionOption[] = (previstosRaw ?? [])
+    .filter((p) => esCategoriaInversion(p.categoria_id))
+    .map((p) => ({ id: p.id, descripcion: p.descripcion, importe_estimado: Number(p.importe_estimado) }));
+
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
+      <main className="mx-auto max-w-4xl space-y-6 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Inversión</h1>
-          <p className="text-sm text-slate-500">
-            Total: <span className="font-medium text-slate-900">{formatEUR(total)}</span>
+          <h1 className="font-sora text-[26px] font-bold text-ink">Inversión</h1>
+          <p className="text-[13px] text-ink-secondary">
+            Total: <span className="font-semibold text-ink">{formatEUR(total)}</span>
           </p>
         </div>
 
-        <NuevaInversion action={crearInversion} />
+        <NuevaInversion action={crearInversion} previstosInversion={previstosInversion} />
 
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-slate-500">
-              <tr>
-                <th className="px-4 py-2 font-medium">Tipo</th>
-                <th className="px-4 py-2 font-medium">Nombre</th>
-                <th className="px-4 py-2 font-medium">Valor actual</th>
-                <th className="px-4 py-2 font-medium">Actualizado</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {(inversiones ?? []).map((inv) => (
-                <tr key={inv.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2 capitalize">{inv.tipo_activo.replace(/_/g, " ")}</td>
-                  <td className="px-4 py-2">{inv.nombre}</td>
-                  <td className="px-4 py-2">
-                    <form action={actualizarValorInversion} className="flex items-center gap-2">
-                      <input type="hidden" name="id" value={inv.id} />
-                      <input
-                        name="valor_actual"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        defaultValue={Number(inv.valor_actual)}
-                        className="w-28 rounded-md border border-slate-300 px-2 py-1 text-sm"
-                      />
-                      <button
-                        type="submit"
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
-                      >
-                        Guardar
-                      </button>
-                    </form>
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-slate-500">
-                    {formatFecha(inv.fecha_actualizacion)}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <ConfirmForm
-                      action={eliminarInversion}
-                      mensaje={`¿Seguro que quieres eliminar la inversión "${inv.nombre}"? Esta acción no se puede deshacer.`}
-                    >
-                      <input type="hidden" name="id" value={inv.id} />
-                      <button className="text-slate-400 hover:text-red-600" type="submit">
-                        Eliminar
-                      </button>
-                    </ConfirmForm>
-                  </td>
-                </tr>
-              ))}
-              {(inversiones ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                    Todavía no has dado de alta ninguna inversión.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <InversionesClient
+          inversiones={(inversiones ?? []).map((i) => ({
+            id: i.id,
+            tipo_activo: i.tipo_activo,
+            nombre: i.nombre,
+            valor_actual: Number(i.valor_actual),
+            fecha_actualizacion: i.fecha_actualizacion,
+            es_recurrente: i.es_recurrente,
+            movimiento_previsto_id: i.movimiento_previsto_id,
+            rentabilidad_anual_asumida: i.rentabilidad_anual_asumida !== null ? Number(i.rentabilidad_anual_asumida) : null,
+          }))}
+          moneda={config?.moneda_base ?? "EUR"}
+          previstosInversion={previstosInversion}
+          registrarValoracionInversion={registrarValoracionInversion}
+          editarInversion={editarInversion}
+          eliminarInversion={eliminarInversion}
+        />
+
+        <div className={cardClass}>
+          <p className="text-[13px] text-ink-tertiary">
+            El valor de cada inversión se actualiza a mano — la sincronización automática con
+            bróker/exchange (Stooq para acciones/ETF, CoinGecko para cripto) es una mejora de fase 2.
+            Entre dos actualizaciones, la evolución diaria que se muestra en el detalle de cada
+            inversión es una <span className="font-semibold text-ink">estimación</span>, no el valor de
+            mercado real día a día.
+          </p>
         </div>
-
-        <p className="text-sm text-slate-400">
-          El valor de cada inversión se actualiza a mano por ahora — la sincronización automática con
-          bróker/exchange es una mejora de fase 2.
-        </p>
       </main>
     </>
   );

@@ -6,6 +6,27 @@ import {
   type PuntoProyeccion,
 } from "./planificador";
 import { construirPeriodosConciliados, type MovimientoPrevisto } from "./prevision";
+import { simularConProgramadas, type TipoReduccion } from "./amortizacion";
+
+// Calcula el saldo teórico "puro" (sin el anclaje al capital pendiente real que aplica
+// construirHistoricoPatrimonio) que tendría una deuda en `hoy`, para poder pasar ese
+// mismo valor como capital_pendiente en los tests y así dejar el offset de anclaje en 0
+// — de modo que los tests sigan comprobando la curva de amortización en sí, no el ancla.
+function capitalPendienteTeoricoEn(
+  capitalInicial: number,
+  tipoInteres: number,
+  cuota: number,
+  valorResidual: number,
+  fechaInicio: string,
+  hoy: string,
+  programadas: { fecha: string; importe: number; tipoReduccion: TipoReduccion }[] = []
+): number {
+  const [anioHoy, mesHoy] = hoy.split("-").map(Number);
+  const [anioIni, mesIni] = fechaInicio.split("-").map(Number);
+  const indice = anioHoy * 12 + (mesHoy - 1) - (anioIni * 12 + (mesIni - 1));
+  const resultado = simularConProgramadas(capitalInicial, tipoInteres, cuota, valorResidual, fechaInicio, programadas, indice + 1);
+  return resultado.filas[indice]?.saldo ?? valorResidual;
+}
 
 function previsto(overrides: Partial<MovimientoPrevisto> = {}): MovimientoPrevisto {
   return {
@@ -86,6 +107,24 @@ describe("construirProyeccionPatrimonio", () => {
     expect(puntos[0].saldoLiquido).toBeCloseTo(900, 2);
     expect(puntos[0].valorInversion).toBeCloseTo(5100, 2);
     expect(puntos[0].patrimonioSinDeuda).toBeCloseTo(6000, 2);
+  });
+
+  it("con rentabilidad anual asumida, el valor de inversión compone mes a mes antes de sumar la aportación", () => {
+    const doceMeses = Array.from({ length: 12 }, (_, i) => ({ year: 2026, month: i + 1, label: `Mes ${i + 1}` }));
+    const puntos = construirProyeccionPatrimonio({
+      meses: doceMeses,
+      fechaInicio: "2026-01-01",
+      saldoLiquidoInicial: 0,
+      valorInversionInicial: 10000,
+      previstos: [],
+      interesesPorMes: new Map(),
+      deudas: [],
+      amortizacionesProgramadas: [],
+      esCategoriaInversion: () => false,
+      rentabilidadAnualAsumidaInversion: 12,
+    });
+
+    expect(puntos[11].valorInversion).toBeCloseTo(11200, 0); // 12% compuesto durante 12 meses ≈ 12% anual
   });
 
   it("un previsto de nivel 2 usa la media recalculada en la proyección de flujo", () => {
@@ -252,6 +291,7 @@ describe("construirHistoricoPatrimonio", () => {
       deudas: [],
       amortizacionesAplicadasPorDeuda: new Map(),
       esCategoriaInversion: () => false,
+      hoy: "2026-03-15",
     });
 
     expect(puntos[0].saldoLiquido).toBeCloseTo(1000, 2);
@@ -274,6 +314,7 @@ describe("construirHistoricoPatrimonio", () => {
       deudas: [],
       amortizacionesAplicadasPorDeuda: new Map(),
       esCategoriaInversion: (id) => id === "inversion",
+      hoy: "2026-03-15",
     });
 
     expect(puntos[0].valorInversion).toBeCloseTo(50, 2);
@@ -282,6 +323,8 @@ describe("construirHistoricoPatrimonio", () => {
   });
 
   it("reconstruye el capital pendiente de una deuda desde su origen y no antes de que existiera", () => {
+    const hoy = "2026-06-01";
+    const capitalPendiente = capitalPendienteTeoricoEn(150000, 3, 831.9, 0, "2026-01-01", hoy);
     const puntos = construirHistoricoPatrimonio({
       meses: [
         { year: 2025, month: 12, label: "" },
@@ -290,9 +333,20 @@ describe("construirHistoricoPatrimonio", () => {
       ],
       movimientos: [],
       saldoLiquidoActual: 0,
-      deudas: [{ id: "d1", capital_inicial: 150000, fecha_inicio: "2026-01-01", cuota: 831.9, tipo_interes: 3, valor_residual: 0 }],
+      deudas: [
+        {
+          id: "d1",
+          capital_inicial: 150000,
+          capital_pendiente: capitalPendiente,
+          fecha_inicio: "2026-01-01",
+          cuota: 831.9,
+          tipo_interes: 3,
+          valor_residual: 0,
+        },
+      ],
       amortizacionesAplicadasPorDeuda: new Map(),
       esCategoriaInversion: () => false,
+      hoy,
     });
 
     expect(puntos[0].deudaPendiente).toBe(0);
@@ -302,27 +356,79 @@ describe("construirHistoricoPatrimonio", () => {
   });
 
   it("una amortización ya aplicada en el pasado reduce el capital pendiente reconstruido desde esa fecha", () => {
-    const deudas = [{ id: "d1", capital_inicial: 150000, fecha_inicio: "2025-01-01", cuota: 831.9, tipo_interes: 3, valor_residual: 0 }];
+    const hoy = "2026-06-01";
+    const fechaInicio = "2025-01-01";
+    const programadas = [{ fecha: "2025-06-01", importe: 20000, tipoReduccion: "reducir_plazo" as TipoReduccion }];
+    const capitalPendienteSinExtra = capitalPendienteTeoricoEn(150000, 3, 831.9, 0, fechaInicio, hoy);
+    const capitalPendienteConExtra = capitalPendienteTeoricoEn(150000, 3, 831.9, 0, fechaInicio, hoy, programadas);
+
     const sinExtra = construirHistoricoPatrimonio({
       meses: mesesPasados,
       movimientos: [],
       saldoLiquidoActual: 0,
-      deudas,
+      deudas: [{ id: "d1", capital_inicial: 150000, capital_pendiente: capitalPendienteSinExtra, fecha_inicio: fechaInicio, cuota: 831.9, tipo_interes: 3, valor_residual: 0 }],
       amortizacionesAplicadasPorDeuda: new Map(),
       esCategoriaInversion: () => false,
+      hoy,
     });
 
     const conExtra = construirHistoricoPatrimonio({
       meses: mesesPasados,
       movimientos: [],
       saldoLiquidoActual: 0,
-      deudas,
-      amortizacionesAplicadasPorDeuda: new Map([
-        ["d1", [{ deuda_id: "d1", fecha: "2025-06-01", importe: 20000, tipoReduccion: "reducir_plazo" as const }]],
-      ]),
+      deudas: [{ id: "d1", capital_inicial: 150000, capital_pendiente: capitalPendienteConExtra, fecha_inicio: fechaInicio, cuota: 831.9, tipo_interes: 3, valor_residual: 0 }],
+      amortizacionesAplicadasPorDeuda: new Map([["d1", programadas.map((p) => ({ deuda_id: "d1", ...p }))]]),
       esCategoriaInversion: () => false,
+      hoy,
     });
 
     expect(conExtra[0].deudaPendiente).toBeLessThan(sinExtra[0].deudaPendiente);
+  });
+
+  it("ancla la curva histórica al capital pendiente real de hoy, sin salto en el último punto", () => {
+    const fechaInicio = "2023-01-01";
+    const hoy = "2026-04-01";
+    const capitalTeorico = capitalPendienteTeoricoEn(150000, 3, 831.9, 0, fechaInicio, hoy);
+    // Capital pendiente real distinto del teórico (p. ej. porque la cuota real vigente no
+    // coincide exactamente con la usada para reconstruir el pasado) — simula justo el caso
+    // del bug: un desajuste entre la amortización teórica y el dato real de hoy.
+    const capitalPendienteReal = capitalTeorico + 8570;
+
+    const puntos = construirHistoricoPatrimonio({
+      meses: [
+        { year: 2026, month: 1, label: "" },
+        { year: 2026, month: 2, label: "" },
+        { year: 2026, month: 3, label: "" },
+      ],
+      movimientos: [],
+      saldoLiquidoActual: 0,
+      deudas: [
+        {
+          id: "d1",
+          capital_inicial: 150000,
+          capital_pendiente: capitalPendienteReal,
+          fecha_inicio: fechaInicio,
+          cuota: 831.9,
+          tipo_interes: 3,
+          valor_residual: 0,
+        },
+      ],
+      amortizacionesAplicadasPorDeuda: new Map(),
+      esCategoriaInversion: () => false,
+      hoy,
+    });
+
+    // El último punto histórico (marzo 2026, un mes antes de "hoy") debe quedar desplazado
+    // por el mismo offset que ancla "hoy" al capital pendiente real — no por el valor teórico
+    // sin ajustar — porque la curva entera se desplaza, no solo el punto de "hoy" (que ni
+    // siquiera forma parte de este histórico: lo pone la proyección futura, con el valor real
+    // directamente).
+    const capitalTeoricoUltimoMes = capitalPendienteTeoricoEn(150000, 3, 831.9, 0, fechaInicio, "2026-03-01");
+    const offset = capitalPendienteReal - capitalTeorico;
+    const esperadoUltimoPunto = capitalTeoricoUltimoMes + offset;
+
+    const ultimoPunto = puntos[puntos.length - 1];
+    expect(ultimoPunto.deudaPendiente).toBeGreaterThan(capitalTeorico);
+    expect(ultimoPunto.deudaPendiente).toBeCloseTo(esperadoUltimoPunto, 2);
   });
 });
