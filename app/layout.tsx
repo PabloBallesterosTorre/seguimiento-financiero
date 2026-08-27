@@ -19,6 +19,7 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "Seguimiento Financiero",
   description: "App personal de seguimiento financiero: cuentas, movimientos, inversión, deuda y patrimonio.",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({

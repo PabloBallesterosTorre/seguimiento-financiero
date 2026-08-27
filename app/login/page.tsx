@@ -1,69 +1,41 @@
-import { login, signup } from "./actions";
+import { login } from "./actions";
+import { inputClass, labelClass, btnPrimaryClass } from "@/components/formStyles";
 
-export default function LoginPage({
+export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { error?: string; message?: string };
+  searchParams: Promise<{ error?: string; message?: string }>;
 }) {
+  const { error, message } = await searchParams;
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-sm space-y-6">
+    <main className="flex min-h-screen items-center justify-center bg-page px-4">
+      <div className="w-full max-w-sm space-y-6 rounded-card border border-border bg-surface p-8 shadow-card">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold">Seguimiento Financiero</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Accede o crea tu cuenta para empezar.
-          </p>
+          <h1 className="font-sora text-2xl font-bold text-ink">Seguimiento Financiero</h1>
+          <p className="mt-1.5 text-[13px] text-ink-secondary">Accede a tu cuenta.</p>
         </div>
 
         <form className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium">
+            <label htmlFor="email" className={labelClass}>
               Email
             </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-            />
+            <input id="email" name="email" type="email" required className={inputClass} />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium">
+            <label htmlFor="password" className={labelClass}>
               Contraseña
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              minLength={6}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-            />
+            <input id="password" name="password" type="password" required minLength={6} className={inputClass} />
           </div>
 
-          {searchParams.error && (
-            <p className="text-sm text-red-600">{searchParams.error}</p>
-          )}
-          {searchParams.message && (
-            <p className="text-sm text-emerald-600">{searchParams.message}</p>
-          )}
+          {error && <p className="text-[13px] text-danger">{error}</p>}
+          {message && <p className="text-[13px] text-success">{message}</p>}
 
-          <div className="flex gap-2">
-            <button
-              formAction={login}
-              className="flex-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700"
-            >
-              Entrar
-            </button>
-            <button
-              formAction={signup}
-              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-100"
-            >
-              Crear cuenta
-            </button>
-          </div>
+          <button formAction={login} className={`${btnPrimaryClass} w-full text-center`}>
+            Entrar
+          </button>
         </form>
       </div>
     </main>
