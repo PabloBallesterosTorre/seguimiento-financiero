@@ -1,7 +1,12 @@
 import { withSentryConfig } from "@sentry/nextjs";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const sentryEnabled = Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN);
+const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+// El host de ingesta varía según la región del proyecto de Sentry (p.ej. EU usa
+// *.ingest.de.sentry.io, no *.ingest.sentry.io) — se deriva de la propia DSN en
+// vez de adivinar el patrón, para que la CSP sea exacta y no haya que tocarla si
+// cambia de proyecto/región.
+const sentryIngestOrigin = sentryDsn ? `https://${new URL(sentryDsn).host}` : "";
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -11,7 +16,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
   "font-src 'self' data:",
-  `connect-src 'self' ${supabaseUrl}${sentryEnabled ? " https://*.sentry.io https://*.ingest.sentry.io" : ""}`,
+  `connect-src 'self' ${supabaseUrl}${sentryIngestOrigin ? ` ${sentryIngestOrigin}` : ""}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -44,5 +49,5 @@ export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   silent: true,
-  sourcemaps: { disable: !sentryEnabled },
+  sourcemaps: { disable: !sentryDsn },
 });
