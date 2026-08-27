@@ -20,8 +20,8 @@ export default async function CuentasPage() {
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
-        <h1 className="text-xl font-semibold">Cuentas</h1>
+      <main className="mx-auto max-w-4xl space-y-6 px-5 py-8 sm:px-10">
+        <h1 className="font-sora text-[26px] font-bold text-ink">Cuentas</h1>
 
         <CuentasClient
           cuentas={cuentas ?? []}

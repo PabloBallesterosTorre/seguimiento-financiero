@@ -30,7 +30,7 @@ export function CategoriaCelda({
         name="categoria_id"
         defaultValue={categoriaId ?? ""}
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className="w-full rounded-md border border-transparent bg-transparent px-1 py-1 text-sm text-slate-600 hover:border-slate-300 focus:border-slate-300"
+        className="w-full rounded-btn border border-transparent bg-transparent px-1 py-1 text-[13px] text-ink-secondary hover:border-border-strong focus:border-border-strong"
       >
         <option value="">Sin categoría</option>
         {categorias.map((cat) => (
@@ -48,7 +48,7 @@ export function CategoriaCelda({
               selectRef.current.form?.requestSubmit();
             }
           }}
-          className="mt-0.5 block rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 hover:bg-sky-200"
+          className="mt-0.5 block rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent hover:brightness-95"
         >
           Sugerida: {sugerida.nombre}
         </button>

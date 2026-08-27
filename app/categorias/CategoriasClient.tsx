@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState } from "react";
 import { CategoriaForm } from "./CategoriaForm";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { formatMoneda } from "@/lib/formato";
+import { btnPrimaryClass, btnSecondaryClass, cardClass, tableWrapClass, rowLinkClass, rowDelClass } from "@/components/formStyles";
 
 type Categoria = {
   id: string;
@@ -30,6 +31,7 @@ export function CategoriasClient({
   crearCategoria,
   actualizarCategoria,
   eliminarCategoria,
+  crearCategoriasSugeridas,
   obtenerMovimientosDeCategoria,
   moneda = "EUR",
 }: {
@@ -37,6 +39,7 @@ export function CategoriasClient({
   crearCategoria: (formData: FormData) => void;
   actualizarCategoria: (formData: FormData) => void;
   eliminarCategoria: (formData: FormData) => void;
+  crearCategoriasSugeridas: () => void;
   obtenerMovimientosDeCategoria: (categoriaIds: string[]) => Promise<MovimientoAsociado[]>;
   moneda?: string;
 }) {
@@ -67,23 +70,33 @@ export function CategoriasClient({
   }, [abierto, categorias, obtenerMovimientosDeCategoria]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {abierto === "nueva" ? (
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-medium text-slate-700">Añadir categoría</h2>
+        <div className={cardClass}>
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="font-sora text-base font-semibold text-ink">Añadir categoría</h2>
+            <button type="button" onClick={() => setAbierto(null)} className="text-[13px] font-semibold text-ink-tertiary hover:text-ink">
+              Cancelar
+            </button>
+          </div>
           <CategoriaForm padres={padres} action={crearCategoria} onCancelar={() => setAbierto(null)} />
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => setAbierto("nueva")}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
-          Nueva categoría
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button type="button" onClick={() => setAbierto("nueva")} className={btnPrimaryClass}>
+            + Nueva categoría
+          </button>
+          {categorias.length === 0 && (
+            <form action={crearCategoriasSugeridas}>
+              <button type="submit" className={btnSecondaryClass}>
+                Usar categorías sugeridas
+              </button>
+            </form>
+          )}
+        </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className={tableWrapClass}>
         <table className="w-full text-sm">
           <tbody>
             {padres.map((cat) => {
@@ -98,8 +111,8 @@ export function CategoriasClient({
                     eliminarCategoria={eliminarCategoria}
                   />
                   {abierto === cat.id && (
-                    <tr className="border-t border-slate-100 bg-slate-50">
-                      <td colSpan={3} className="px-4 py-4">
+                    <tr className="border-t border-border bg-page">
+                      <td colSpan={3} className="px-5 py-5">
                         <DetalleCategoria
                           categoria={cat}
                           padres={padres}
@@ -122,8 +135,8 @@ export function CategoriasClient({
                         eliminarCategoria={eliminarCategoria}
                       />
                       {abierto === sub.id && (
-                        <tr className="border-t border-slate-100 bg-slate-50">
-                          <td colSpan={3} className="px-4 py-4">
+                        <tr className="border-t border-border bg-page">
+                          <td colSpan={3} className="px-5 py-5">
                             <DetalleCategoria
                               categoria={sub}
                               padres={padres}
@@ -143,8 +156,9 @@ export function CategoriasClient({
             })}
             {padres.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-slate-400">
-                  Todavía no hay categorías.
+                <td colSpan={3} className="px-4 py-6 text-center text-ink-tertiary">
+                  Todavía no hay categorías. Puedes crearlas una a una o usar &quot;Usar categorías
+                  sugeridas&quot; arriba para partir de una plantilla editable.
                 </td>
               </tr>
             )}
@@ -169,20 +183,22 @@ function FilaCategoria({
   eliminarCategoria: (formData: FormData) => void;
 }) {
   return (
-    <tr className="border-t border-slate-100">
-      <td className={`px-4 py-2 ${indentada ? "pl-10 text-slate-500" : ""}`}>{categoria.nombre}</td>
-      <td className="px-4 py-2">
+    <tr className="border-t border-border first:border-t-0">
+      <td className={`px-5 py-3.5 ${indentada ? "pl-10 text-[13px] text-ink-tertiary" : "text-sm text-ink"}`}>
+        {categoria.nombre}
+      </td>
+      <td className="px-5 py-3.5">
         {categoria.es_categoria_inversion && (
-          <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+          <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-[11px] font-semibold text-accent">
             Inversión
           </span>
         )}
       </td>
-      <td className="px-4 py-2 text-right whitespace-nowrap">
+      <td className="px-5 py-3.5 text-right whitespace-nowrap">
         <button
           type="button"
           onClick={() => setAbierto(abierto === categoria.id ? null : categoria.id)}
-          className="mr-3 text-slate-500 hover:text-slate-900"
+          className={`mr-3.5 ${rowLinkClass}`}
         >
           Editar
         </button>
@@ -192,7 +208,7 @@ function FilaCategoria({
           className="inline"
         >
           <input type="hidden" name="id" value={categoria.id} />
-          <button className="text-slate-400 hover:text-red-600" type="submit">
+          <button className={rowDelClass} type="submit">
             Eliminar
           </button>
         </ConfirmForm>
@@ -222,36 +238,36 @@ function DetalleCategoria({
     <div className="space-y-4">
       <CategoriaForm categoria={categoria} padres={padres} action={actualizarCategoria} onCancelar={onCancelar} />
       <div>
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-tertiary">
           Movimientos asociados
           {categoria.categoria_padre_id === null && " (incluye subcategorías)"}
         </h3>
         {cargando ? (
-          <p className="text-sm text-slate-400">Cargando…</p>
+          <p className="text-sm text-ink-tertiary">Cargando…</p>
         ) : !movimientos || movimientos.length === 0 ? (
-          <p className="text-sm text-slate-400">No hay movimientos en esta categoría.</p>
+          <p className="text-sm text-ink-tertiary">No hay movimientos en esta categoría.</p>
         ) : (
-          <div className="max-h-80 overflow-y-auto rounded-md border border-slate-200 bg-white">
+          <div className="max-h-80 overflow-y-auto rounded-btn border border-border bg-surface">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-slate-50 text-left text-slate-500">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Fecha</th>
-                  <th className="px-3 py-2 font-medium">Cuenta</th>
-                  <th className="px-3 py-2 font-medium">Descripción</th>
-                  <th className="px-3 py-2 text-right font-medium">Importe</th>
+              <thead className="sticky top-0 bg-surface text-left text-ink-tertiary">
+                <tr className="border-b border-border">
+                  <th className="px-3 py-2 font-semibold">Fecha</th>
+                  <th className="px-3 py-2 font-semibold">Cuenta</th>
+                  <th className="px-3 py-2 font-semibold">Descripción</th>
+                  <th className="px-3 py-2 text-right font-semibold">Importe</th>
                 </tr>
               </thead>
               <tbody>
                 {movimientos.map((m) => (
-                  <tr key={m.id} className="border-t border-slate-100">
-                    <td className="whitespace-nowrap px-3 py-1.5 text-slate-500">{formatFecha(m.fecha)}</td>
-                    <td className="whitespace-nowrap px-3 py-1.5 text-slate-500">
+                  <tr key={m.id} className="border-t border-border">
+                    <td className="whitespace-nowrap px-3 py-1.5 text-ink-tertiary">{formatFecha(m.fecha)}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-ink-tertiary">
                       {m.cuentas ? `${m.cuentas.banco_nombre} — ${m.cuentas.nombre}` : "—"}
                     </td>
-                    <td className="px-3 py-1.5">{m.descripcion}</td>
+                    <td className="px-3 py-1.5 text-ink">{m.descripcion}</td>
                     <td
-                      className={`whitespace-nowrap px-3 py-1.5 text-right font-medium ${
-                        Number(m.importe) < 0 ? "text-slate-900" : "text-emerald-600"
+                      className={`whitespace-nowrap px-3 py-1.5 text-right font-semibold ${
+                        Number(m.importe) < 0 ? "text-ink" : "text-success"
                       }`}
                     >
                       {formatEUR(Number(m.importe))}

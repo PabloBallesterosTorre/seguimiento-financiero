@@ -56,14 +56,14 @@ export default async function DiagnosticoPrevisionPage({
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-5xl px-4 py-8 space-y-6">
+      <main className="mx-auto max-w-5xl space-y-5 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Diagnóstico de previsión</h1>
-          <Link href="/prevision" className="text-sm text-slate-500 hover:text-slate-900">
+          <h1 className="font-sora text-[26px] font-bold text-ink">Diagnóstico de previsión</h1>
+          <Link href="/prevision" className="text-[13px] font-semibold text-accent hover:underline">
             ← Ver proyección
           </Link>
         </div>
-        <p className="text-sm text-slate-400">
+        <p className="max-w-3xl text-[13px] leading-relaxed text-ink-secondary">
           Herramienta interna: qué está aplicando el motor de previsión, mes a mes y categoría a
           categoría (categorías padre, con sus subcategorías desplegables debajo). Útil para
           detectar huecos, duplicados o importes inesperados. Combina previsiones manuales,
@@ -73,13 +73,13 @@ export default async function DiagnosticoPrevisionPage({
           (nivel 1: manual, patrón con importe estable, o deuda).
         </p>
 
-        <div className="flex rounded-md border border-slate-300 text-sm w-fit">
+        <div className="flex w-fit rounded-full bg-chip p-1">
           {HORIZONTES.map((h) => (
             <Link
               key={h}
               href={`/prevision/diagnostico?meses=${h}`}
-              className={`px-3 py-1.5 ${h === horizonte ? "bg-slate-900 text-white" : "hover:bg-slate-100"} ${
-                h === 3 ? "rounded-l-md" : h === 12 ? "rounded-r-md" : ""
+              className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
+                h === horizonte ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
               }`}
             >
               {h} meses

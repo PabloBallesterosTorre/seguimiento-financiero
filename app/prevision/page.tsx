@@ -147,26 +147,26 @@ export default async function PrevisionPage({
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-4xl px-4 py-8 space-y-6">
+      <main className="mx-auto max-w-4xl space-y-5 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Previsión de flujo de caja</h1>
+          <h1 className="font-sora text-[26px] font-bold text-ink">Previsión de flujo de caja</h1>
           <div className="flex items-center gap-4">
-            <Link href="/prevision/diagnostico" className="text-sm text-slate-500 hover:text-slate-900">
+            <Link href="/prevision/diagnostico" className="text-[13px] font-semibold text-accent hover:underline">
               Diagnóstico →
             </Link>
-            <Link href="/prevision/previstos" className="text-sm text-slate-500 hover:text-slate-900">
+            <Link href="/prevision/previstos" className="text-[13px] font-semibold text-accent hover:underline">
               Gestionar previsiones →
             </Link>
           </div>
         </div>
 
-        <div className="flex rounded-md border border-slate-300 text-sm w-fit">
+        <div className="flex w-fit rounded-full bg-chip p-1">
           {HORIZONTES.map((h) => (
             <Link
               key={h}
               href={`/prevision?meses=${h}`}
-              className={`px-3 py-1.5 ${h === horizonte ? "bg-slate-900 text-white" : "hover:bg-slate-100"} ${
-                h === 3 ? "rounded-l-md" : h === 12 ? "rounded-r-md" : ""
+              className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
+                h === horizonte ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
               }`}
             >
               {h} meses
@@ -174,48 +174,44 @@ export default async function PrevisionPage({
           ))}
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
-          <p className="text-sm text-slate-500">Saldo actual de cuentas</p>
-          <p className="mt-1 text-2xl font-semibold">{formatEUR(saldoInicial)}</p>
+        <div className="rounded-card border border-border bg-surface p-6 shadow-card">
+          <p className="text-[13px] text-ink-secondary">Saldo actual de cuentas</p>
+          <p className="mt-2 font-sora text-[28px] font-bold text-ink">{formatEUR(saldoInicial)}</p>
         </div>
 
         <div className="space-y-4">
           {mesesConSaldo.map((mes, i) => (
-            <div key={`${mes.year}-${mes.month}`} className="rounded-lg border border-slate-200 bg-white p-6">
+            <div key={`${mes.year}-${mes.month}`} className="rounded-card border border-border bg-surface p-6 shadow-card">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <h2 className="flex items-center gap-2.5 text-[15px] font-bold text-ink">
                   {mes.label}
                   <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      i === 0 ? "bg-amber-100 text-amber-700" : "bg-sky-100 text-sky-700"
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                      i === 0 ? "bg-forecast/15 text-forecast" : "bg-accent-soft text-accent"
                     }`}
                   >
                     {i === 0 ? "Mes en curso" : "Previsión"}
                   </span>
                 </h2>
-                <p className="text-sm text-slate-500">
+                <p className="text-[13px] text-ink-secondary">
                   Neto:{" "}
-                  <span className={mes.totalMes >= 0 ? "text-emerald-600" : "text-slate-900"}>
+                  <span className={`font-semibold ${mes.totalMes >= 0 ? "text-success" : "text-danger"}`}>
                     {formatEUR(mes.totalMes)}
                   </span>{" "}
                   · Saldo proyectado:{" "}
-                  <span className="font-medium text-slate-900">{formatEUR(mes.saldoProyectado)}</span>
+                  <span className="font-semibold text-ink">{formatEUR(mes.saldoProyectado)}</span>
                 </p>
               </div>
 
               {mes.porCategoria.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-400">Sin previsiones para este mes.</p>
+                <p className="mt-3 text-sm text-ink-tertiary">Sin previsiones para este mes.</p>
               ) : (
-                <table className="mt-3 w-full text-sm">
+                <table className="mt-3 w-full text-[13px]">
                   <tbody>
                     {mes.porCategoria.map(([clave, c]) => (
-                      <tr key={clave} className="border-t border-slate-100">
-                        <td className="py-1.5 text-slate-600">{c.nombre}</td>
-                        <td
-                          className={`py-1.5 text-right font-medium ${
-                            c.importe >= 0 ? "text-emerald-600" : "text-slate-900"
-                          }`}
-                        >
+                      <tr key={clave} className="border-t border-border">
+                        <td className="py-1.5 text-ink-secondary">{c.nombre}</td>
+                        <td className={`py-1.5 text-right font-semibold ${c.importe >= 0 ? "text-success" : "text-ink"}`}>
                           {formatEUR(c.importe)}
                         </td>
                       </tr>
@@ -225,7 +221,7 @@ export default async function PrevisionPage({
               )}
 
               {mes.traspasos.length > 0 && (
-                <p className="mt-3 text-xs text-slate-400">
+                <p className="mt-3 text-xs text-ink-tertiary">
                   + {mes.traspasos.length} traspaso(s) previsto(s) entre cuentas propias (no afectan al total).
                 </p>
               )}
@@ -234,13 +230,13 @@ export default async function PrevisionPage({
         </div>
 
         {mesActual && (
-          <div className="rounded-lg border border-slate-200 bg-white p-6 space-y-4">
-            <h2 className="text-sm font-medium text-slate-700">
+          <div className="space-y-4 rounded-card border border-border bg-surface p-6 shadow-card">
+            <h2 className="font-sora text-base font-semibold text-ink">
               Previsto vs. real — {mesActual.label}
             </h2>
 
             {mesActual.porCategoria.length === 0 ? (
-              <p className="text-sm text-slate-400">No hay previsiones activas para este mes.</p>
+              <p className="text-sm text-ink-tertiary">No hay previsiones activas para este mes.</p>
             ) : (
               <div className="space-y-3">
                 {mesActual.porCategoria.map(([clave, c]) => {
@@ -254,15 +250,15 @@ export default async function PrevisionPage({
                   return (
                     <div key={clave}>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-600">{c.nombre}</span>
+                        <span className="text-ink-secondary">{c.nombre}</span>
                         <span>
-                          <span className="font-medium text-slate-900">{formatEUR(real)}</span>
-                          <span className="text-slate-400"> / {formatEUR(c.importe)} previsto</span>
+                          <span className="font-semibold text-ink">{formatEUR(real)}</span>
+                          <span className="text-ink-tertiary"> / {formatEUR(c.importe)} previsto</span>
                         </span>
                       </div>
-                      <div className="mt-1 h-1.5 w-full rounded-full bg-slate-100">
+                      <div className="mt-1 h-1.5 w-full rounded-full bg-chip">
                         <div
-                          className={`h-1.5 rounded-full ${cumplido ? "bg-emerald-500" : "bg-slate-900"}`}
+                          className={`h-1.5 rounded-full ${cumplido ? "bg-success" : "bg-ink"}`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -275,9 +271,9 @@ export default async function PrevisionPage({
         )}
 
         {(previstosSinVincular.length > 0 || previstosVinculados.length > 0) && (
-          <div className="rounded-lg border border-slate-200 bg-white p-6 space-y-4">
-            <h2 className="text-sm font-medium text-slate-700">Conciliación — {mesActual?.label}</h2>
-            <p className="text-xs text-slate-400">
+          <div className="space-y-4 rounded-card border border-border bg-surface p-6 shadow-card">
+            <h2 className="font-sora text-base font-semibold text-ink">Conciliación — {mesActual?.label}</h2>
+            <p className="text-xs text-ink-tertiary">
               Vincula cada previsión con el movimiento real correspondiente para que no se duplique en la
               proyección de los próximos meses.
             </p>
@@ -290,11 +286,11 @@ export default async function PrevisionPage({
                 <form key={p.id} action={vincularMovimientoPrevisto} className="flex items-center gap-2 text-sm">
                   <input type="hidden" name="previsto_id" value={p.id} />
                   <input type="hidden" name="periodo" value={periodoActual ?? ""} />
-                  <span className="w-48 truncate text-slate-600">{p.descripcion}</span>
-                  <span className="text-slate-400">{formatEUR(importeEfectivoPrevisto(p, mediaPorCategoria))}</span>
+                  <span className="w-48 truncate text-ink-secondary">{p.descripcion}</span>
+                  <span className="text-ink-tertiary">{formatEUR(importeEfectivoPrevisto(p, mediaPorCategoria))}</span>
                   <select
                     name="movimiento_id"
-                    className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm"
+                    className="flex-1 rounded-btn border border-border-strong bg-field px-2 py-1.5 text-sm"
                     defaultValue=""
                   >
                     <option value="">Sin vincular todavía</option>
@@ -306,7 +302,7 @@ export default async function PrevisionPage({
                   </select>
                   <button
                     type="submit"
-                    className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                    className="rounded-btn border border-border-strong px-2.5 py-1.5 text-xs font-semibold text-ink-secondary hover:bg-chip"
                   >
                     Vincular
                   </button>
@@ -318,11 +314,11 @@ export default async function PrevisionPage({
               <form key={p.id} action={desvincularMovimientoPrevisto} className="flex items-center gap-2 text-sm">
                 <input type="hidden" name="previsto_id" value={p.id} />
                 <input type="hidden" name="periodo" value={periodoActual ?? ""} />
-                <span className="w-48 truncate text-slate-600">{p.descripcion}</span>
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                <span className="w-48 truncate text-ink-secondary">{p.descripcion}</span>
+                <span className="rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-semibold text-success">
                   Vinculado
                 </span>
-                <button type="submit" className="text-xs text-slate-400 hover:text-red-600">
+                <button type="submit" className="text-xs text-ink-tertiary hover:text-danger">
                   Desvincular
                 </button>
               </form>

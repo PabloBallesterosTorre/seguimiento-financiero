@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { CategoriaJerarquica } from "@/lib/categorias";
+import { inputClass, labelClass, btnPrimaryClass } from "@/components/formStyles";
 
 type Cuenta = { id: string; nombre: string; banco_nombre: string };
 
@@ -45,22 +46,22 @@ export function MovimientoPrevistoForm({
     <form action={action} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       {previsto && <input type="hidden" name="id" value={previsto.id} />}
       <div className="sm:col-span-2">
-        <label className="block text-xs text-slate-500">Descripción</label>
+        <label className={labelClass}>Descripción</label>
         <input
           name="descripcion"
           required
           defaultValue={previsto?.descripcion}
           placeholder="Seguro del coche, Nómina, Ocio…"
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className={inputClass}
         />
       </div>
       <div>
-        <label className="block text-xs text-slate-500">Tipo</label>
+        <label className={labelClass}>Tipo</label>
         <select
           name="tipo"
           value={tipo}
           onChange={(e) => setTipo(e.target.value as typeof tipo)}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className={inputClass}
         >
           <option value="gasto">Gasto</option>
           <option value="ingreso">Ingreso</option>
@@ -70,11 +71,11 @@ export function MovimientoPrevistoForm({
 
       {tipo !== "traspaso" && (
         <div>
-          <label className="block text-xs text-slate-500">Categoría</label>
+          <label className={labelClass}>Categoría</label>
           <select
             name="categoria_id"
             defaultValue={previsto?.categoria_id ?? ""}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className={inputClass}
           >
             <option value="">Sin categoría</option>
             {categorias.map((c) => (
@@ -86,11 +87,11 @@ export function MovimientoPrevistoForm({
         </div>
       )}
       <div>
-        <label className="block text-xs text-slate-500">Cuenta (opcional)</label>
+        <label className={labelClass}>Cuenta (opcional)</label>
         <select
           name="cuenta_id"
           defaultValue={previsto?.cuenta_id ?? ""}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className={inputClass}
         >
           <option value="">Sin especificar</option>
           {cuentas.map((c) => (
@@ -102,8 +103,8 @@ export function MovimientoPrevistoForm({
       </div>
 
       <div className="sm:col-span-3">
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" checked={esRango} onChange={(e) => setEsRango(e.target.checked)} />
+        <label className="flex items-center gap-2 text-[13px] text-ink-secondary">
+          <input type="checkbox" checked={esRango} onChange={(e) => setEsRango(e.target.checked)} className="h-4 w-4" />
           Importe variable (rango en vez de un importe fijo)
         </label>
       </div>
@@ -111,7 +112,7 @@ export function MovimientoPrevistoForm({
       {esRango ? (
         <>
           <div>
-            <label className="block text-xs text-slate-500">Importe mínimo</label>
+            <label className={labelClass}>Importe mínimo</label>
             <input
               name="importe_min"
               type="number"
@@ -119,11 +120,11 @@ export function MovimientoPrevistoForm({
               min="0"
               required
               defaultValue={previsto?.importe_min ?? undefined}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500">Importe máximo</label>
+            <label className={labelClass}>Importe máximo</label>
             <input
               name="importe_max"
               type="number"
@@ -131,14 +132,14 @@ export function MovimientoPrevistoForm({
               min="0"
               required
               defaultValue={previsto?.importe_max ?? undefined}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
             />
           </div>
           <input type="hidden" name="importe_estimado" value="0" />
         </>
       ) : (
         <div>
-          <label className="block text-xs text-slate-500">Importe estimado</label>
+          <label className={labelClass}>Importe estimado</label>
           <input
             name="importe_estimado"
             type="number"
@@ -146,14 +147,14 @@ export function MovimientoPrevistoForm({
             min="0"
             required
             defaultValue={previsto?.importe_estimado ?? undefined}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className={inputClass}
           />
         </div>
       )}
 
       <div className="sm:col-span-3">
-        <label className="block text-xs text-slate-500">Recurrencia</label>
-        <div className="mt-1 flex gap-4 text-sm">
+        <label className={labelClass}>Recurrencia</label>
+        <div className="mt-1 flex gap-4 text-[13px] text-ink-secondary">
           <label className="flex items-center gap-1.5">
             <input
               type="radio"
@@ -179,24 +180,24 @@ export function MovimientoPrevistoForm({
 
       {tipoRecurrencia === "unica_vez" ? (
         <div>
-          <label className="block text-xs text-slate-500">Fecha</label>
+          <label className={labelClass}>Fecha</label>
           <input
             name="fecha"
             type="date"
             required
             defaultValue={previsto?.fecha ?? hoy}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className={inputClass}
           />
         </div>
       ) : (
         <>
           <div>
-            <label className="block text-xs text-slate-500">Periodicidad</label>
+            <label className={labelClass}>Periodicidad</label>
             <select
               name="periodicidad"
               value={periodicidad}
               onChange={(e) => setPeriodicidad(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
             >
               <option value="semanal">Semanal</option>
               <option value="mensual">Mensual</option>
@@ -206,38 +207,35 @@ export function MovimientoPrevistoForm({
               <option value="anual">Anual (estacional)</option>
             </select>
             {periodicidad === "semanal" && (
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1.5 text-xs text-ink-tertiary">
                 El importe se entiende por semana: se multiplica por las semanas que caigan en cada mes (4 o 5).
               </p>
             )}
           </div>
           <div>
-            <label className="block text-xs text-slate-500">Desde</label>
+            <label className={labelClass}>Desde</label>
             <input
               name="fecha_inicio"
               type="date"
               required
               defaultValue={previsto?.fecha_inicio ?? hoy}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500">Hasta (opcional)</label>
+            <label className={labelClass}>Hasta (opcional)</label>
             <input
               name="fecha_fin"
               type="date"
               defaultValue={previsto?.fecha_fin ?? undefined}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
             />
           </div>
         </>
       )}
 
       <div className="sm:col-span-3">
-        <button
-          type="submit"
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
+        <button type="submit" className={btnPrimaryClass}>
           {previsto ? "Guardar cambios" : "Añadir previsión"}
         </button>
       </div>

@@ -91,14 +91,14 @@ export default async function PrevistosPage() {
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
+      <main className="mx-auto max-w-4xl space-y-6 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Movimientos previstos</h1>
+          <h1 className="font-sora text-[26px] font-bold text-ink">Movimientos previstos</h1>
           <div className="flex items-center gap-4">
-            <Link href="/prevision/sugerencias" className="text-sm text-slate-500 hover:text-slate-900">
+            <Link href="/prevision/sugerencias" className="text-[13px] font-semibold text-accent hover:underline">
               Ver sugerencias →
             </Link>
-            <Link href="/prevision" className="text-sm text-slate-500 hover:text-slate-900">
+            <Link href="/prevision" className="text-[13px] font-semibold text-accent hover:underline">
               ← Ver proyección
             </Link>
           </div>
@@ -123,12 +123,12 @@ export default async function PrevistosPage() {
           ordenInicial={ordenInicial}
         />
 
-        <p className="text-sm text-slate-400">
+        <p className="text-[13px] text-ink-tertiary">
           Da de alta previsiones a mano solo para: gastos/ingresos nuevos sin histórico todavía (una
           suscripción recién contratada), ítems puntuales que ya sabes que van a pasar (una paga extra
           concreta), o mientras no tengas suficiente histórico importado para que la detección automática
           (
-          <Link href="/prevision/sugerencias" className="underline">
+          <Link href="/prevision/sugerencias" className="font-semibold text-accent hover:underline">
             Sugerencias
           </Link>
           ) lo identifique sola. Para gastos recurrentes con histórico ya importado (hipoteca, nómina,

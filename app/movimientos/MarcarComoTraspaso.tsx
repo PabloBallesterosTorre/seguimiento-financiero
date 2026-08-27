@@ -25,7 +25,7 @@ export function MarcarComoTraspaso({
       <button
         type="button"
         onClick={() => setAbierto(true)}
-        className="mt-0.5 block text-xs text-slate-400 hover:text-sky-600 hover:underline"
+        className="mt-0.5 block text-xs text-faint hover:text-accent hover:underline"
       >
         ¿Es un traspaso?
       </button>
@@ -39,7 +39,7 @@ export function MarcarComoTraspaso({
         name="movimiento_contraparte_id"
         defaultValue=""
         required
-        className="rounded-md border border-slate-300 px-1 py-0.5 text-xs"
+        className="rounded-btn border border-border-strong px-1 py-0.5 text-xs"
       >
         <option value="" disabled>
           Vincular con…
@@ -50,13 +50,13 @@ export function MarcarComoTraspaso({
           </option>
         ))}
       </select>
-      <button type="submit" className="text-xs font-medium text-sky-600 hover:underline">
+      <button type="submit" className="text-xs font-semibold text-accent hover:underline">
         Vincular
       </button>
       <button
         type="button"
         onClick={() => setAbierto(false)}
-        className="text-xs text-slate-400 hover:text-red-600"
+        className="text-xs text-faint hover:text-danger"
       >
         Cancelar
       </button>

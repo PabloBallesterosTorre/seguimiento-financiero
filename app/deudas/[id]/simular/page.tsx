@@ -28,16 +28,16 @@ export default async function SimularAmortizacionPage({ params }: { params: { id
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-4xl px-4 py-8 space-y-6">
+      <main className="mx-auto max-w-4xl space-y-6 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Simular amortización — {deuda.nombre}</h1>
-          <Link href={`/deudas/${params.id}`} className="text-sm text-slate-500 hover:text-slate-900">
+          <h1 className="font-sora text-[26px] font-bold text-ink">Simular amortización — {deuda.nombre}</h1>
+          <Link href={`/deudas/${params.id}`} className="text-sm font-semibold text-ink-tertiary hover:text-ink">
             ← Volver al detalle
           </Link>
         </div>
 
         {deuda.tipo_interes === null ? (
-          <p className="text-sm text-amber-600">
+          <p className="text-sm text-forecast">
             Esta deuda no tiene tipo de interés asignado, así que no se puede simular.
           </p>
         ) : (

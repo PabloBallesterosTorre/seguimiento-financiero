@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { formatMoneda } from "@/lib/formato";
+import { cardClass, rowLinkClass } from "@/components/formStyles";
 import type { SerieCategoria } from "./InformesClient";
 
 export function EvolucionPorCategoria({
@@ -22,31 +23,29 @@ export function EvolucionPorCategoria({
   );
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-6">
-      <div className="mb-3 flex items-center justify-between">
+    <div className={cardClass}>
+      <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-medium text-slate-700">Evolución mensual por categoría de gasto</h2>
-          <p className="text-xs text-slate-400">Para detectar si una categoría tiene una tendencia sostenida o un pico puntual.</p>
+          <h2 className="font-sora text-[15px] font-bold text-ink">Evolución mensual por categoría de gasto</h2>
+          <p className="mt-1 text-[13px] text-ink-tertiary">
+            Para detectar si una categoría tiene una tendencia sostenida o un pico puntual.
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setComoTabla((v) => !v)}
-          className="text-xs text-slate-500 underline hover:text-slate-900"
-        >
+        <button type="button" onClick={() => setComoTabla((v) => !v)} className={`shrink-0 ${rowLinkClass} hover:underline`}>
           {comoTabla ? "Ver como gráfico" : "Ver como tabla"}
         </button>
       </div>
 
       {seriesOrdenadas.length === 0 ? (
-        <p className="text-sm text-slate-400">Sin datos en este periodo.</p>
+        <p className="text-sm text-ink-tertiary">Sin datos en este periodo.</p>
       ) : comoTabla ? (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-btn border border-border">
           <table className="w-full text-sm">
-            <thead className="text-left text-slate-500">
+            <thead className="bg-chip text-left text-ink-secondary">
               <tr>
-                <th className="py-1.5 pr-3 font-medium">Categoría</th>
+                <th className="py-2 pl-3 pr-3 font-semibold">Categoría</th>
                 {etiquetas.map((e) => (
-                  <th key={e} className="whitespace-nowrap px-2 py-1.5 text-right font-medium">
+                  <th key={e} className="whitespace-nowrap px-2 py-2 text-right font-semibold">
                     {e}
                   </th>
                 ))}
@@ -54,10 +53,10 @@ export function EvolucionPorCategoria({
             </thead>
             <tbody>
               {seriesOrdenadas.map((s) => (
-                <tr key={s.nombre} className="border-t border-slate-100">
-                  <td className="py-1.5 pr-3 text-slate-600">{s.nombre}</td>
+                <tr key={s.nombre} className="border-t border-border">
+                  <td className="py-2 pl-3 pr-3 text-ink-secondary">{s.nombre}</td>
                   {s.valores.map((v, i) => (
-                    <td key={i} className="whitespace-nowrap px-2 py-1.5 text-right">
+                    <td key={i} className="whitespace-nowrap px-2 py-2 text-right text-ink">
                       {v === 0 ? "—" : formatEUR(v)}
                     </td>
                   ))}
@@ -72,10 +71,10 @@ export function EvolucionPorCategoria({
             const datos = s.valores.map((v, i) => ({ mes: etiquetas[i] ?? "", valor: v }));
             const ultimo = s.valores.at(-1) ?? 0;
             return (
-              <div key={s.nombre} className="rounded-md border border-slate-100 p-3">
+              <div key={s.nombre} className="rounded-btn border border-border p-3">
                 <div className="mb-1 flex items-center justify-between">
-                  <p className="text-xs font-medium text-slate-700">{s.nombre}</p>
-                  <p className="text-xs font-medium text-slate-500">{formatEUR(ultimo)}</p>
+                  <p className="text-[13px] font-semibold text-ink">{s.nombre}</p>
+                  <p className="text-[13px] font-semibold text-ink-secondary">{formatEUR(ultimo)}</p>
                 </div>
                 <div className="h-20 w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -86,7 +85,7 @@ export function EvolucionPorCategoria({
                         labelFormatter={(label) => label}
                         contentStyle={{ fontSize: 11 }}
                       />
-                      <Line type="monotone" dataKey="valor" stroke="#0f172a" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="valor" stroke="#0b0b0b" strokeWidth={2} dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>

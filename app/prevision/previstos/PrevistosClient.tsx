@@ -7,6 +7,7 @@ import { formatMoneda } from "@/lib/formato";
 import { agruparIngresosPrimero, ordenarFilas, type OrdenTabla } from "@/lib/ordenTabla";
 import { useOrdenTabla, ThOrdenable } from "@/components/OrdenTabla";
 import type { CategoriaJerarquica } from "@/lib/categorias";
+import { tableWrapClass, rowLinkClass, rowDelClass } from "@/components/formStyles";
 
 type Cuenta = { id: string; nombre: string; banco_nombre: string };
 
@@ -69,54 +70,54 @@ export function PrevistosClient({
   });
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <div className={tableWrapClass}>
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-slate-500">
-          <tr>
+        <thead>
+          <tr className="border-b border-border">
             <ThOrdenable columna="descripcion" orden={orden} onToggle={toggle}>Descripción</ThOrdenable>
             <ThOrdenable columna="tipo" orden={orden} onToggle={toggle}>Tipo</ThOrdenable>
             <ThOrdenable columna="categoria" orden={orden} onToggle={toggle}>Categoría</ThOrdenable>
             <ThOrdenable columna="importe" orden={orden} onToggle={toggle} align="right">Importe</ThOrdenable>
             <ThOrdenable columna="recurrencia" orden={orden} onToggle={toggle}>Recurrencia</ThOrdenable>
             <ThOrdenable columna="estado" orden={orden} onToggle={toggle}>Estado</ThOrdenable>
-            <th className="px-4 py-2"></th>
+            <th className="px-4 py-3"></th>
           </tr>
         </thead>
         <tbody>
           {filasOrdenadas.map((p) => (
             <Fragment key={p.id}>
-              <tr className="border-t border-slate-100">
-                <td className="px-4 py-2">
+              <tr className="border-t border-border">
+                <td className="px-4 py-3.5 text-ink">
                   {p.descripcion}
                   {p.esMedia && (
-                    <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                    <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
                       Media
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-2 capitalize">{p.tipo}</td>
-                <td className="px-4 py-2 text-slate-500">{p.categoriaNombre}</td>
-                <td className="px-4 py-2 text-right">{formatEUR(p.importe)}</td>
-                <td className="px-4 py-2 text-slate-500">{p.recurrenciaLabel}</td>
-                <td className="px-4 py-2">
+                <td className="px-4 py-3.5 capitalize text-ink-secondary">{p.tipo}</td>
+                <td className="px-4 py-3.5 text-ink-secondary">{p.categoriaNombre}</td>
+                <td className="px-4 py-3.5 text-right font-semibold text-ink">{formatEUR(p.importe)}</td>
+                <td className="px-4 py-3.5 text-ink-secondary">{p.recurrenciaLabel}</td>
+                <td className="px-4 py-3.5">
                   <form action={cambiarEstadoPrevisto} className="inline">
                     <input type="hidden" name="id" value={p.id} />
                     <input type="hidden" name="estado" value={p.estado === "activo" ? "pausado" : "activo"} />
                     <button
                       type="submit"
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        p.estado === "activo" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                        p.estado === "activo" ? "bg-success/12 text-success" : "bg-chip text-ink-tertiary"
                       }`}
                     >
                       {p.estado === "activo" ? "Activo" : "Pausado"}
                     </button>
                   </form>
                 </td>
-                <td className="px-4 py-2 text-right whitespace-nowrap">
+                <td className="px-4 py-3.5 text-right whitespace-nowrap">
                   <button
                     type="button"
                     onClick={() => setEditando(editando === p.id ? null : p.id)}
-                    className="mr-3 text-slate-500 hover:text-slate-900"
+                    className={`mr-3.5 ${rowLinkClass}`}
                   >
                     Editar
                   </button>
@@ -126,15 +127,15 @@ export function PrevistosClient({
                     className="inline"
                   >
                     <input type="hidden" name="id" value={p.id} />
-                    <button className="text-slate-400 hover:text-red-600" type="submit">
+                    <button className={rowDelClass} type="submit">
                       Eliminar
                     </button>
                   </ConfirmForm>
                 </td>
               </tr>
               {editando === p.id && (
-                <tr className="border-t border-slate-100 bg-slate-50">
-                  <td colSpan={7} className="px-4 py-4">
+                <tr className="border-t border-border bg-page">
+                  <td colSpan={7} className="px-5 py-5">
                     <MovimientoPrevistoForm
                       action={async (formData) => {
                         await actualizarMovimientoPrevisto(formData);
@@ -166,7 +167,7 @@ export function PrevistosClient({
           ))}
           {filasOrdenadas.length === 0 && (
             <tr>
-              <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
+              <td colSpan={7} className="px-4 py-6 text-center text-ink-tertiary">
                 Todavía no hay movimientos previstos.
               </td>
             </tr>

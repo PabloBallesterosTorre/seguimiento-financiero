@@ -46,6 +46,42 @@ export async function eliminarCategoria(formData: FormData) {
   revalidatePath("/categorias");
 }
 
+// Plantilla inicial ofrecida a un usuario nuevo sin categorías todavía, para no obligarle
+// a crearlas todas a mano una a una antes de poder categorizar su primer movimiento
+// importado. Son solo un punto de partida editable/eliminable, no una lista cerrada.
+const CATEGORIAS_SUGERIDAS = [
+  "Nómina",
+  "Alimentación",
+  "Vivienda",
+  "Transporte",
+  "Ocio",
+  "Salud",
+  "Compras",
+  "Ahorro e Inversión",
+  "Transferencias entre cuentas propias",
+];
+
+export async function crearCategoriasSugeridas() {
+  const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  await supabase.from("categorias").insert(
+    CATEGORIAS_SUGERIDAS.map((nombre) => ({
+      usuario_id: user.id,
+      nombre,
+      categoria_padre_id: null,
+      es_categoria_inversion: nombre === "Ahorro e Inversión",
+    }))
+  );
+
+  revalidatePath("/categorias");
+}
+
 export type MovimientoAsociado = {
   id: string;
   fecha: string;

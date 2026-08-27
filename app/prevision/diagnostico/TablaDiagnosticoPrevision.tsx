@@ -26,13 +26,13 @@ export function TablaDiagnosticoPrevision({
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border border-slate-100">
+    <div className="overflow-x-auto rounded-card border border-border bg-surface shadow-card">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-slate-500">
-          <tr>
-            <th className="whitespace-nowrap px-3 py-2 font-medium">Categoría</th>
+        <thead>
+          <tr className="border-b border-border">
+            <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-ink-tertiary">Categoría</th>
             {mesesLabel.map((label) => (
-              <th key={label} className="whitespace-nowrap px-3 py-2 text-right font-medium">
+              <th key={label} className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold text-ink-tertiary">
                 {label}
               </th>
             ))}
@@ -47,19 +47,19 @@ export function TablaDiagnosticoPrevision({
               <Fragment key={fila.categoriaId}>
                 <tr
                   onClick={tieneHijos ? () => toggle(fila.categoriaId) : undefined}
-                  className={`border-t border-slate-100 font-medium text-slate-700 ${
-                    tieneHijos ? "cursor-pointer hover:bg-slate-50" : ""
+                  className={`border-t border-border font-semibold text-ink ${
+                    tieneHijos ? "cursor-pointer hover:bg-page" : ""
                   }`}
                 >
-                  <td className="whitespace-nowrap px-3 py-2">
+                  <td className="whitespace-nowrap px-4 py-2.5">
                     {tieneHijos ? (abierta ? "▾ " : "▸ ") : ""}
                     {fila.nombre}
                   </td>
                   {fila.importesPorMes.map((importe, i) => (
                     <td
                       key={i}
-                      className={`whitespace-nowrap px-3 py-2 text-right ${
-                        importe === 0 ? "text-slate-300" : importe > 0 ? "text-emerald-600" : "text-slate-900"
+                      className={`whitespace-nowrap px-4 py-2.5 text-right ${
+                        importe === 0 ? "text-gridline" : importe > 0 ? "text-success" : "text-ink"
                       }`}
                     >
                       {importe === 0 ? "—" : (fila.mediaPorMes[i] ? "≈ " : "") + formatEUR(importe)}
@@ -68,13 +68,13 @@ export function TablaDiagnosticoPrevision({
                 </tr>
                 {abierta &&
                   fila.subfilas.map((hijo) => (
-                    <tr key={hijo.categoriaId} className="border-t border-slate-50 text-slate-500">
-                      <td className="whitespace-nowrap px-3 py-2 pl-8">{hijo.nombre}</td>
+                    <tr key={hijo.categoriaId} className="border-t border-border text-ink-secondary">
+                      <td className="whitespace-nowrap px-4 py-2.5 pl-9">{hijo.nombre}</td>
                       {hijo.importesPorMes.map((importe, i) => (
                         <td
                           key={i}
-                          className={`whitespace-nowrap px-3 py-2 text-right ${
-                            importe === 0 ? "text-slate-300" : importe > 0 ? "text-emerald-600" : "text-slate-700"
+                          className={`whitespace-nowrap px-4 py-2.5 text-right ${
+                            importe === 0 ? "text-gridline" : importe > 0 ? "text-success" : "text-ink-secondary"
                           }`}
                         >
                           {importe === 0 ? "—" : (hijo.mediaPorMes[i] ? "≈ " : "") + formatEUR(importe)}
@@ -87,7 +87,7 @@ export function TablaDiagnosticoPrevision({
           })}
           {filas.length === 0 && (
             <tr>
-              <td colSpan={mesesLabel.length + 1} className="px-3 py-6 text-center text-slate-400">
+              <td colSpan={mesesLabel.length + 1} className="px-4 py-6 text-center text-ink-tertiary">
                 No hay ninguna previsión activa en este horizonte.
               </td>
             </tr>

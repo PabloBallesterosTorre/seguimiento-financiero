@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 import { formatMoneda } from "@/lib/formato";
+import { cardClass, rowLinkClass } from "@/components/formStyles";
 import type { MesPatrimonio } from "./InformesClient";
 
 export function PatrimonioYDeuda({ moneda, datos }: { moneda: string; datos: MesPatrimonio[] }) {
@@ -10,39 +11,35 @@ export function PatrimonioYDeuda({ moneda, datos }: { moneda: string; datos: Mes
   const [comoTabla, setComoTabla] = useState(false);
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-6">
-      <div className="mb-3 flex items-center justify-between">
+    <div className={cardClass}>
+      <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-medium text-slate-700">Patrimonio neto y deuda pendiente</h2>
-          <p className="text-xs text-slate-400">Histórico y previsión, mes a mes.</p>
+          <h2 className="font-sora text-[15px] font-bold text-ink">Patrimonio neto y deuda pendiente</h2>
+          <p className="mt-1 text-[13px] text-ink-tertiary">Histórico y previsión, mes a mes.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setComoTabla((v) => !v)}
-          className="text-xs text-slate-500 underline hover:text-slate-900"
-        >
+        <button type="button" onClick={() => setComoTabla((v) => !v)} className={`shrink-0 ${rowLinkClass} hover:underline`}>
           {comoTabla ? "Ver como gráfico" : "Ver como tabla"}
         </button>
       </div>
 
       {comoTabla ? (
-        <div className="max-h-80 overflow-y-auto overflow-x-auto rounded-md border border-slate-100">
+        <div className="max-h-80 overflow-y-auto overflow-x-auto rounded-btn border border-border">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-slate-50 text-left text-slate-500">
+            <thead className="sticky top-0 bg-chip text-left text-ink-secondary">
               <tr>
-                <th className="px-3 py-2 font-medium">Mes</th>
-                <th className="px-3 py-2 text-right font-medium">Patrimonio neto</th>
-                <th className="px-3 py-2 text-right font-medium">Deuda pendiente</th>
+                <th className="px-3 py-2 font-semibold">Mes</th>
+                <th className="px-3 py-2 text-right font-semibold">Patrimonio neto</th>
+                <th className="px-3 py-2 text-right font-semibold">Deuda pendiente</th>
               </tr>
             </thead>
             <tbody>
               {datos.map((d) => (
-                <tr key={d.label} className="border-t border-slate-100">
-                  <td className="px-3 py-1.5">
-                    {d.label} {!d.esReal && <span className="text-xs text-sky-600">(previsión)</span>}
+                <tr key={d.label} className="border-t border-border">
+                  <td className="px-3 py-2 text-ink">
+                    {d.label} {!d.esReal && <span className="text-xs text-accent">(previsión)</span>}
                   </td>
-                  <td className="px-3 py-1.5 text-right font-medium">{formatEUR(d.patrimonio)}</td>
-                  <td className="px-3 py-1.5 text-right text-slate-500">{formatEUR(d.deuda)}</td>
+                  <td className="px-3 py-2 text-right font-semibold text-ink">{formatEUR(d.patrimonio)}</td>
+                  <td className="px-3 py-2 text-right text-ink-secondary">{formatEUR(d.deuda)}</td>
                 </tr>
               ))}
             </tbody>
@@ -52,13 +49,13 @@ export function PatrimonioYDeuda({ moneda, datos }: { moneda: string; datos: Mes
         <div className="h-72 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={datos}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatEUR(v)} width={80} />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#c3c2b7" />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#898781" }} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 11, fill: "#898781" }} tickFormatter={(v) => formatEUR(v)} width={80} />
               <Tooltip formatter={(value) => formatEUR(Number(value))} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line type="monotone" dataKey="patrimonio" name="Patrimonio neto" stroke="#059669" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="deuda" name="Deuda pendiente" stroke="#dc2626" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="patrimonio" name="Patrimonio neto" stroke="#0ca30c" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="deuda" name="Deuda pendiente" stroke="#d03b3b" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>

@@ -1,6 +1,12 @@
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { crearCategoria, actualizarCategoria, eliminarCategoria, obtenerMovimientosDeCategoria } from "./actions";
+import {
+  crearCategoria,
+  actualizarCategoria,
+  eliminarCategoria,
+  obtenerMovimientosDeCategoria,
+  crearCategoriasSugeridas,
+} from "./actions";
 import { CategoriasClient } from "./CategoriasClient";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 
@@ -19,14 +25,15 @@ export default async function CategoriasPage() {
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
-        <h1 className="text-xl font-semibold">Categorías</h1>
+      <main className="mx-auto max-w-4xl space-y-6 px-5 py-8 sm:px-10">
+        <h1 className="font-sora text-[26px] font-bold text-ink">Categorías</h1>
 
         <CategoriasClient
           categorias={categorias ?? []}
           crearCategoria={crearCategoria}
           actualizarCategoria={actualizarCategoria}
           eliminarCategoria={eliminarCategoria}
+          crearCategoriasSugeridas={crearCategoriasSugeridas}
           obtenerMovimientosDeCategoria={obtenerMovimientosDeCategoria}
           moneda={config?.moneda_base ?? "EUR"}
         />

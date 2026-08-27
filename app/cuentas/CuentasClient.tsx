@@ -47,53 +47,58 @@ export function CuentasClient({
   });
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {abierto === "nueva" ? (
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-medium text-slate-700">Añadir cuenta</h2>
+        <div className="rounded-card border border-border bg-surface p-7 shadow-card">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="font-sora text-base font-semibold text-ink">Añadir cuenta</h2>
+            <button type="button" onClick={() => setAbierto(null)} className="text-[13px] font-semibold text-ink-tertiary hover:text-ink">
+              Cancelar
+            </button>
+          </div>
           <CuentaForm action={crearCuenta} onCancelar={() => setAbierto(null)} />
         </div>
       ) : (
         <button
           type="button"
           onClick={() => setAbierto("nueva")}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          className="rounded-btn bg-ink px-[18px] py-[11px] text-sm font-semibold text-white hover:bg-ink/90"
         >
-          Nueva cuenta
+          + Nueva cuenta
         </button>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-card border border-border bg-surface shadow-card">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500">
-            <tr>
+          <thead>
+            <tr className="border-b border-border">
               <ThOrdenable columna="banco" orden={orden} onToggle={toggle}>Banco</ThOrdenable>
               <ThOrdenable columna="cuenta" orden={orden} onToggle={toggle}>Cuenta</ThOrdenable>
               <ThOrdenable columna="tipo" orden={orden} onToggle={toggle}>Tipo</ThOrdenable>
               <ThOrdenable columna="remunerada" orden={orden} onToggle={toggle}>Remunerada</ThOrdenable>
               <ThOrdenable columna="saldo" orden={orden} onToggle={toggle} align="right">Saldo</ThOrdenable>
-              <th className="px-4 py-2"></th>
+              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
             {cuentasOrdenadas.map((cuenta) => (
               <Fragment key={cuenta.id}>
-                <tr className="border-t border-slate-100">
-                  <td className="px-4 py-2">{cuenta.banco_nombre}</td>
-                  <td className="px-4 py-2">
-                    {cuenta.nombre}
-                    {cuenta.iban && <p className="text-xs text-slate-400">{cuenta.iban}</p>}
+                <tr className="border-t border-border">
+                  <td className="px-4 py-3.5 font-semibold text-ink">{cuenta.banco_nombre}</td>
+                  <td className="px-4 py-3.5">
+                    <div className="text-ink">{cuenta.nombre}</div>
+                    {cuenta.iban && <div className="text-xs text-faint">{cuenta.iban}</div>}
                   </td>
-                  <td className="px-4 py-2 capitalize">{cuenta.tipo}</td>
-                  <td className="px-4 py-2 text-slate-500">
-                    {cuenta.es_remunerada ? `${cuenta.tipo_interes ?? "—"}%` : "—"}
+                  <td className="px-4 py-3.5 capitalize text-ink-secondary">{cuenta.tipo}</td>
+                  <td className="px-4 py-3.5 text-ink-secondary">
+                    {cuenta.es_remunerada ? `${cuenta.tipo_interes ?? "—"}%` : <span className="text-faint">—</span>}
                   </td>
-                  <td className="px-4 py-2 text-right">{formatEUR(Number(cuenta.saldo_actual))}</td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap">
+                  <td className="px-4 py-3.5 text-right font-semibold text-ink">{formatEUR(Number(cuenta.saldo_actual))}</td>
+                  <td className="px-4 py-3.5 text-right whitespace-nowrap">
                     <button
                       type="button"
                       onClick={() => setAbierto(abierto === cuenta.id ? null : cuenta.id)}
-                      className="mr-3 text-slate-500 hover:text-slate-900"
+                      className="mr-3.5 text-[13px] font-semibold text-accent"
                     >
                       Editar
                     </button>
@@ -103,15 +108,15 @@ export function CuentasClient({
                       className="inline"
                     >
                       <input type="hidden" name="id" value={cuenta.id} />
-                      <button className="text-slate-400 hover:text-red-600" type="submit">
+                      <button className="text-[13px] font-semibold text-faint hover:text-danger" type="submit">
                         Eliminar
                       </button>
                     </ConfirmForm>
                   </td>
                 </tr>
                 {abierto === cuenta.id && (
-                  <tr className="border-t border-slate-100 bg-slate-50">
-                    <td colSpan={6} className="px-4 py-4">
+                  <tr className="border-t border-border bg-page">
+                    <td colSpan={6} className="px-4 py-5">
                       <CuentaForm
                         cuenta={cuenta}
                         action={actualizarCuenta}
@@ -124,7 +129,7 @@ export function CuentasClient({
             ))}
             {cuentas.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-6 text-center text-ink-tertiary">
                   Todavía no has dado de alta ninguna cuenta.
                 </td>
               </tr>

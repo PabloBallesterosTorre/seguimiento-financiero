@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { simularConProgramadas, type TipoReduccion, type AmortizacionProgramada } from "@/lib/amortizacion";
 import { formatMoneda } from "@/lib/formato";
+import { inputClass, labelClass, btnSecondaryClass, cardClass } from "@/components/formStyles";
 
 type ProgramadaConId = AmortizacionProgramada & { id: string };
 
@@ -54,10 +55,10 @@ export function SimuladorAmortizacion({
   const cuotaCambio = Math.abs(despues.cuotaFinal - cuotaActual) > 0.01;
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-6 space-y-4">
+    <div className={`${cardClass} space-y-4`}>
       <div>
-        <h2 className="text-sm font-medium text-slate-700">Simulador de amortización anticipada</h2>
-        <p className="text-xs text-slate-400">
+        <h2 className="font-sora text-base font-semibold text-ink">Simulador de amortización anticipada</h2>
+        <p className="text-xs text-ink-tertiary">
           Solo de consulta — prueba tantas amortizaciones como quieras, cada una en su fecha; se aplican
           en orden cronológico. Nada se guarda aquí. Para registrar una amortización real, hazlo desde el
           detalle de la deuda.
@@ -66,42 +67,29 @@ export function SimuladorAmortizacion({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <div>
-          <label className="block text-xs text-slate-500">Fecha</label>
-          <input
-            type="date"
-            value={fecha}
-            onChange={(e) => setFecha(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
+          <label className={labelClass}>Fecha</label>
+          <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className="block text-xs text-slate-500">Importe</label>
+          <label className={labelClass}>Importe</label>
           <input
             type="number"
             min="0"
             step="10"
             value={importe}
             onChange={(e) => setImporte(Number(e.target.value))}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className={inputClass}
           />
         </div>
         <div>
-          <label className="block text-xs text-slate-500">Efecto</label>
-          <select
-            value={tipoReduccion}
-            onChange={(e) => setTipoReduccion(e.target.value as TipoReduccion)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          >
+          <label className={labelClass}>Efecto</label>
+          <select value={tipoReduccion} onChange={(e) => setTipoReduccion(e.target.value as TipoReduccion)} className={inputClass}>
             <option value="reducir_plazo">Reducir plazo (misma cuota)</option>
             <option value="reducir_cuota">Reducir cuota (mismo plazo)</option>
           </select>
         </div>
         <div className="flex items-end">
-          <button
-            type="button"
-            onClick={anadir}
-            className="w-full rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
+          <button type="button" onClick={anadir} className={`w-full ${btnSecondaryClass}`}>
             Añadir a la simulación
           </button>
         </div>
@@ -115,13 +103,13 @@ export function SimuladorAmortizacion({
             .map((p) => (
               <li
                 key={p.id}
-                className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-1.5 text-sm"
+                className="flex items-center justify-between rounded-btn bg-page px-3 py-1.5 text-sm text-ink"
               >
                 <span>
                   {p.fecha} — {formatEUR(p.importe)} —{" "}
                   {p.tipoReduccion === "reducir_cuota" ? "reduce cuota" : "reduce plazo"}
                 </span>
-                <button type="button" onClick={() => quitar(p.id)} className="text-xs text-slate-400 hover:text-red-600">
+                <button type="button" onClick={() => quitar(p.id)} className="text-xs text-ink-tertiary hover:text-danger">
                   Quitar
                 </button>
               </li>
@@ -129,30 +117,30 @@ export function SimuladorAmortizacion({
         </ul>
       )}
 
-      <div className="grid grid-cols-2 gap-4 rounded-md bg-slate-50 p-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 rounded-btn bg-page p-4 sm:grid-cols-4">
         <div>
-          <p className="text-xs text-slate-500">Meses restantes</p>
-          <p className="text-sm font-medium">
+          <p className="text-xs text-ink-secondary">Meses restantes</p>
+          <p className="text-sm font-semibold text-ink">
             {despues.mesesRestantes}
-            {hayCambios && <span className="text-slate-400"> (antes {antes.mesesRestantes})</span>}
+            {hayCambios && <span className="text-ink-tertiary"> (antes {antes.mesesRestantes})</span>}
           </p>
         </div>
         <div>
-          <p className="text-xs text-slate-500">Intereses totales</p>
-          <p className="text-sm font-medium">{formatEUR(despues.interesesTotales)}</p>
+          <p className="text-xs text-ink-secondary">Intereses totales</p>
+          <p className="text-sm font-semibold text-ink">{formatEUR(despues.interesesTotales)}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-500">Ahorro en intereses</p>
-          <p className="text-sm font-medium text-emerald-600">{formatEUR(ahorroIntereses)}</p>
+          <p className="text-xs text-ink-secondary">Ahorro en intereses</p>
+          <p className="text-sm font-semibold text-success">{formatEUR(ahorroIntereses)}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-500">{cuotaCambio ? "Cuota final" : "Meses ahorrados"}</p>
-          <p className="text-sm font-medium">{cuotaCambio ? formatEUR(despues.cuotaFinal) : mesesAhorrados}</p>
+          <p className="text-xs text-ink-secondary">{cuotaCambio ? "Cuota final" : "Meses ahorrados"}</p>
+          <p className="text-sm font-semibold text-ink">{cuotaCambio ? formatEUR(despues.cuotaFinal) : mesesAhorrados}</p>
         </div>
       </div>
 
       {despues.cuotaNoCubreIntereses && (
-        <p className="text-xs text-red-600">
+        <p className="text-xs text-danger">
           Con esta combinación, en algún momento la cuota deja de cubrir los intereses generados.
         </p>
       )}

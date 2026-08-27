@@ -7,6 +7,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { agruparIngresosPrimero } from "@/lib/ordenTabla";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
+import { btnPrimaryClass, cardClass } from "@/components/formStyles";
 
 const ETIQUETA_PERIODICIDAD: Record<string, string> = {
   mensual: "Mensual",
@@ -15,6 +16,9 @@ const ETIQUETA_PERIODICIDAD: Record<string, string> = {
   semestral: "Semestral",
   anual: "Anual",
 };
+
+const btnGhostClass =
+  "rounded-btn border border-border-strong px-3.5 py-2 text-xs font-semibold text-ink-secondary hover:bg-chip";
 
 export default async function SugerenciasPage() {
   const supabase = createClient();
@@ -95,22 +99,22 @@ export default async function SugerenciasPage() {
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
+      <main className="mx-auto max-w-4xl space-y-5 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Sugerencias de previsión</h1>
-          <Link href="/prevision" className="text-sm text-slate-500 hover:text-slate-900">
+          <h1 className="font-sora text-[26px] font-bold text-ink">Sugerencias de previsión</h1>
+          <Link href="/prevision" className="text-[13px] font-semibold text-accent hover:underline">
             ← Ver proyección
           </Link>
         </div>
-        <p className="text-sm text-slate-400">
+        <p className="max-w-2xl text-[13px] leading-relaxed text-ink-secondary">
           Basado en tu histórico de movimientos (últimos 3 años). Nada se activa hasta que aceptes cada
           sugerencia — cuanto más histórico tengas, más patrones y con más confianza se detectan.
         </p>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-6 space-y-4">
-          <h2 className="text-sm font-medium text-slate-700">Patrones por transacción repetida</h2>
+        <div className={`${cardClass} space-y-4`}>
+          <h2 className="font-sora text-[15px] font-bold text-ink">Patrones por transacción repetida</h2>
           {candidatosDescripcion.length === 0 ? (
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-ink-tertiary">
               No se ha detectado ningún patrón nuevo (mensual con ≥3 repeticiones, o anual con ≥2).
             </p>
           ) : (
@@ -118,18 +122,18 @@ export default async function SugerenciasPage() {
               {candidatosDescripcion.map((c) => (
                 <div
                   key={c.clave}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-100 px-4 py-3"
+                  className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 last:border-b-0 last:pb-0"
                 >
                   <div>
-                    <p className="text-sm font-medium text-slate-900">{c.descripcion}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-sm font-semibold text-ink">{c.descripcion}</p>
+                    <p className="mt-0.5 text-xs text-ink-tertiary">
                       {ETIQUETA_PERIODICIDAD[c.periodicidad]} · {c.ocurrencias} repeticiones ·{" "}
                       {c.categoria_id ? nombreCategoria.get(c.categoria_id) ?? "Categoría eliminada" : "Sin categoría"}{" "}
                       · próxima estimada {c.proximaFecha}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium">{formatEUR(c.importe_estimado)}</span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-bold text-ink">{formatEUR(c.importe_estimado)}</span>
                     <ConfirmForm
                       action={descartarSugerenciaPrevision}
                       mensaje={`¿Descartar "${c.descripcion}" como patrón? No se te volverá a proponer.`}
@@ -137,10 +141,7 @@ export default async function SugerenciasPage() {
                     >
                       <input type="hidden" name="nivel" value="descripcion" />
                       <input type="hidden" name="clave" value={c.clave} />
-                      <button
-                        type="submit"
-                        className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50"
-                      >
+                      <button type="submit" className={btnGhostClass}>
                         Descartar
                       </button>
                     </ConfirmForm>
@@ -153,10 +154,7 @@ export default async function SugerenciasPage() {
                       <input type="hidden" name="periodicidad" value={c.periodicidad} />
                       <input type="hidden" name="fecha_inicio" value={c.proximaFecha} />
                       <input type="hidden" name="origen_calculo" value="fijo" />
-                      <button
-                        type="submit"
-                        className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700"
-                      >
+                      <button type="submit" className={`${btnPrimaryClass} px-3.5 py-2 text-xs`}>
                         Aceptar
                       </button>
                     </form>
@@ -167,13 +165,15 @@ export default async function SugerenciasPage() {
           )}
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-6 space-y-4">
-          <h2 className="text-sm font-medium text-slate-700">Media mensual por categoría</h2>
-          <p className="text-xs text-slate-400">
-            Para gasto/ingreso variable sin un patrón de descripción único (ej. Ocio, Compras).
-          </p>
+        <div className={`${cardClass} space-y-4`}>
+          <div>
+            <h2 className="font-sora text-[15px] font-bold text-ink">Media mensual por categoría</h2>
+            <p className="mt-1 text-xs text-ink-tertiary">
+              Para gasto/ingreso variable sin un patrón de descripción único (ej. Ocio, Compras).
+            </p>
+          </div>
           {candidatosCategoria.length === 0 ? (
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-ink-tertiary">
               No hay categorías con histórico suficiente (mínimo 2 meses con movimientos) que no estén ya
               cubiertas por un patrón por transacción.
             </p>
@@ -185,14 +185,14 @@ export default async function SugerenciasPage() {
                 return (
                   <div
                     key={c.clave}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-100 px-4 py-3"
+                    className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 last:border-b-0 last:pb-0"
                   >
                     <div>
-                      <p className="text-sm font-medium text-slate-900">{nombre}</p>
-                      <p className="text-xs text-slate-500">Media sobre {c.mesesConDatos} meses con datos</p>
+                      <p className="text-sm font-semibold text-ink">{nombre}</p>
+                      <p className="mt-0.5 text-xs text-ink-tertiary">Media sobre {c.mesesConDatos} meses con datos</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium">{formatEUR(c.importe_estimado)}/mes</span>
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm font-bold text-ink">{formatEUR(c.importe_estimado)}/mes</span>
                       <ConfirmForm
                         action={descartarSugerenciaPrevision}
                         mensaje={`¿Descartar "${nombre}" como patrón? No se te volverá a proponer.`}
@@ -200,10 +200,7 @@ export default async function SugerenciasPage() {
                       >
                         <input type="hidden" name="nivel" value="categoria" />
                         <input type="hidden" name="clave" value={c.clave} />
-                        <button
-                          type="submit"
-                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50"
-                        >
+                        <button type="submit" className={btnGhostClass}>
                           Descartar
                         </button>
                       </ConfirmForm>
@@ -216,10 +213,7 @@ export default async function SugerenciasPage() {
                         <input type="hidden" name="periodicidad" value="mensual" />
                         <input type="hidden" name="fecha_inicio" value={hoy} />
                         <input type="hidden" name="origen_calculo" value="media_categoria" />
-                        <button
-                          type="submit"
-                          className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700"
-                        >
+                        <button type="submit" className={`${btnPrimaryClass} px-3.5 py-2 text-xs`}>
                           Aceptar
                         </button>
                       </form>

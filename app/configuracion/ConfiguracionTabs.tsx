@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { inputClass, labelClass, btnPrimaryClass, cardClass } from "@/components/formStyles";
 
 const MONEDAS = [
   { value: "EUR", label: "Euro (€)" },
@@ -31,86 +32,67 @@ export function ConfiguracionTabs({
 
   return (
     <div className="space-y-6">
-      <div className="flex rounded-md border border-slate-300 text-sm w-fit">
+      <div className="flex w-fit rounded-full bg-chip p-1">
         <button
           type="button"
           onClick={() => setTab("general")}
-          className={`rounded-l-md px-4 py-1.5 ${tab === "general" ? "bg-slate-900 text-white" : "hover:bg-slate-100"}`}
+          className={`rounded-full px-[18px] py-2.5 text-sm font-semibold transition-colors ${
+            tab === "general" ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
+          }`}
         >
           General
         </button>
         <button
           type="button"
           onClick={() => setTab("ahorro")}
-          className={`rounded-r-md px-4 py-1.5 ${tab === "ahorro" ? "bg-slate-900 text-white" : "hover:bg-slate-100"}`}
+          className={`rounded-full px-[18px] py-2.5 text-sm font-semibold transition-colors ${
+            tab === "ahorro" ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
+          }`}
         >
           Objetivo de ahorro
         </button>
       </div>
 
       {tab === "general" && (
-        <form action={guardarConfiguracionGeneral} className="rounded-lg border border-slate-200 bg-white p-6 space-y-4">
+        <form action={guardarConfiguracionGeneral} className={`${cardClass} max-w-md space-y-4`}>
           <div>
-            <label className="block text-xs text-slate-500">Email</label>
-            <input
-              disabled
-              value={email}
-              className="mt-1 w-full max-w-sm rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
-            />
+            <label className={labelClass}>Email</label>
+            <input disabled value={email} className={`${inputClass} cursor-not-allowed text-ink-tertiary`} />
           </div>
           <div>
-            <label className="block text-xs text-slate-500">Nombre</label>
-            <input
-              name="nombre"
-              defaultValue={nombre ?? ""}
-              placeholder="Pablo"
-              className="mt-1 w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
+            <label className={labelClass}>Nombre</label>
+            <input name="nombre" defaultValue={nombre ?? ""} placeholder="Pablo" className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs text-slate-500">Moneda base</label>
-            <select
-              name="moneda_base"
-              defaultValue={monedaBase}
-              className="mt-1 w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
+            <label className={labelClass}>Moneda base</label>
+            <select name="moneda_base" defaultValue={monedaBase} className={inputClass}>
               {MONEDAS.map((m) => (
                 <option key={m.value} value={m.value}>
                   {m.label}
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-slate-400">Cambia el formato de todos los importes de la app.</p>
+            <p className="mt-1.5 text-xs text-ink-tertiary">Cambia el formato de todos los importes de la app.</p>
           </div>
           <div>
-            <label className="block text-xs text-slate-500">Idioma</label>
-            <select
-              name="idioma"
-              defaultValue={idioma}
-              className="mt-1 w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
+            <label className={labelClass}>Idioma</label>
+            <select name="idioma" defaultValue={idioma} className={inputClass}>
               <option value="es">Español</option>
             </select>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1.5 text-xs text-ink-tertiary">
               Se guarda tu preferencia, pero de momento la app solo está disponible en español.
             </p>
           </div>
-          <button
-            type="submit"
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-          >
+          <button type="submit" className={btnPrimaryClass}>
             Guardar
           </button>
         </form>
       )}
 
       {tab === "ahorro" && (
-        <form
-          action={guardarObjetivoAhorroGlobal}
-          className="rounded-lg border border-slate-200 bg-white p-6 space-y-4"
-        >
+        <form action={guardarObjetivoAhorroGlobal} className={`${cardClass} max-w-lg space-y-5`}>
           <div>
-            <label className="block text-xs text-slate-500">Objetivo de ahorro mensual</label>
+            <label className={labelClass}>Objetivo de ahorro mensual</label>
             <input
               name="objetivo_ahorro_mensual"
               type="number"
@@ -118,31 +100,31 @@ export function ConfiguracionTabs({
               min="0"
               defaultValue={objetivoAhorroMensual ?? undefined}
               placeholder="500"
-              className="mt-1 w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
             />
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1.5 text-xs text-ink-tertiary">
               Un único valor que se aplica igual a todos los meses (ya no se configura mes a mes).
             </p>
           </div>
           <div>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex cursor-pointer items-start gap-2.5">
               <input
                 type="checkbox"
                 name="incluir_inversion_en_ahorro"
                 defaultChecked={incluirInversionEnAhorro}
+                className="mt-0.5 h-4 w-4"
               />
-              La aportación a inversión del mes cuenta como ahorro
+              <span>
+                <span className="block text-sm text-ink">La aportación a inversión del mes cuenta como ahorro</span>
+                <span className="mt-1 block text-xs text-ink-tertiary">
+                  Activado (por defecto): invertir cuenta como ahorrar — ahorro = ingresos − gastos (sin contar
+                  lo invertido como gasto). Desactivado: ahorro = ingresos − gastos − inversión, más estricto
+                  (solo cuenta el dinero que se queda líquido en tus cuentas).
+                </span>
+              </span>
             </label>
-            <p className="mt-1 text-xs text-slate-400">
-              Activado (por defecto): invertir cuenta como ahorrar — ahorro = ingresos − gastos (sin contar
-              lo invertido como gasto). Desactivado: ahorro = ingresos − gastos − inversión, más estricto
-              (solo cuenta el dinero que se queda líquido en tus cuentas).
-            </p>
           </div>
-          <button
-            type="submit"
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-          >
+          <button type="submit" className={btnPrimaryClass}>
             Guardar
           </button>
         </form>

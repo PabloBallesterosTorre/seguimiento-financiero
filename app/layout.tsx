@@ -1,5 +1,20 @@
 import type { Metadata } from "next";
+import { Sora, Manrope } from "next/font/google";
 import "./globals.css";
+
+const sora = Sora({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-sora",
+  display: "swap",
+});
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-manrope",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Seguimiento Financiero",
@@ -12,8 +27,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
-      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
+    <html lang="es" className={`${sora.variable} ${manrope.variable}`}>
+      <body className="min-h-screen bg-page font-manrope text-ink antialiased">
         {children}
       </body>
     </html>

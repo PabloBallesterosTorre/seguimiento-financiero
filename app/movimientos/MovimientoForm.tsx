@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { sugerirCategoria, type ReglaCategorizacion } from "@/lib/categorizacion";
 import type { CategoriaJerarquica } from "@/lib/categorias";
+import { inputClass, labelClass, btnPrimaryClass } from "@/components/formStyles";
 
 type Cuenta = { id: string; nombre: string; banco_nombre: string };
 
@@ -31,22 +32,12 @@ export function MovimientoForm({
   return (
     <form action={action} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <div>
-        <label className="block text-xs text-slate-500">Fecha</label>
-        <input
-          name="fecha"
-          type="date"
-          required
-          defaultValue={hoy}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-        />
+        <label className={labelClass}>Fecha</label>
+        <input name="fecha" type="date" required defaultValue={hoy} className={inputClass} />
       </div>
       <div>
-        <label className="block text-xs text-slate-500">Cuenta</label>
-        <select
-          name="cuenta_id"
-          required
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-        >
+        <label className={labelClass}>Cuenta</label>
+        <select name="cuenta_id" required className={inputClass}>
           {cuentas.map((cuenta) => (
             <option key={cuenta.id} value={cuenta.id}>
               {cuenta.banco_nombre} — {cuenta.nombre}
@@ -55,32 +46,19 @@ export function MovimientoForm({
         </select>
       </div>
       <div>
-        <label className="block text-xs text-slate-500">Tipo</label>
-        <select name="tipo" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+        <label className={labelClass}>Tipo</label>
+        <select name="tipo" className={inputClass}>
           <option value="gasto">Gasto</option>
           <option value="ingreso">Ingreso</option>
         </select>
       </div>
       <div>
-        <label className="block text-xs text-slate-500">Importe</label>
-        <input
-          name="importe"
-          type="number"
-          step="0.01"
-          min="0"
-          required
-          placeholder="0.00"
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-        />
+        <label className={labelClass}>Importe</label>
+        <input name="importe" type="number" step="0.01" min="0" required placeholder="0.00" className={inputClass} />
       </div>
       <div>
-        <label className="block text-xs text-slate-500">Categoría</label>
-        <select
-          ref={categoriaRef}
-          name="categoria_id"
-          defaultValue=""
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-        >
+        <label className={labelClass}>Categoría</label>
+        <select ref={categoriaRef} name="categoria_id" defaultValue="" className={inputClass}>
           <option value="">Sin categoría</option>
           {categorias.map((cat) => (
             <option key={cat.id} value={cat.id}>
@@ -90,23 +68,20 @@ export function MovimientoForm({
         </select>
       </div>
       <div className="sm:col-span-2">
-        <label className="block text-xs text-slate-500">Descripción</label>
+        <label className={labelClass}>Descripción</label>
         <input
           name="descripcion"
           required
           placeholder="Mercadona"
           onChange={(e) => onDescripcionChange(e.target.value)}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className={inputClass}
         />
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1.5 text-xs text-ink-tertiary">
           La categoría se sugiere sola si ya has categorizado algo parecido antes.
         </p>
       </div>
       <div className="sm:col-span-3">
-        <button
-          type="submit"
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
+        <button type="submit" className={btnPrimaryClass}>
           Añadir movimiento
         </button>
       </div>

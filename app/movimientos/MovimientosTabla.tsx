@@ -64,15 +64,16 @@ export function MovimientosTabla({
   });
 
   return (
+    <div className="overflow-x-auto">
     <table className="w-full text-sm">
-      <thead className="bg-slate-50 text-left text-slate-500">
-        <tr>
+      <thead>
+        <tr className="border-b border-border">
           <ThOrdenable columna="fecha" orden={orden} onToggle={toggle}>Fecha</ThOrdenable>
           <ThOrdenable columna="cuenta" orden={orden} onToggle={toggle}>Cuenta</ThOrdenable>
           <ThOrdenable columna="descripcion" orden={orden} onToggle={toggle}>Descripción</ThOrdenable>
           <ThOrdenable columna="categoria" orden={orden} onToggle={toggle}>Categoría</ThOrdenable>
           <ThOrdenable columna="importe" orden={orden} onToggle={toggle} align="right">Importe</ThOrdenable>
-          <th className="px-4 py-2"></th>
+          <th className="px-4 py-3"></th>
         </tr>
       </thead>
       <tbody>
@@ -90,13 +91,14 @@ export function MovimientosTabla({
         ))}
         {filasOrdenadas.length === 0 && mensajeVacio && (
           <tr>
-            <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+            <td colSpan={6} className="px-4 py-6 text-center text-ink-tertiary">
               {mensajeVacio}
             </td>
           </tr>
         )}
       </tbody>
     </table>
+    </div>
   );
 }
 
@@ -120,22 +122,22 @@ function FilaMovimiento({
   const esTraspaso = mov.tipo === "traspaso";
 
   return (
-    <tr className="border-t border-slate-100">
-      <td className="px-4 py-2 whitespace-nowrap text-slate-500">{formatFecha(mov.fecha)}</td>
-      <td className="px-4 py-2 whitespace-nowrap">
+    <tr className="border-t border-border">
+      <td className="whitespace-nowrap px-4 py-3.5 text-ink-secondary">{formatFecha(mov.fecha)}</td>
+      <td className="whitespace-nowrap px-4 py-3.5 text-ink">
         {mov.cuentas ? `${mov.cuentas.banco_nombre} — ${mov.cuentas.nombre}` : "—"}
       </td>
-      <td className="px-4 py-2">
+      <td className="px-4 py-3.5 text-ink">
         {mov.descripcion}
         {esTraspaso && (
-          <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+          <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
             Traspaso
           </span>
         )}
       </td>
-      <td className="px-4 py-2">
+      <td className="px-4 py-3.5">
         {esTraspaso ? (
-          <span className="text-slate-500">—</span>
+          <span className="text-ink-tertiary">—</span>
         ) : (
           <>
             <CategoriaCelda
@@ -158,13 +160,13 @@ function FilaMovimiento({
         )}
       </td>
       <td
-        className={`px-4 py-2 text-right font-medium ${
-          esTraspaso ? "text-sky-700" : Number(mov.importe) < 0 ? "text-slate-900" : "text-emerald-600"
+        className={`px-4 py-3.5 text-right font-semibold ${
+          esTraspaso ? "text-accent" : Number(mov.importe) < 0 ? "text-ink" : "text-success"
         }`}
       >
         {formatEUR(Number(mov.importe))}
       </td>
-      <td className="px-4 py-2 text-right">
+      <td className="px-4 py-3.5 text-right">
         {esTraspaso ? (
           <ConfirmForm
             action={eliminarTraspaso}
@@ -175,7 +177,7 @@ function FilaMovimiento({
             }
           >
             <input type="hidden" name="traspaso_grupo_id" value={mov.traspaso_grupo_id ?? ""} />
-            <button className="text-slate-400 hover:text-red-600" type="submit">
+            <button className="text-[13px] font-semibold text-faint hover:text-danger" type="submit">
               {mov.tipo_original ? "Desvincular" : "Eliminar"}
             </button>
           </ConfirmForm>
@@ -185,7 +187,7 @@ function FilaMovimiento({
             mensaje={`¿Seguro que quieres eliminar el movimiento "${mov.descripcion}" (${formatEUR(Number(mov.importe))})?`}
           >
             <input type="hidden" name="id" value={mov.id} />
-            <button className="text-slate-400 hover:text-red-600" type="submit">
+            <button className="text-[13px] font-semibold text-faint hover:text-danger" type="submit">
               Eliminar
             </button>
           </ConfirmForm>

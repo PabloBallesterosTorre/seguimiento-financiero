@@ -21,35 +21,38 @@ export function KpiDineroDisponible({
   const subiendo = variacion !== null && variacion.abs >= 0;
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-6">
-      <p className="text-sm text-slate-500">{titulo}</p>
-      <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+    <div className="rounded-card border border-border bg-surface p-6 shadow-card">
+      <p className="text-sm text-ink-secondary">{titulo}</p>
+      <div className="mt-2.5 flex items-end justify-between">
         <div>
-          <p className="text-3xl font-semibold">{formatEUR(valor)}</p>
+          <p className="break-words font-sora text-2xl font-bold text-ink sm:text-[30px]">{formatEUR(valor)}</p>
           {variacion === null ? (
-            <p className="mt-1 text-sm text-slate-400">Sin periodo anterior con el que comparar todavía.</p>
+            <p className="mt-2 text-[13px] text-ink-tertiary">Sin periodo anterior con el que comparar todavía.</p>
           ) : (
-            <p className={`mt-1 text-sm font-medium ${subiendo ? "text-emerald-600" : "text-slate-900"}`}>
-              {subiendo ? "▲" : "▼"} {formatEUR(Math.abs(variacion.abs))} ({variacion.pct >= 0 ? "+" : ""}
+            <p className={`mt-2 flex items-center gap-1.5 text-[13px] font-semibold ${subiendo ? "text-success" : "text-danger"}`}>
+              <svg width="9" height="9" viewBox="0 0 10 10" className={subiendo ? "" : "rotate-180"}>
+                <path d="M1 3 L9 3 L5 8 Z" fill="currentColor" />
+              </svg>
+              {formatEUR(Math.abs(variacion.abs))} ({variacion.pct >= 0 ? "+" : ""}
               {variacion.pct.toFixed(1)}%) frente al mes anterior
             </p>
           )}
         </div>
-        <div className="h-16 w-48">
+        <div className="h-[34px] w-28 shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={miniSerie}>
               <YAxis hide domain={["dataMin", "dataMax"]} />
               <Tooltip
                 formatter={(value) => formatEUR(Number(value))}
                 labelFormatter={(label) => label}
-                contentStyle={{ fontSize: 12 }}
+                contentStyle={{ fontSize: 12, fontFamily: "var(--font-manrope)" }}
               />
-              <Line type="monotone" dataKey="valor" stroke="#0f172a" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="valor" stroke="#c3c2b7" strokeWidth={2} dot={false} activeDot={{ r: 3, fill: "#2a78d6" }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
-      <p className="mt-1 text-xs text-slate-400">Últimos 12 meses</p>
+      <p className="mt-2.5 text-[11px] text-ink-tertiary">Últimos 12 meses</p>
     </div>
   );
 }

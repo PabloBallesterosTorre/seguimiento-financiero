@@ -88,6 +88,7 @@ export default async function HomePage({
   const deudasHistorico: DeudaParaHistorico[] = (deudasRaw ?? []).map((d) => ({
     id: d.id,
     capital_inicial: Number(d.capital_inicial),
+    capital_pendiente: Number(d.capital_pendiente),
     fecha_inicio: d.fecha_inicio,
     cuota: Number(d.cuota),
     tipo_interes: d.tipo_interes === null ? null : Number(d.tipo_interes),
@@ -169,6 +170,7 @@ export default async function HomePage({
           deudas: deudasHistorico,
           amortizacionesAplicadasPorDeuda,
           esCategoriaInversion,
+          hoy,
         })
       : [];
 
@@ -237,31 +239,42 @@ export default async function HomePage({
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-4xl px-4 py-8 space-y-6">
+      <main className="mx-auto max-w-4xl space-y-5 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Patrimonio global</h1>
-          <div className="flex rounded-md border border-slate-300 text-sm">
+          <h1 className="font-sora text-xl font-bold text-ink sm:text-[26px]">Patrimonio global</h1>
+          <div className="flex rounded-full bg-chip p-1">
             <Link
               href="/home"
-              className={`px-3 py-1.5 rounded-l-md ${conDeuda ? "bg-slate-900 text-white" : "hover:bg-slate-100"}`}
+              className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
+                conDeuda ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
+              }`}
             >
               Con deuda
             </Link>
             <Link
               href="/home?sinDeuda=1"
-              className={`px-3 py-1.5 rounded-r-md ${!conDeuda ? "bg-slate-900 text-white" : "hover:bg-slate-100"}`}
+              className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
+                !conDeuda ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
+              }`}
             >
               Sin deuda
             </Link>
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
-          <p className="text-sm text-slate-500">Patrimonio total</p>
-          <p className="mt-1 text-3xl font-semibold">{formatMoneda(patrimonio, moneda)}</p>
+        <div className="rounded-card border border-border bg-surface p-[22px] shadow-card sm:p-9">
+          <p className="text-sm text-ink-secondary">Patrimonio total</p>
+          <p className={`mt-2.5 break-words font-sora text-[38px] font-bold leading-none sm:text-[56px] ${patrimonio < 0 ? "text-danger" : "text-ink"}`}>
+            {formatMoneda(patrimonio, moneda)}
+          </p>
+          <p className="mt-3.5 text-[13px] text-ink-tertiary">
+            {conDeuda
+              ? `Incluye ${formatMoneda(totalDeuda, moneda)} de deuda pendiente.`
+              : "No incluye la deuda pendiente."}
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-start">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-[1.3fr_1fr_1fr] sm:items-start">
           <KpiDineroDisponible
             moneda={moneda}
             valor={patrimonioHoy}
@@ -269,29 +282,44 @@ export default async function HomePage({
             miniSerie={miniSerieLiquidez}
             titulo="Liquidez"
           />
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-500">Inversión</p>
-            <p className="mt-1 text-lg font-medium">{formatMoneda(totalInversion, moneda)}</p>
+          <div className="rounded-card border border-border bg-surface p-6 shadow-card">
+            <p className="text-sm text-ink-secondary">Inversión</p>
+            <p className="mt-2.5 break-words font-sora text-[21px] font-bold text-ink sm:text-[30px]">{formatMoneda(totalInversion, moneda)}</p>
+            {totalInversion === 0 && (
+              <>
+                <p className="mt-3 text-xs text-ink-tertiary">Sin inversiones registradas todavía.</p>
+                <Link href="/inversiones" className="mt-1.5 inline-block text-xs font-semibold text-accent">
+                  + Añadir inversión
+                </Link>
+              </>
+            )}
           </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-500">Deuda pendiente</p>
-            <p className="mt-1 text-lg font-medium">{formatMoneda(totalDeuda, moneda)}</p>
+          <div className="rounded-card border border-border bg-surface p-6 shadow-card">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-ink-secondary">Deuda pendiente</p>
+              {!conDeuda && (
+                <span className="rounded-full bg-chip px-2 py-0.5 text-[10px] font-semibold text-ink-tertiary">
+                  Excluida del total
+                </span>
+              )}
+            </div>
+            <p className="mt-2.5 break-words font-sora text-[21px] font-bold text-ink sm:text-[30px]">{formatMoneda(totalDeuda, moneda)}</p>
           </div>
         </div>
 
         <FlujoMensualDisponible moneda={moneda} datos={ahorroPorMes} objetivo={objetivoAhorroMensual} />
 
-        <p className="text-sm text-slate-400">
+        <p className="px-1 text-[13px] text-ink-tertiary">
           El objetivo de ahorro se edita desde{" "}
-          <Link href="/configuracion" className="underline">
+          <Link href="/configuracion" className="font-semibold text-accent">
             Configuración
           </Link>
           . El detalle de cuentas está en{" "}
-          <Link href="/cuentas" className="underline">
+          <Link href="/cuentas" className="font-semibold text-accent">
             Cuentas
           </Link>
           , y más informes en{" "}
-          <Link href="/informes" className="underline">
+          <Link href="/informes" className="font-semibold text-accent">
             Informes
           </Link>
           .

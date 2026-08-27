@@ -1,5 +1,7 @@
 "use client";
 
+import { inputClass, labelClass, btnPrimaryClass, btnSecondaryClass } from "@/components/formStyles";
+
 type Categoria = {
   id: string;
   nombre: string;
@@ -28,26 +30,16 @@ export function CategoriaForm({
         await action(formData);
         onCancelar();
       }}
-      className="grid grid-cols-1 gap-4 sm:grid-cols-3"
+      className="grid grid-cols-1 items-end gap-4 sm:grid-cols-3"
     >
       {categoria && <input type="hidden" name="id" value={categoria.id} />}
       <div>
-        <label className="block text-xs text-slate-500">Nombre</label>
-        <input
-          name="nombre"
-          required
-          defaultValue={categoria?.nombre}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          placeholder="Alimentación"
-        />
+        <label className={labelClass}>Nombre</label>
+        <input name="nombre" required defaultValue={categoria?.nombre} className={inputClass} placeholder="Alimentación" />
       </div>
       <div>
-        <label className="block text-xs text-slate-500">Categoría padre (opcional)</label>
-        <select
-          name="categoria_padre_id"
-          defaultValue={categoria?.categoria_padre_id ?? ""}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-        >
+        <label className={labelClass}>Categoría padre (opcional)</label>
+        <select name="categoria_padre_id" defaultValue={categoria?.categoria_padre_id ?? ""} className={inputClass}>
           <option value="">Ninguna — categoría principal</option>
           {padresDisponibles.map((p) => (
             <option key={p.id} value={p.id}>
@@ -56,29 +48,18 @@ export function CategoriaForm({
           ))}
         </select>
       </div>
-      <div className="flex items-end pb-2">
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            name="es_categoria_inversion"
-            defaultChecked={categoria?.es_categoria_inversion}
-          />
+      <div className="flex items-center pb-2.5">
+        <label className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-[13px] text-ink-secondary">
+          <input type="checkbox" name="es_categoria_inversion" defaultChecked={categoria?.es_categoria_inversion} className="h-4 w-4" />
           Es aportación a inversión
         </label>
       </div>
 
-      <div className="flex gap-3 sm:col-span-3">
-        <button
-          type="submit"
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
+      <div className="flex gap-2.5 sm:col-span-3">
+        <button type="submit" className={btnPrimaryClass}>
           {categoria ? "Guardar cambios" : "Añadir categoría"}
         </button>
-        <button
-          type="button"
-          onClick={onCancelar}
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
+        <button type="button" onClick={onCancelar} className={btnSecondaryClass}>
           Cancelar
         </button>
       </div>

@@ -31,6 +31,7 @@ import {
   type MovimientoParaInforme,
 } from "@/lib/informes";
 import { obtenerConfiguracion } from "@/lib/configuracion";
+import { rentabilidadPonderada } from "@/lib/inversiones";
 import { InformesClient, type MesFlujo, type CategoriaMedia, type SerieCategoria, type FilaComparativa } from "./InformesClient";
 
 const RANGOS = ["6", "12", "todos"] as const;
@@ -61,7 +62,7 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
     { data: conciliacionesRaw },
   ] = await Promise.all([
     supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
-    supabase.from("inversiones").select("valor_actual"),
+    supabase.from("inversiones").select("valor_actual, rentabilidad_anual_asumida"),
     supabase
       .from("deudas")
       .select("id, capital_inicial, capital_pendiente, cuota, tipo_interes, valor_residual, fecha_inicio"),
@@ -82,10 +83,17 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
 
   const saldoLiquidoInicial = (cuentas ?? []).reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
   const valorInversionInicial = (inversiones ?? []).reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
+  const rentabilidadAsumida = rentabilidadPonderada(
+    (inversiones ?? []).map((i) => ({
+      valor_actual: Number(i.valor_actual ?? 0),
+      rentabilidad_anual_asumida: i.rentabilidad_anual_asumida !== null ? Number(i.rentabilidad_anual_asumida) : null,
+    }))
+  );
 
   const deudasHistorico: DeudaParaHistorico[] = (deudasRaw ?? []).map((d) => ({
     id: d.id,
     capital_inicial: Number(d.capital_inicial),
+    capital_pendiente: Number(d.capital_pendiente),
     fecha_inicio: d.fecha_inicio,
     cuota: Number(d.cuota),
     tipo_interes: d.tipo_interes === null ? null : Number(d.tipo_interes),
@@ -169,6 +177,7 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
           deudas: deudasHistorico,
           amortizacionesAplicadasPorDeuda,
           esCategoriaInversion,
+          hoy,
         })
       : [];
 
@@ -184,6 +193,7 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
     esCategoriaInversion,
     mediaPorCategoria,
     periodosConciliados,
+    rentabilidadAnualAsumidaInversion: rentabilidadAsumida,
   });
 
   const puntos = [...puntosHistoricos, ...puntosFuturos];
@@ -302,21 +312,21 @@ export default async function InformesPage({ searchParams }: { searchParams: { r
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-5xl px-4 py-8 space-y-6">
+      <main className="mx-auto max-w-5xl space-y-6 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Informes</h1>
-          <Link href="/planificador" className="text-sm text-slate-500 hover:text-slate-900">
+          <h1 className="font-sora text-[26px] font-bold text-ink">Informes</h1>
+          <Link href="/planificador" className="text-[13px] font-semibold text-accent hover:underline">
             Ver Planificador →
           </Link>
         </div>
 
-        <div className="flex rounded-md border border-slate-300 text-sm w-fit">
-          {RANGOS.map((r, idx) => (
+        <div className="flex w-fit rounded-full bg-chip p-1 text-sm">
+          {RANGOS.map((r) => (
             <Link
               key={r}
               href={`/informes?rango=${r}`}
-              className={`px-3 py-1.5 ${rango === r ? "bg-slate-900 text-white" : "hover:bg-slate-100"} ${
-                idx === 0 ? "rounded-l-md" : idx === RANGOS.length - 1 ? "rounded-r-md" : ""
+              className={`rounded-full px-[18px] py-2.5 text-sm font-semibold transition-colors ${
+                rango === r ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
               }`}
             >
               {r === "todos" ? "Todo el histórico" : `Últimos ${r} meses`}
