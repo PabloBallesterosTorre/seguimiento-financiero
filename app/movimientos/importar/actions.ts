@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { reforzarRegla } from "@/lib/reglas";
 import { registrarTraspaso } from "@/lib/traspasos";
+import { calcularSaldoTrasImportar } from "@/lib/importarCsv";
 
 export type FilaImportar = {
   fecha: string;
@@ -84,8 +85,6 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
     }
   }
 
-  const totalImporte = filas.reduce((suma, fila) => suma + fila.importe, 0);
-
   const { data: cuenta } = await supabase
     .from("cuentas")
     .select("saldo_actual")
@@ -95,7 +94,7 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
   if (cuenta) {
     await supabase
       .from("cuentas")
-      .update({ saldo_actual: Number(cuenta.saldo_actual) + totalImporte })
+      .update({ saldo_actual: calcularSaldoTrasImportar(Number(cuenta.saldo_actual), filas) })
       .eq("id", cuenta_id);
   }
 

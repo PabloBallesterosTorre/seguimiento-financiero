@@ -56,4 +56,27 @@ describe("sugerirCategoria", () => {
     expect(sugerirCategoria("Uber", reglasEmpateReal)).toBe("muy-usada");
     expect(sugerirCategoria("Uber Eats", reglasEmpate)).toBe("comida-a");
   });
+
+  it("reconoce el mismo tipo de movimiento cuando solo cambia una fecha embebida en la descripción", () => {
+    const reglasConFecha = [
+      {
+        patron_descripcion: "interés neto pagado a cuenta remunerada del aug 23, 2026",
+        categoria_id: "ahorro-inversion",
+        veces_usada: 1,
+      },
+    ];
+    expect(
+      sugerirCategoria("Interés neto pagado a Cuenta Remunerada del Aug 24, 2026", reglasConFecha)
+    ).toBe("ahorro-inversion");
+    expect(
+      sugerirCategoria("Interés neto pagado a Cuenta Remunerada del Sep 1, 2026", reglasConFecha)
+    ).toBe("ahorro-inversion");
+  });
+
+  it("no aplica el fallback por fecha si la parte estable tras limpiar es demasiado corta", () => {
+    const reglasCortas = [{ patron_descripcion: "pago 15 marzo", categoria_id: "otros", veces_usada: 1 }];
+    // Sin solape exacto con el patrón, y tras quitar mes/dígitos queda solo "pago" (4
+    // caracteres) en ambos lados — demasiado corto y genérico para usarse como fallback.
+    expect(sugerirCategoria("Pago 20 abril", reglasCortas)).toBeNull();
+  });
 });

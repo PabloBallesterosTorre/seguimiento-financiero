@@ -58,6 +58,14 @@ export function parseImporteImportado(valor: string, separadorDecimal: "," | "."
   return Number.isNaN(numero) ? null : numero;
 }
 
+// Saldo de una cuenta tras importar un lote de movimientos: el saldo actual más la
+// suma de los importes importados (positivos suman, negativos restan). No depende de
+// origen/orden de las filas — solo del total neto del lote.
+export function calcularSaldoTrasImportar(saldoActual: number, filas: { importe: number }[]): number {
+  const totalImporte = filas.reduce((suma, fila) => suma + fila.importe, 0);
+  return saldoActual + totalImporte;
+}
+
 // Detecta con confianza solo el caso inequívoco: fecha ISO (AAAA-MM-DD…), reconocible
 // porque el primer segmento tiene 4 dígitos. Para el resto (DD/MM vs MM/DD) no hay
 // forma fiable de adivinar sin más contexto, así que se deja el valor actual.

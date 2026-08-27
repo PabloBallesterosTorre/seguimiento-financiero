@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  calcularSaldoTrasImportar,
   detectarFormatoFecha,
   detectarSeparadorDecimal,
   parseFechaImportada,
@@ -97,5 +98,26 @@ describe("detectarSeparadorDecimal", () => {
 
   it("por defecto punto si no hay ninguna pista", () => {
     expect(detectarSeparadorDecimal(["100", "200"])).toBe(".");
+  });
+});
+
+describe("calcularSaldoTrasImportar", () => {
+  it("suma el neto del lote (ingresos positivos, gastos negativos) al saldo actual", () => {
+    const filas = [{ importe: 1000 }, { importe: -200 }, { importe: -100 }];
+    expect(calcularSaldoTrasImportar(700, filas)).toBeCloseTo(1400, 2);
+  });
+
+  it("con un lote vacío, devuelve el saldo actual sin cambios", () => {
+    expect(calcularSaldoTrasImportar(500, [])).toBe(500);
+  });
+
+  it("no depende del orden de las filas, solo del total neto", () => {
+    const filasA = [{ importe: 300 }, { importe: -50 }];
+    const filasB = [{ importe: -50 }, { importe: 300 }];
+    expect(calcularSaldoTrasImportar(0, filasA)).toBe(calcularSaldoTrasImportar(0, filasB));
+  });
+
+  it("admite saldo actual negativo (cuenta en descubierto)", () => {
+    expect(calcularSaldoTrasImportar(-100, [{ importe: 50 }])).toBeCloseTo(-50, 2);
   });
 });

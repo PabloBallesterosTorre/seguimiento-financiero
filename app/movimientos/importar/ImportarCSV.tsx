@@ -22,6 +22,7 @@ type MovimientoExistente = { cuenta_id: string; fecha: string; importe: number; 
 type FilaPrevia = FilaImportar & {
   original: string;
   valida: boolean;
+  motivoInvalido: string | null;
   esTraspaso: boolean;
   cuentaContraparteId: string | null;
   esDuplicado: boolean;
@@ -123,6 +124,8 @@ export function ImportarCSV({
   const [colIbanContraparte, setColIbanContraparte] = useState("");
   const [formatoFecha, setFormatoFecha] = useState<FormatoFecha>("DMY");
   const [separadorDecimal, setSeparadorDecimal] = useState<"," | ".">(",");
+  const [colFiltro, setColFiltro] = useState("");
+  const [valorFiltro, setValorFiltro] = useState("");
 
   const [filasPreview, setFilasPreview] = useState<FilaPrevia[]>([]);
   const [importando, setImportando] = useState(false);
@@ -136,6 +139,27 @@ export function ImportarCSV({
   const cabeceras = filasCSV[filaCabecera - 1] ?? [];
   const filasDatos = filasCSV.slice(filaCabecera);
   const cuentasContraparte = cuentas.filter((c) => c.id !== cuentaId);
+
+  const idxFiltro = cabeceras.indexOf(colFiltro);
+  const valoresColumnaFiltro = useMemo(() => {
+    if (idxFiltro < 0) return [];
+    const valores = new Set<string>();
+    for (const fila of filasDatos) {
+      const v = fila[idxFiltro];
+      if (v) valores.add(v);
+    }
+    return Array.from(valores).sort();
+  }, [filasDatos, idxFiltro]);
+
+  const filasDatosFiltradas = useMemo(() => {
+    if (!colFiltro || !valorFiltro || idxFiltro < 0) return filasDatos;
+    return filasDatos.filter((fila) => fila[idxFiltro] === valorFiltro);
+  }, [filasDatos, colFiltro, valorFiltro, idxFiltro]);
+
+  function onCambiarColFiltro(col: string) {
+    setColFiltro(col);
+    setValorFiltro("");
+  }
 
   function aplicarGuesses(cab: string[], datos: string[][]) {
     const colFechaDetectada = adivinarColumna(cab, ["fecha", "date"]);
@@ -205,6 +229,8 @@ export function ImportarCSV({
     const cab = grid[filaDetectada - 1] ?? [];
     const datos = grid.slice(filaDetectada, filaDetectada + 20);
     aplicarGuesses(cab, datos);
+    setColFiltro("");
+    setValorFiltro("");
 
     setNombreArchivo(file.name);
     setResultado(null);
@@ -216,6 +242,8 @@ export function ImportarCSV({
     const cab = filasCSV[valor - 1] ?? [];
     const datos = filasCSV.slice(valor, valor + 20);
     aplicarGuesses(cab, datos);
+    setColFiltro("");
+    setValorFiltro("");
   }
 
   // Vuelve a sugerir formato de fecha / separador decimal cuando el usuario cambia
@@ -269,7 +297,7 @@ export function ImportarCSV({
       cuentasContraparte.filter((c) => c.iban).map((c) => [normalizarIban(c.iban!), c.id])
     );
 
-    const filas: FilaPrevia[] = filasDatos.map((fila) => {
+    const filas: FilaPrevia[] = filasDatosFiltradas.map((fila) => {
       const fecha = idxFecha >= 0 ? parseFechaImportada(fila[idxFecha] ?? "", formatoFecha) : null;
       const descripcion = (idxDescripcion >= 0 ? fila[idxDescripcion] : "") ?? "";
 
@@ -284,6 +312,17 @@ export function ImportarCSV({
       }
 
       const valida = fecha !== null && descripcion !== "" && importe !== null && importe !== 0;
+
+      let motivoInvalido: string | null = null;
+      if (!valida) {
+        const motivos: string[] = [];
+        if (fecha === null) motivos.push("fecha no reconocida");
+        if (descripcion === "") motivos.push("descripción vacía");
+        if (importe === null) motivos.push("importe no reconocido");
+        else if (importe === 0) motivos.push("importe es cero");
+        motivoInvalido = motivos.join(", ");
+      }
+
       const tipo: "ingreso" | "gasto" = (importe ?? 0) >= 0 ? "ingreso" : "gasto";
       const sugerida = valida ? sugerirCategoria(descripcion, reglas) : null;
       const categoria_id = sugerida && categorias.some((c) => c.id === sugerida) ? sugerida : null;
@@ -312,6 +351,7 @@ export function ImportarCSV({
         previstoId: null,
         original: fila.join(" | "),
         valida,
+        motivoInvalido,
         esTraspaso,
         cuentaContraparteId,
         esDuplicado,
@@ -417,7 +457,8 @@ export function ImportarCSV({
   }
 
   const filasValidas = filasPreview.filter((f) => f.valida);
-  const filasInvalidas = filasPreview.length - filasValidas.length;
+  const filasInvalidasDetalle = filasPreview.filter((f) => !f.valida);
+  const filasInvalidas = filasInvalidasDetalle.length;
   const filasOmitidasPorFecha = filasValidas.filter((f) => f.omitidaPorFechaCorte);
   const filasDentroDeRango = filasValidas.filter((f) => !f.omitidaPorFechaCorte);
   const filasDuplicadasSinConfirmar = filasDentroDeRango.filter((f) => f.esDuplicado && !f.incluirDuplicado);
@@ -617,6 +658,50 @@ export function ImportarCSV({
             </div>
           </div>
 
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 rounded-md border border-slate-100 bg-slate-50 p-4">
+            <div>
+              <label className="block text-xs text-slate-500">Filtrar por columna (opcional)</label>
+              <select
+                value={colFiltro}
+                onChange={(e) => onCambiarColFiltro(e.target.value)}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">Sin filtrar (usar todas las filas)</option>
+                {cabeceras.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-400">
+                Útil si el archivo mezcla varias cuentas en uno (p. ej. Revolut exporta Actual, Ahorros y
+                Depósito juntos, distinguidas por una columna "Producto"): elige aquí esa columna.
+              </p>
+            </div>
+            {colFiltro && (
+              <div>
+                <label className="block text-xs text-slate-500">Valor a importar</label>
+                <select
+                  value={valorFiltro}
+                  onChange={(e) => setValorFiltro(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="">— Selecciona un valor —</option>
+                  {valoresColumnaFiltro.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">
+                  Solo se leerán las filas donde &quot;{colFiltro}&quot; sea exactamente este valor
+                  {valorFiltro ? ` (${filasDatosFiltradas.length} de ${filasDatos.length} filas)` : ""}. Repite
+                  la importación con otro valor para cada una de tus otras cuentas de este mismo archivo.
+                </p>
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="block text-xs text-slate-500">Cómo viene el importe</label>
             <div className="mt-1 flex flex-wrap gap-4 text-sm">
@@ -690,7 +775,10 @@ export function ImportarCSV({
             type="button"
             onClick={calcularPreview}
             disabled={
-              !colFecha || !colDescripcion || (modoImporte === "unico" ? !colImporte : !colCargo && !colAbono)
+              !colFecha ||
+              !colDescripcion ||
+              (modoImporte === "unico" ? !colImporte : !colCargo && !colAbono) ||
+              (colFiltro !== "" && valorFiltro === "")
             }
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
           >
@@ -709,10 +797,34 @@ export function ImportarCSV({
           </div>
 
           {filasInvalidas > 0 && (
-            <p className="text-xs text-amber-600">
-              {filasInvalidas} filas no se han podido leer (fecha o importe con formato inesperado) y se
-              omitirán. Revisa el mapeo de columnas si el número es mayor de lo esperado.
-            </p>
+            <details className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <summary className="cursor-pointer font-medium">
+                {filasInvalidas} filas no se han podido leer y se omitirán. Ver detalle.
+              </summary>
+              <p className="mt-2 text-amber-600">
+                Revisa el mapeo de columnas si el número es mayor de lo esperado.
+              </p>
+              <table className="mt-2 w-full text-left">
+                <thead>
+                  <tr className="text-amber-500">
+                    <th className="pr-3 py-1 font-medium">Fila</th>
+                    <th className="pr-3 py-1 font-medium">Motivo</th>
+                    <th className="py-1 font-medium">Contenido original</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filasInvalidasDetalle.map((fila, i) => (
+                    <tr key={i} className="border-t border-amber-100 align-top">
+                      <td className="pr-3 py-1 whitespace-nowrap text-amber-500">
+                        {filasPreview.indexOf(fila) + 1}
+                      </td>
+                      <td className="pr-3 py-1 whitespace-nowrap">{fila.motivoInvalido}</td>
+                      <td className="py-1 font-mono text-amber-700">{fila.original}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
           )}
 
           {filasOmitidasPorFecha.length > 0 && (

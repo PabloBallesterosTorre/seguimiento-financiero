@@ -45,12 +45,12 @@ export function ThOrdenable({
   return (
     <th
       onClick={() => onToggle(columna)}
-      className={`cursor-pointer select-none whitespace-nowrap px-4 py-2 font-medium hover:text-slate-900 ${
+      className={`cursor-pointer select-none whitespace-nowrap px-4 py-3 text-xs font-semibold text-ink-tertiary hover:text-ink ${
         align === "right" ? "text-right" : "text-left"
       } ${className}`}
     >
       {children}
-      <span className={`ml-1 inline-block w-3 text-xs ${activa ? "text-slate-700" : "text-slate-300"}`}>
+      <span className={`ml-1 inline-block w-3 text-[10px] ${activa ? "text-ink-secondary" : "text-gridline"}`}>
         {activa ? (orden!.direccion === "asc" ? "▲" : "▼") : "▲"}
       </span>
     </th>
