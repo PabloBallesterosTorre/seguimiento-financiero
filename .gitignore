@@ -29,3 +29,6 @@ next-env.d.ts
 
 # extractos bancarios reales (datos personales, no deben subirse al repo)
 /2. Extractos/
+
+.vercel
+.env*
