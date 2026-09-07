@@ -12,6 +12,28 @@ monitorización de errores con Sentry.
 App de un único usuario: el alta pública está cerrada (sin botón de registro); el usuario se crea
 directamente en el Dashboard de Supabase (Authentication → Users → Add user).
 
+## Separación local / producción
+
+El desarrollo local y producción usan **proyectos de Supabase distintos** (base de datos y Auth
+completamente separados) — nunca se comparte proyecto entre ambos:
+
+- **Producción** (Vercel): proyecto `seguimiento-financiero` (ref `ctyqpyznqhcauufoiqam`).
+- **Desarrollo local**: proyecto `seguimiento-financiero-dev` (ref `vyxhujahqhpkskjbalzg`), con las
+  mismas migraciones aplicadas y un usuario propio.
+
+`.env.local` apunta siempre al proyecto **dev**; las variables de entorno de Vercel apuntan al de
+**producción**. Cualquier cuenta/movimiento/etc. que crees con `npm run dev` va al proyecto dev y
+nunca toca los datos reales.
+
+Al añadir una migración nueva en `supabase/migrations/`, aplícala a los dos proyectos:
+
+```bash
+npx supabase db push --project-ref vyxhujahqhpkskjbalzg   # dev
+npx supabase db push --project-ref ctyqpyznqhcauufoiqam   # producción
+```
+
+(usa `--linked` en vez de `--project-ref` si tienes el CLI enlazado al proyecto correspondiente).
+
 ## Puesta en marcha en local
 
 1. Instala las dependencias:
@@ -20,17 +42,19 @@ directamente en el Dashboard de Supabase (Authentication → Users → Add user)
    npm install
    ```
 
-2. Crea un proyecto en [supabase.com](https://supabase.com) (plan gratuito) y aplica todas las
-   migraciones de `supabase/migrations/` (en orden, o con `supabase db push` si tienes el CLI
-   enlazado al proyecto — ver `supabase link`).
+2. Si vas a levantar el proyecto por primera vez, crea un proyecto Supabase de **dev** en
+   [supabase.com](https://supabase.com) (plan gratuito) y aplica todas las migraciones de
+   `supabase/migrations/` (en orden, o con `supabase db push --project-ref <ref>`). No reutilices
+   el proyecto de producción para esto.
 
 3. Copia `.env.local.example` a `.env.local` y rellena, como mínimo:
-   - `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` (Project Settings → API).
+   - `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` del proyecto **dev**
+     (Project Settings → API).
    - `NEXT_PUBLIC_SENTRY_DSN` es opcional (monitorización de errores) — sin ella la app funciona
      igual, solo que Sentry no recibe nada.
 
-4. Crea tu usuario en Supabase Dashboard → Authentication → Users → Add user (con email y
-   contraseña) — no hay pantalla de alta en la app.
+4. Crea tu usuario en el Dashboard del proyecto **dev** → Authentication → Users → Add user (con
+   email y contraseña) — no hay pantalla de alta en la app.
 
 5. Arranca el servidor de desarrollo:
 

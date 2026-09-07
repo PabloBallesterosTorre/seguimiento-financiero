@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { login } from "./actions";
 import { inputClass, labelClass, btnPrimaryClass } from "@/components/formStyles";
 
@@ -37,6 +38,12 @@ export default async function LoginPage({
             Entrar
           </button>
         </form>
+
+        <p className="text-center text-[13px] text-ink-secondary">
+          <Link href="/login/recuperar" className="font-semibold text-accent">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </p>
       </div>
     </main>
   );
