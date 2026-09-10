@@ -58,6 +58,29 @@ export function parseImporteImportado(valor: string, separadorDecimal: "," | "."
   return Number.isNaN(numero) ? null : numero;
 }
 
+// Suma al importe base la comisión y la retención fiscal de la fila, si el archivo las
+// trae en columnas separadas (ej. Trade Republic, Revolut). Ambas ya vienen en negativo
+// en esos extractos cuando reducen el importe, así que se suman directamente, nunca se
+// restan. Si una columna no existe o viene vacía/no numérica en la fila, no afecta al
+// resultado — así el comportamiento es idéntico al actual cuando no hay fee/tax.
+export function combinarImporteConComisionYRetencion(
+  importeBase: number,
+  comisionTexto: string | undefined,
+  retencionTexto: string | undefined,
+  separadorDecimal: "," | "."
+): number {
+  let total = importeBase;
+  if (comisionTexto) {
+    const comision = parseImporteImportado(comisionTexto, separadorDecimal);
+    if (comision !== null) total += comision;
+  }
+  if (retencionTexto) {
+    const retencion = parseImporteImportado(retencionTexto, separadorDecimal);
+    if (retencion !== null) total += retencion;
+  }
+  return total;
+}
+
 // Saldo de una cuenta tras importar un lote de movimientos: el saldo actual más la
 // suma de los importes importados (positivos suman, negativos restan). No depende de
 // origen/orden de las filas — solo del total neto del lote.

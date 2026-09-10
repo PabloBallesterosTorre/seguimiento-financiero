@@ -7,6 +7,7 @@ import { parseXLSX } from "@/lib/xlsx";
 import {
   parseFechaImportada,
   parseImporteImportado,
+  combinarImporteConComisionYRetencion,
   detectarFormatoFecha,
   detectarSeparadorDecimal,
   type FormatoFecha,
@@ -121,6 +122,8 @@ export function ImportarCSV({
   const [colImporte, setColImporte] = useState("");
   const [colCargo, setColCargo] = useState("");
   const [colAbono, setColAbono] = useState("");
+  const [colComision, setColComision] = useState("");
+  const [colRetencion, setColRetencion] = useState("");
   const [colIbanContraparte, setColIbanContraparte] = useState("");
   const [formatoFecha, setFormatoFecha] = useState<FormatoFecha>("DMY");
   const [separadorDecimal, setSeparadorDecimal] = useState<"," | ".">(",");
@@ -166,6 +169,8 @@ export function ImportarCSV({
     const colImporteDetectada = adivinarColumna(cab, ["importe", "cantidad", "amount"]);
     const colCargoDetectada = adivinarColumna(cab, ["cargo", "debe", "debit"]);
     const colAbonoDetectada = adivinarColumna(cab, ["abono", "haber", "credit"]);
+    const colComisionDetectada = adivinarColumna(cab, ["fee", "comision", "comisión"]);
+    const colRetencionDetectada = adivinarColumna(cab, ["tax", "retencion", "retención"]);
     const colIbanDetectada = adivinarColumna(cab, [
       "iban",
       "counterparty_iban",
@@ -178,6 +183,8 @@ export function ImportarCSV({
     setColImporte(colImporteDetectada);
     setColCargo(colCargoDetectada);
     setColAbono(colAbonoDetectada);
+    setColComision(colComisionDetectada);
+    setColRetencion(colRetencionDetectada);
     setColIbanContraparte(colIbanDetectada);
 
     const idxFecha = cab.indexOf(colFechaDetectada);
@@ -291,6 +298,8 @@ export function ImportarCSV({
     const idxImporte = cabeceras.indexOf(colImporte);
     const idxCargo = cabeceras.indexOf(colCargo);
     const idxAbono = cabeceras.indexOf(colAbono);
+    const idxComision = cabeceras.indexOf(colComision);
+    const idxRetencion = cabeceras.indexOf(colRetencion);
     const idxIban = cabeceras.indexOf(colIbanContraparte);
 
     const ibansPropios = new Map(
@@ -309,6 +318,15 @@ export function ImportarCSV({
         const abono = idxAbono >= 0 ? parseImporteImportado(fila[idxAbono] ?? "", separadorDecimal) : null;
         if (abono) importe = Math.abs(abono);
         else if (cargo) importe = -Math.abs(cargo);
+      }
+
+      if (importe !== null) {
+        importe = combinarImporteConComisionYRetencion(
+          importe,
+          idxComision >= 0 ? fila[idxComision] : undefined,
+          idxRetencion >= 0 ? fila[idxRetencion] : undefined,
+          separadorDecimal
+        );
       }
 
       const valida = fecha !== null && descripcion !== "" && importe !== null && importe !== 0;
@@ -770,6 +788,45 @@ export function ImportarCSV({
               </div>
             </div>
           )}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs text-slate-500">Columna comisión (opcional)</label>
+              <select
+                value={colComision}
+                onChange={(e) => setColComision(e.target.value)}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">Sin usar</option>
+                {cabeceras.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-400">
+                Si el archivo trae la comisión en una columna aparte (ej. "fee"), se suma al importe.
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500">Columna retención fiscal (opcional)</label>
+              <select
+                value={colRetencion}
+                onChange={(e) => setColRetencion(e.target.value)}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">Sin usar</option>
+                {cabeceras.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-400">
+                Si el archivo trae la retención fiscal en una columna aparte (ej. "tax"), se suma al importe.
+              </p>
+            </div>
+          </div>
 
           <button
             type="button"

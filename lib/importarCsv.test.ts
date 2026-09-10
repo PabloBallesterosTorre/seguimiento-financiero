@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calcularSaldoTrasImportar,
+  combinarImporteConComisionYRetencion,
   detectarFormatoFecha,
   detectarSeparadorDecimal,
   parseFechaImportada,
@@ -98,6 +99,32 @@ describe("detectarSeparadorDecimal", () => {
 
   it("por defecto punto si no hay ninguna pista", () => {
     expect(detectarSeparadorDecimal(["100", "200"])).toBe(".");
+  });
+});
+
+describe("combinarImporteConComisionYRetencion", () => {
+  it("suma fee y tax (ya negativos) al importe base", () => {
+    expect(combinarImporteConComisionYRetencion(100, "-1,50", "-2,30", ",")).toBeCloseTo(96.2, 2);
+  });
+
+  it("solo con fee: se suma y no hace falta tax", () => {
+    expect(combinarImporteConComisionYRetencion(100, "-1,50", undefined, ",")).toBeCloseTo(98.5, 2);
+  });
+
+  it("solo con tax: se suma y no hace falta fee", () => {
+    expect(combinarImporteConComisionYRetencion(100, undefined, "-2,30", ",")).toBeCloseTo(97.7, 2);
+  });
+
+  it("sin ninguna columna: el importe queda igual que ahora", () => {
+    expect(combinarImporteConComisionYRetencion(100, undefined, undefined, ",")).toBe(100);
+  });
+
+  it("fee y tax vacíos en la fila: el importe queda igual (mismo archivo con otras filas que sí los traen)", () => {
+    expect(combinarImporteConComisionYRetencion(100, "", "", ",")).toBe(100);
+  });
+
+  it("respeta el separador decimal de punto", () => {
+    expect(combinarImporteConComisionYRetencion(100, "-1.50", "-2.30", ".")).toBeCloseTo(96.2, 2);
   });
 });
 
