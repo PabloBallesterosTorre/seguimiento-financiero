@@ -71,6 +71,68 @@ export function previstoVsRealPorCategoria(
   }));
 }
 
+// Resuelve qué cuentas están seleccionadas para el filtro de informes/planificador/
+// prevision/home: si la URL trae el parámetro "cuentas" (ids separados por coma) manda
+// sobre cualquier otra cosa; si no, se aplica la preferencia guardada (lista de cuentas
+// EXCLUIDAS) sobre las cuentas activas actuales — así una cuenta activa nueva aparece
+// seleccionada por defecto aunque el usuario ya hubiera personalizado la selección antes
+// de crearla. Solo se devuelven ids que sigan existiendo entre las cuentas activas.
+export function resolverCuentasSeleccionadas(
+  idsCuentasActivas: string[],
+  paramCuentasURL: string | undefined,
+  idsExcluidosGuardados: string[]
+): Set<string> {
+  if (paramCuentasURL !== undefined) {
+    const idsURL = new Set(paramCuentasURL.split(",").filter(Boolean));
+    return new Set(idsCuentasActivas.filter((id) => idsURL.has(id)));
+  }
+  const excluidos = new Set(idsExcluidosGuardados);
+  return new Set(idsCuentasActivas.filter((id) => !excluidos.has(id)));
+}
+
+// Filtra movimientos según la selección de cuentas activa, resolviendo el caso de los
+// traspasos entre cuentas propias (enlazados por traspaso_grupo_id, uno por cuenta):
+// - Si TODAS las cuentas del grupo de traspaso están dentro de la selección, el
+//   traspaso se descarta (neto cero, como si no existiera — no es ni gasto ni ingreso).
+// - Si la cuenta del movimiento está seleccionada pero alguna otra cuenta del grupo NO
+//   lo está (o no se encuentra su pareja en absoluto), el dinero sale/entra del
+//   conjunto de cuentas que se está mirando: se trata como un gasto real (importe
+//   negativo) o un ingreso real (importe positivo), cambiando su `tipo` en consecuencia.
+// - Los movimientos de cuentas no seleccionadas se descartan siempre.
+// Invariante del resultado: nunca queda ningún movimiento con tipo "traspaso" — todos
+// los que sobreviven han quedado reclasificados como "ingreso" o "gasto".
+export function filtrarMovimientosPorCuentasSeleccionadas<
+  T extends { cuenta_id: string; tipo: string; importe: number; traspaso_grupo_id: string | null }
+>(movimientos: T[], idsCuentasSeleccionadas: ReadonlySet<string>): T[] {
+  const cuentasPorGrupo = new Map<string, Set<string>>();
+  for (const m of movimientos) {
+    if (m.tipo !== "traspaso" || !m.traspaso_grupo_id) continue;
+    if (!cuentasPorGrupo.has(m.traspaso_grupo_id)) cuentasPorGrupo.set(m.traspaso_grupo_id, new Set());
+    cuentasPorGrupo.get(m.traspaso_grupo_id)!.add(m.cuenta_id);
+  }
+
+  const resultado: T[] = [];
+  for (const m of movimientos) {
+    if (!idsCuentasSeleccionadas.has(m.cuenta_id)) continue;
+
+    if (m.tipo !== "traspaso") {
+      resultado.push(m);
+      continue;
+    }
+
+    const otrasCuentasDelGrupo = m.traspaso_grupo_id
+      ? Array.from(cuentasPorGrupo.get(m.traspaso_grupo_id) ?? []).filter((c) => c !== m.cuenta_id)
+      : [];
+    const parejaTambienSeleccionada =
+      otrasCuentasDelGrupo.length > 0 && otrasCuentasDelGrupo.every((c) => idsCuentasSeleccionadas.has(c));
+    if (parejaTambienSeleccionada) continue;
+
+    const tipoEfectivo = Number(m.importe) >= 0 ? "ingreso" : "gasto";
+    resultado.push({ ...m, tipo: tipoEfectivo } as T);
+  }
+  return resultado;
+}
+
 // Ahorro de un mes concreto (real o previsto, misma fórmula que el dashboard).
 // `aportacionInversionDelMes` va siempre en positivo (cuánto se aportó ese mes); el
 // flujo neto ya la incluye restada como si fuera un gasto más, así que si la

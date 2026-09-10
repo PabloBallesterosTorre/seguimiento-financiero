@@ -15,15 +15,17 @@ import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccion
 import { desvincularMovimientoPrevisto, vincularMovimientoPrevisto } from "./actions";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
+import { filtrarMovimientosPorCuentasSeleccionadas, resolverCuentasSeleccionadas } from "@/lib/informes";
+import { SelectorCuentas } from "@/components/SelectorCuentas";
 
 const HORIZONTES = [3, 6, 12];
 
 export default async function PrevisionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ meses?: string }>;
+  searchParams: Promise<{ meses?: string; cuentas?: string }>;
 }) {
-  const { meses: mesesParam } = await searchParams;
+  const { meses: mesesParam, cuentas: cuentasParam } = await searchParams;
   const supabase = await createClient();
   const horizonte = HORIZONTES.includes(Number(mesesParam)) ? Number(mesesParam) : 3;
 
@@ -52,17 +54,18 @@ export default async function PrevisionPage({
   ] = await Promise.all([
     supabase.from("movimientos_previstos").select("*"),
     supabase.from("categorias").select("id, nombre, categoria_padre_id"),
-    supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
+    supabase
+      .from("cuentas")
+      .select("id, nombre, banco_nombre, saldo_actual, es_remunerada, tipo_interes")
+      .eq("activa", true),
     supabase
       .from("movimientos")
-      .select("id, descripcion, importe, tipo, categoria_id, fecha")
+      .select("id, descripcion, importe, tipo, categoria_id, fecha, cuenta_id, traspaso_grupo_id")
       .gte("fecha", inicioMes)
-      .lt("fecha", inicioMesSiguiente)
-      .in("tipo", ["ingreso", "gasto"]),
+      .lt("fecha", inicioMesSiguiente),
     supabase
       .from("movimientos")
-      .select("descripcion, categoria_id, tipo, importe, fecha")
-      .in("tipo", ["ingreso", "gasto"])
+      .select("descripcion, categoria_id, tipo, importe, fecha, cuenta_id, traspaso_grupo_id")
       .gte("fecha", desde.toISOString().slice(0, 10)),
     supabase.from("previsto_conciliaciones").select("previsto_id, periodo, movimiento_real_id"),
     user ? obtenerConfiguracion(supabase, user.id) : null,
@@ -71,19 +74,42 @@ export default async function PrevisionPage({
   const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
   const previstos = (previstosRaw ?? []) as unknown as MovimientoPrevisto[];
   const nombreCategoria = new Map((categorias ?? []).map((c) => [c.id, c.nombre]));
-  const saldoInicial = (cuentas ?? []).reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
-  const movimientosDelMes = movimientosMes ?? [];
+
+  const idsCuentasActivas = (cuentas ?? []).map((c) => c.id);
+  const cuentasSeleccionadas = resolverCuentasSeleccionadas(
+    idsCuentasActivas,
+    cuentasParam,
+    config?.cuentas_excluidas_informes ?? []
+  );
+  const cuentasFiltradas = (cuentas ?? []).filter((c) => cuentasSeleccionadas.has(c.id));
+
+  const saldoInicial = cuentasFiltradas.reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
+  const movimientosDelMes = filtrarMovimientosPorCuentasSeleccionadas(
+    (movimientosMes ?? []) as { id: string; descripcion: string; importe: number; tipo: string; categoria_id: string | null; fecha: string; cuenta_id: string; traspaso_grupo_id: string | null }[],
+    cuentasSeleccionadas
+  );
 
   const conciliaciones = conciliacionesRaw ?? [];
   const periodosConciliados = construirPeriodosConciliados(conciliaciones);
 
-  const cuentasRemuneradas = (cuentas ?? [])
+  const cuentasRemuneradas = cuentasFiltradas
     .filter((c) => c.es_remunerada && c.tipo_interes !== null)
     .map((c) => ({ id: c.id, saldo_actual: Number(c.saldo_actual), tipo_interes: Number(c.tipo_interes) }));
 
   const categoriaPadreId = new Map((categorias ?? []).map((c) => [c.id, c.categoria_padre_id as string | null]));
   const categoriaEfectiva = (id: string) => categoriaPadreId.get(id) ?? id;
-  const historico = (historicoRaw ?? []) as MovimientoHistorico[];
+  const historico = filtrarMovimientosPorCuentasSeleccionadas(
+    (historicoRaw ?? []) as {
+      descripcion: string;
+      categoria_id: string | null;
+      tipo: string;
+      importe: number;
+      fecha: string;
+      cuenta_id: string;
+      traspaso_grupo_id: string | null;
+    }[],
+    cuentasSeleccionadas
+  ) as unknown as MovimientoHistorico[];
   const mediaPorCategoria = mapaMediaPorCategoria(historico, categoriaEfectiva);
 
   const mesesHorizonte = generarMeses(horizonte);
@@ -145,6 +171,9 @@ export default async function PrevisionPage({
       previstoAplicaEnMes(p, mesActual.year, mesActual.month)
   );
 
+  const cuentasQS =
+    cuentasSeleccionadas.size === idsCuentasActivas.length ? "" : `&cuentas=${Array.from(cuentasSeleccionadas).join(",")}`;
+
   return (
     <>
       <Nav />
@@ -161,11 +190,16 @@ export default async function PrevisionPage({
           </div>
         </div>
 
+        <SelectorCuentas
+          cuentas={(cuentas ?? []).map((c) => ({ id: c.id, nombre: c.nombre, banco_nombre: c.banco_nombre }))}
+          seleccionadas={Array.from(cuentasSeleccionadas)}
+        />
+
         <div className="flex w-fit rounded-full bg-chip p-1">
           {HORIZONTES.map((h) => (
             <Link
               key={h}
-              href={`/prevision?meses=${h}`}
+              href={`/prevision?meses=${h}${cuentasQS}`}
               className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
                 h === horizonte ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
               }`}

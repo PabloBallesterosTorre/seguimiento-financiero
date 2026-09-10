@@ -28,17 +28,24 @@ import {
   agruparPorCategoriaPadreYMes,
   mediaPorCategoriaEnRango,
   previstoVsRealPorCategoria,
+  filtrarMovimientosPorCuentasSeleccionadas,
+  resolverCuentasSeleccionadas,
   type MovimientoParaInforme,
 } from "@/lib/informes";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { rentabilidadPonderada } from "@/lib/inversiones";
+import { SelectorCuentas } from "@/components/SelectorCuentas";
 import { InformesClient, type MesFlujo, type CategoriaMedia, type SerieCategoria, type FilaComparativa } from "./InformesClient";
 
 const RANGOS = ["6", "12", "todos"] as const;
 type Rango = (typeof RANGOS)[number];
 
-export default async function InformesPage({ searchParams }: { searchParams: Promise<{ rango?: string }> }) {
-  const { rango: rangoParam } = await searchParams;
+export default async function InformesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ rango?: string; cuentas?: string }>;
+}) {
+  const { rango: rangoParam, cuentas: cuentasParam } = await searchParams;
   const supabase = await createClient();
   const rango: Rango = RANGOS.includes(rangoParam as Rango) ? (rangoParam as Rango) : "12";
 
@@ -62,7 +69,10 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
     config,
     { data: conciliacionesRaw },
   ] = await Promise.all([
-    supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
+    supabase
+      .from("cuentas")
+      .select("id, nombre, banco_nombre, saldo_actual, es_remunerada, tipo_interes")
+      .eq("activa", true),
     supabase.from("inversiones").select("valor_actual, rentabilidad_anual_asumida"),
     supabase
       .from("deudas")
@@ -75,14 +85,22 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
     supabase.from("amortizaciones_extra").select("deuda_id, fecha, importe, tipo_reduccion").eq("aplicado", true),
     supabase.from("movimientos_previstos").select("*"),
     supabase.from("categorias").select("id, nombre, categoria_padre_id, es_categoria_inversion"),
-    supabase.from("movimientos").select("categoria_id, tipo, importe, fecha, descripcion"),
+    supabase.from("movimientos").select("cuenta_id, categoria_id, tipo, importe, fecha, descripcion, traspaso_grupo_id"),
     user ? obtenerConfiguracion(supabase, user.id) : null,
     supabase.from("previsto_conciliaciones").select("previsto_id, periodo"),
   ]);
 
   const moneda = config?.moneda_base ?? "EUR";
 
-  const saldoLiquidoInicial = (cuentas ?? []).reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
+  const idsCuentasActivas = (cuentas ?? []).map((c) => c.id);
+  const cuentasSeleccionadas = resolverCuentasSeleccionadas(
+    idsCuentasActivas,
+    cuentasParam,
+    config?.cuentas_excluidas_informes ?? []
+  );
+  const cuentasFiltradas = (cuentas ?? []).filter((c) => cuentasSeleccionadas.has(c.id));
+
+  const saldoLiquidoInicial = cuentasFiltradas.reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
   const valorInversionInicial = (inversiones ?? []).reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
   const rentabilidadAsumida = rentabilidadPonderada(
     (inversiones ?? []).map((i) => ({
@@ -127,7 +145,7 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
     amortizacionesAplicadasPorDeuda.get(a.deuda_id)!.push(fila);
   }
 
-  const cuentasRemuneradas = (cuentas ?? [])
+  const cuentasRemuneradas = cuentasFiltradas
     .filter((c) => c.es_remunerada && c.tipo_interes !== null)
     .map((c) => ({ id: c.id, saldo_actual: Number(c.saldo_actual), tipo_interes: Number(c.tipo_interes) }));
 
@@ -140,8 +158,11 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
   const esCategoriaInversion = (categoriaId: string | null) =>
     categoriaId !== null && categoriaEsInversion.get(categoriaId) === true;
 
-  const historicoCompleto = (historicoCompletoRaw ?? []) as MovimientoParaInforme[];
-  const historicoParaMedia = historicoCompleto.filter((m) => m.tipo !== "traspaso") as unknown as MovimientoHistorico[];
+  const historicoCompleto = filtrarMovimientosPorCuentasSeleccionadas(
+    (historicoCompletoRaw ?? []) as (MovimientoParaInforme & { cuenta_id: string; traspaso_grupo_id: string | null })[],
+    cuentasSeleccionadas
+  );
+  const historicoParaMedia = historicoCompleto as unknown as MovimientoHistorico[];
   const mediaPorCategoria = mapaMediaPorCategoria(historicoParaMedia, categoriaEfectiva);
 
   const periodosConciliados = construirPeriodosConciliados(conciliacionesRaw ?? []);
@@ -302,6 +323,11 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
       .sort((a, b) => b.real - a.real);
   }
 
+  // Se añade a los enlaces internos de la página (pestañas de rango) para que cambiar
+  // de rango no pierda una selección de cuentas hecha vía URL en esta misma carga.
+  const cuentasQS =
+    cuentasSeleccionadas.size === idsCuentasActivas.length ? "" : `&cuentas=${Array.from(cuentasSeleccionadas).join(",")}`;
+
   // ---- 8.6: patrimonio neto y deuda pendiente ----
   const patrimonioYDeuda = puntos.map((p) => ({
     label: p.label,
@@ -321,11 +347,16 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
           </Link>
         </div>
 
+        <SelectorCuentas
+          cuentas={(cuentas ?? []).map((c) => ({ id: c.id, nombre: c.nombre, banco_nombre: c.banco_nombre }))}
+          seleccionadas={Array.from(cuentasSeleccionadas)}
+        />
+
         <div className="flex w-fit rounded-full bg-chip p-1 text-sm">
           {RANGOS.map((r) => (
             <Link
               key={r}
-              href={`/informes?rango=${r}`}
+              href={`/informes?rango=${r}${cuentasQS}`}
               className={`rounded-full px-[18px] py-2.5 text-sm font-semibold transition-colors ${
                 rango === r ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
               }`}

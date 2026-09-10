@@ -16,6 +16,8 @@ import {
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
 import { rentabilidadPonderada } from "@/lib/inversiones";
+import { filtrarMovimientosPorCuentasSeleccionadas, resolverCuentasSeleccionadas } from "@/lib/informes";
+import { SelectorCuentas } from "@/components/SelectorCuentas";
 
 const HORIZONTES_MESES = [3, 6, 12];
 const HORIZONTES_ANIOS = [5, 10, 20];
@@ -23,9 +25,9 @@ const HORIZONTES_ANIOS = [5, 10, 20];
 export default async function PlanificadorPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vista?: string; horizonte?: string }>;
+  searchParams: Promise<{ vista?: string; horizonte?: string; cuentas?: string }>;
 }) {
-  const { vista: vistaParam, horizonte: horizonteParam } = await searchParams;
+  const { vista: vistaParam, horizonte: horizonteParam, cuentas: cuentasParam } = await searchParams;
   const supabase = await createClient();
   const vista = vistaParam === "anual" ? "anual" : "mensual";
   const horizonteElegido =
@@ -55,7 +57,10 @@ export default async function PlanificadorPage({
     config,
     { data: conciliacionesRaw },
   ] = await Promise.all([
-    supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
+    supabase
+      .from("cuentas")
+      .select("id, nombre, banco_nombre, saldo_actual, es_remunerada, tipo_interes")
+      .eq("activa", true),
     supabase.from("inversiones").select("valor_actual, rentabilidad_anual_asumida"),
     supabase.from("deudas").select("id, capital_inicial, capital_pendiente, cuota, tipo_interes, valor_residual, fecha_inicio"),
     supabase
@@ -68,10 +73,12 @@ export default async function PlanificadorPage({
     supabase.from("categorias").select("id, es_categoria_inversion, categoria_padre_id"),
     supabase
       .from("movimientos")
-      .select("descripcion, categoria_id, tipo, importe, fecha")
-      .in("tipo", ["ingreso", "gasto"])
+      .select("descripcion, categoria_id, tipo, importe, fecha, cuenta_id, traspaso_grupo_id")
       .gte("fecha", desde.toISOString().slice(0, 10)),
-    supabase.from("movimientos").select("categoria_id, tipo, importe, fecha").in("tipo", ["ingreso", "gasto", "traspaso"]),
+    supabase
+      .from("movimientos")
+      .select("categoria_id, tipo, importe, fecha, cuenta_id, traspaso_grupo_id")
+      .in("tipo", ["ingreso", "gasto", "traspaso"]),
     user ? obtenerConfiguracion(supabase, user.id) : null,
     supabase.from("previsto_conciliaciones").select("previsto_id, periodo"),
   ]);
@@ -79,7 +86,15 @@ export default async function PlanificadorPage({
   const moneda = config?.moneda_base ?? "EUR";
   const formatEUR = (v: number) => formatMoneda(v, moneda);
 
-  const saldoLiquidoInicial = (cuentas ?? []).reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
+  const idsCuentasActivas = (cuentas ?? []).map((c) => c.id);
+  const cuentasSeleccionadas = resolverCuentasSeleccionadas(
+    idsCuentasActivas,
+    cuentasParam,
+    config?.cuentas_excluidas_informes ?? []
+  );
+  const cuentasFiltradas = (cuentas ?? []).filter((c) => cuentasSeleccionadas.has(c.id));
+
+  const saldoLiquidoInicial = cuentasFiltradas.reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
   const valorInversionInicial = (inversiones ?? []).reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
   const deudaActual = (deudasRaw ?? []).reduce((sum, d) => sum + Number(d.capital_pendiente ?? 0), 0);
   const rentabilidadAsumida = rentabilidadPonderada(
@@ -126,7 +141,7 @@ export default async function PlanificadorPage({
     amortizacionesAplicadasPorDeuda.get(a.deuda_id)!.push(fila);
   }
 
-  const cuentasRemuneradas = (cuentas ?? [])
+  const cuentasRemuneradas = cuentasFiltradas
     .filter((c) => c.es_remunerada && c.tipo_interes !== null)
     .map((c) => ({ id: c.id, saldo_actual: Number(c.saldo_actual), tipo_interes: Number(c.tipo_interes) }));
 
@@ -137,7 +152,18 @@ export default async function PlanificadorPage({
 
   const categoriaPadreId = new Map((categorias ?? []).map((c) => [c.id, c.categoria_padre_id as string | null]));
   const categoriaEfectiva = (id: string) => categoriaPadreId.get(id) ?? id;
-  const historico = (historicoRaw ?? []) as MovimientoHistorico[];
+  const historico = filtrarMovimientosPorCuentasSeleccionadas(
+    (historicoRaw ?? []) as {
+      descripcion: string;
+      categoria_id: string | null;
+      tipo: string;
+      importe: number;
+      fecha: string;
+      cuenta_id: string;
+      traspaso_grupo_id: string | null;
+    }[],
+    cuentasSeleccionadas
+  ) as unknown as MovimientoHistorico[];
   const mediaPorCategoria = mapaMediaPorCategoria(historico, categoriaEfectiva);
 
   const periodosConciliados = construirPeriodosConciliados(conciliacionesRaw ?? []);
@@ -166,12 +192,17 @@ export default async function PlanificadorPage({
     rentabilidadAnualAsumidaInversion: rentabilidadAsumida,
   });
 
-  const historicoCompleto = (historicoCompletoRaw ?? []) as {
-    categoria_id: string | null;
-    tipo: "ingreso" | "gasto" | "traspaso";
-    importe: number;
-    fecha: string;
-  }[];
+  const historicoCompleto = filtrarMovimientosPorCuentasSeleccionadas(
+    (historicoCompletoRaw ?? []) as {
+      categoria_id: string | null;
+      tipo: "ingreso" | "gasto" | "traspaso";
+      importe: number;
+      fecha: string;
+      cuenta_id: string;
+      traspaso_grupo_id: string | null;
+    }[],
+    cuentasSeleccionadas
+  );
   const primeraFecha = historicoCompleto.reduce(
     (min, m) => (min === null || m.fecha < min ? m.fecha : min),
     null as string | null
@@ -201,6 +232,9 @@ export default async function PlanificadorPage({
   const indiceMesActual = puntosHistoricos.length;
   const filasAnuales = vista === "anual" ? agruparPorAnio(puntos) : [];
 
+  const cuentasQS =
+    cuentasSeleccionadas.size === idsCuentasActivas.length ? "" : `&cuentas=${Array.from(cuentasSeleccionadas).join(",")}`;
+
   return (
     <>
       <Nav />
@@ -211,6 +245,12 @@ export default async function PlanificadorPage({
             Ver previsión de flujo →
           </Link>
         </div>
+
+        <SelectorCuentas
+          cuentas={(cuentas ?? []).map((c) => ({ id: c.id, nombre: c.nombre, banco_nombre: c.banco_nombre }))}
+          seleccionadas={Array.from(cuentasSeleccionadas)}
+        />
+
         <p className="max-w-3xl text-[13px] leading-relaxed text-ink-secondary">
           Evolución de líquido, deuda e inversión, hacia atrás (reconstruido a partir de tu
           histórico real) y hacia adelante (previsión de flujo de caja, calendario de amortización
@@ -277,13 +317,13 @@ export default async function PlanificadorPage({
           <div className="flex items-center gap-2.5">
             <div className="flex rounded-full bg-chip p-1">
               <Link
-                href={`/planificador?vista=mensual`}
+                href={`/planificador?vista=mensual${cuentasQS}`}
                 className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${vista === "mensual" ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"}`}
               >
                 Mensual
               </Link>
               <Link
-                href={`/planificador?vista=anual`}
+                href={`/planificador?vista=anual${cuentasQS}`}
                 className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${vista === "anual" ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"}`}
               >
                 Anual
@@ -293,7 +333,7 @@ export default async function PlanificadorPage({
               {(vista === "mensual" ? HORIZONTES_MESES : HORIZONTES_ANIOS).map((h) => (
                 <Link
                   key={h}
-                  href={`/planificador?vista=${vista}&horizonte=${h}`}
+                  href={`/planificador?vista=${vista}&horizonte=${h}${cuentasQS}`}
                   className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${horizonteElegido === h ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"}`}
                 >
                   {h} {vista === "mensual" ? "meses" : "años"}

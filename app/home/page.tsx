@@ -25,8 +25,14 @@ import {
   type PuntoProyeccion,
   type MovimientoParaHistorico,
 } from "@/lib/planificador";
-import { ahorroDelMes, type MovimientoParaInforme } from "@/lib/informes";
+import {
+  ahorroDelMes,
+  filtrarMovimientosPorCuentasSeleccionadas,
+  resolverCuentasSeleccionadas,
+  type MovimientoParaInforme,
+} from "@/lib/informes";
 import { KpiDineroDisponible } from "@/app/informes/KpiDineroDisponible";
+import { SelectorCuentas } from "@/components/SelectorCuentas";
 import { FlujoMensualDisponible, type MesAhorroHome } from "./FlujoMensualDisponible";
 
 const MESES_PASADOS = 6;
@@ -35,9 +41,9 @@ const MESES_FUTUROS = 6;
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ sinDeuda?: string }>;
+  searchParams: Promise<{ sinDeuda?: string; cuentas?: string }>;
 }) {
-  const { sinDeuda } = await searchParams;
+  const { sinDeuda, cuentas: cuentasParam } = await searchParams;
   const supabase = await createClient();
   const conDeuda = sinDeuda !== "1";
 
@@ -59,7 +65,10 @@ export default async function HomePage({
     config,
     { data: conciliacionesRaw },
   ] = await Promise.all([
-    supabase.from("cuentas").select("id, saldo_actual, es_remunerada, tipo_interes").eq("activa", true),
+    supabase
+      .from("cuentas")
+      .select("id, nombre, banco_nombre, saldo_actual, es_remunerada, tipo_interes")
+      .eq("activa", true),
     supabase.from("inversiones").select("valor_actual"),
     supabase
       .from("deudas")
@@ -72,7 +81,7 @@ export default async function HomePage({
     supabase.from("amortizaciones_extra").select("deuda_id, fecha, importe, tipo_reduccion").eq("aplicado", true),
     supabase.from("movimientos_previstos").select("*"),
     supabase.from("categorias").select("id, nombre, categoria_padre_id, es_categoria_inversion"),
-    supabase.from("movimientos").select("categoria_id, tipo, importe, fecha, descripcion"),
+    supabase.from("movimientos").select("cuenta_id, categoria_id, tipo, importe, fecha, descripcion, traspaso_grupo_id"),
     user ? obtenerConfiguracion(supabase, user.id) : null,
     supabase.from("previsto_conciliaciones").select("previsto_id, periodo"),
   ]);
@@ -81,7 +90,15 @@ export default async function HomePage({
   const objetivoAhorroMensual = config?.objetivo_ahorro_mensual ?? null;
   const incluirInversionEnAhorro = config?.incluir_inversion_en_ahorro ?? true;
 
-  const totalCuentas = (cuentas ?? []).reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
+  const idsCuentasActivas = (cuentas ?? []).map((c) => c.id);
+  const cuentasSeleccionadas = resolverCuentasSeleccionadas(
+    idsCuentasActivas,
+    cuentasParam,
+    config?.cuentas_excluidas_informes ?? []
+  );
+  const cuentasFiltradas = (cuentas ?? []).filter((c) => cuentasSeleccionadas.has(c.id));
+
+  const totalCuentas = cuentasFiltradas.reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
   const totalInversion = (inversiones ?? []).reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
   const totalDeuda = (deudasRaw ?? []).reduce((sum, d) => sum + Number(d.capital_pendiente ?? 0), 0);
   const patrimonio = totalCuentas + totalInversion - (conDeuda ? totalDeuda : 0);
@@ -122,7 +139,7 @@ export default async function HomePage({
     amortizacionesAplicadasPorDeuda.get(a.deuda_id)!.push(fila);
   }
 
-  const cuentasRemuneradas = (cuentas ?? [])
+  const cuentasRemuneradas = cuentasFiltradas
     .filter((c) => c.es_remunerada && c.tipo_interes !== null)
     .map((c) => ({ id: c.id, saldo_actual: Number(c.saldo_actual), tipo_interes: Number(c.tipo_interes) }));
 
@@ -134,8 +151,11 @@ export default async function HomePage({
   const esCategoriaInversion = (categoriaId: string | null) =>
     categoriaId !== null && categoriaEsInversion.get(categoriaId) === true;
 
-  const historicoCompleto = (historicoCompletoRaw ?? []) as MovimientoParaInforme[];
-  const historicoParaMedia = historicoCompleto.filter((m) => m.tipo !== "traspaso") as unknown as MovimientoHistorico[];
+  const historicoCompleto = filtrarMovimientosPorCuentasSeleccionadas(
+    (historicoCompletoRaw ?? []) as (MovimientoParaInforme & { cuenta_id: string; traspaso_grupo_id: string | null })[],
+    cuentasSeleccionadas
+  );
+  const historicoParaMedia = historicoCompleto as unknown as MovimientoHistorico[];
   const mediaPorCategoria = mapaMediaPorCategoria(historicoParaMedia, categoriaEfectiva);
 
   const periodosConciliados = construirPeriodosConciliados(conciliacionesRaw ?? []);
@@ -237,6 +257,10 @@ export default async function HomePage({
     return { label: p.label, esReal: p.esReal, ahorro };
   });
 
+  const cuentasQS =
+    cuentasSeleccionadas.size === idsCuentasActivas.length ? "" : `&cuentas=${Array.from(cuentasSeleccionadas).join(",")}`;
+  const hrefConDeuda = cuentasQS ? `/home?${cuentasQS.slice(1)}` : "/home";
+
   return (
     <>
       <Nav />
@@ -245,7 +269,7 @@ export default async function HomePage({
           <h1 className="font-sora text-xl font-bold text-ink sm:text-[26px]">Patrimonio global</h1>
           <div className="flex rounded-full bg-chip p-1">
             <Link
-              href="/home"
+              href={hrefConDeuda}
               className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
                 conDeuda ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
               }`}
@@ -253,7 +277,7 @@ export default async function HomePage({
               Con deuda
             </Link>
             <Link
-              href="/home?sinDeuda=1"
+              href={`/home?sinDeuda=1${cuentasQS}`}
               className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
                 !conDeuda ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
               }`}
@@ -262,6 +286,11 @@ export default async function HomePage({
             </Link>
           </div>
         </div>
+
+        <SelectorCuentas
+          cuentas={(cuentas ?? []).map((c) => ({ id: c.id, nombre: c.nombre, banco_nombre: c.banco_nombre }))}
+          seleccionadas={Array.from(cuentasSeleccionadas)}
+        />
 
         <div className="rounded-card border border-border bg-surface p-[22px] shadow-card sm:p-9">
           <p className="text-sm text-ink-secondary">Patrimonio total</p>

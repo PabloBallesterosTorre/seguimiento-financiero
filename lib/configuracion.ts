@@ -8,6 +8,7 @@ export type ConfiguracionUsuario = {
   idioma: string;
   objetivo_ahorro_mensual: number | null;
   incluir_inversion_en_ahorro: boolean;
+  cuentas_excluidas_informes: string[];
 };
 
 const DEFAULTS: ConfiguracionUsuario = {
@@ -16,6 +17,7 @@ const DEFAULTS: ConfiguracionUsuario = {
   idioma: "es",
   objetivo_ahorro_mensual: null,
   incluir_inversion_en_ahorro: true,
+  cuentas_excluidas_informes: [],
 };
 
 // Devuelve la configuración del usuario, o los valores por defecto si todavía no
@@ -29,7 +31,9 @@ export async function obtenerConfiguracion(
   // pantalla entera — pero sí se registra, para no perder visibilidad del fallo.
   const { data, error } = await supabase
     .from("configuracion_usuario")
-    .select("nombre, moneda_base, idioma, objetivo_ahorro_mensual, incluir_inversion_en_ahorro")
+    .select(
+      "nombre, moneda_base, idioma, objetivo_ahorro_mensual, incluir_inversion_en_ahorro, cuentas_excluidas_informes"
+    )
     .eq("usuario_id", usuarioId)
     .maybeSingle();
 
@@ -42,5 +46,6 @@ export async function obtenerConfiguracion(
     idioma: data.idioma,
     objetivo_ahorro_mensual: data.objetivo_ahorro_mensual !== null ? Number(data.objetivo_ahorro_mensual) : null,
     incluir_inversion_en_ahorro: data.incluir_inversion_en_ahorro,
+    cuentas_excluidas_informes: data.cuentas_excluidas_informes ?? [],
   };
 }
