@@ -31,7 +31,10 @@ export function InformesClient({
   patrimonioYDeuda,
   gastosNetos,
   ingresosNetos,
-  etiquetaPeriodo,
+  etiquetaRango,
+  mesesDelDesglose,
+  mesDesglose,
+  queryBaseDesglose,
   notaMes,
   fechaCierreAnterior,
 }: {
@@ -50,7 +53,10 @@ export function InformesClient({
   patrimonioYDeuda: MesPatrimonio[];
   gastosNetos: FilaCategoria[];
   ingresosNetos: FilaCategoria[];
-  etiquetaPeriodo: string;
+  etiquetaRango: string;
+  mesesDelDesglose: { clave: string; etiqueta: string }[];
+  mesDesglose: string | null;
+  queryBaseDesglose: string;
   notaMes?: string;
   fechaCierreAnterior?: string;
 }) {
@@ -64,7 +70,15 @@ export function InformesClient({
         fechaCierreAnterior={fechaCierreAnterior}
       />
       <FlujoMensual moneda={moneda} datos={flujoPorMes} notaMes={notaMes} />
-      <EnQueSeVa gastos={gastosNetos} ingresos={ingresosNetos} moneda={moneda} etiquetaPeriodo={etiquetaPeriodo} />
+      <EnQueSeVa
+        gastos={gastosNetos}
+        ingresos={ingresosNetos}
+        moneda={moneda}
+        etiquetaRango={etiquetaRango}
+        meses={mesesDelDesglose}
+        mesSeleccionado={mesDesglose}
+        queryBase={queryBaseDesglose}
+      />
       <MediaPorCategoria
         moneda={moneda}
         gasto={mediaGasto}

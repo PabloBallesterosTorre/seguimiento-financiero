@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { formatMonedaTabla, formatPorcentaje } from "@/lib/formato";
 
 export type FilaCategoria = {
@@ -98,18 +99,47 @@ export function EnQueSeVa({
   gastos,
   ingresos,
   moneda,
-  etiquetaPeriodo,
+  etiquetaRango,
+  meses,
+  mesSeleccionado,
+  queryBase,
 }: {
   gastos: FilaCategoria[];
   ingresos: FilaCategoria[];
   moneda: string;
-  etiquetaPeriodo: string;
+  // Cómo se llama "todo el periodo" con el rango elegido arriba. No puede depender del mes
+  // seleccionado, o la opción de quitar el filtro se etiquetaría con el mes que ya tienes.
+  etiquetaRango: string;
+  meses: { clave: string; etiqueta: string }[];
+  mesSeleccionado: string | null;
+  queryBase: string;
 }) {
+  const router = useRouter();
+
   return (
     <div className="rounded-card border border-border bg-surface p-7 shadow-card">
-      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="font-sora text-base font-semibold text-ink">En qué se va y de dónde viene</h2>
-        <span className="text-[13px] text-ink-tertiary">{etiquetaPeriodo}</span>
+        {/* El mes es de este bloque, no de la pantalla: el resto de gráficos siguen con el
+            rango elegido arriba. Va en la URL para que se pueda compartir y para que el
+            botón de atrás funcione. */}
+        <label className="flex items-center gap-2 text-[13px] text-ink-tertiary">
+          <span className="sr-only">Periodo del desglose</span>
+          <select
+            value={mesSeleccionado ?? ""}
+            onChange={(e) =>
+              router.push(`/informes?${queryBase}${e.target.value ? `&mes=${e.target.value}` : ""}`)
+            }
+            className="rounded-btn border border-border-strong bg-field px-2.5 py-1.5 text-[13px] text-ink"
+          >
+            <option value="">{etiquetaRango}</option>
+            {meses.map((m) => (
+              <option key={m.clave} value={m.clave}>
+                {m.etiqueta}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       <p className="mb-6 text-[13px] text-ink-tertiary">
         Cada categoría aparece en un solo lado, por su saldo neto. Si pagas tú una cena y te devuelven

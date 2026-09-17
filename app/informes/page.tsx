@@ -47,9 +47,11 @@ type Rango = (typeof RANGOS)[number];
 export default async function InformesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ rango?: string; cuentas?: string; ambito?: string }>;
+  searchParams: Promise<{ rango?: string; cuentas?: string; ambito?: string; mes?: string }>;
 }) {
-  const { rango: rangoParam, cuentas: cuentasParam, ambito: ambitoParam } = await searchParams;
+  const { rango: rangoParam, cuentas: cuentasParam, ambito: ambitoParam, mes: mesParam } = await searchParams;
+  // Mes concreto para el desglose de "en qué se va y de dónde viene". Vacío = todo el rango.
+  const mesDesglose = mesParam && /^\d{4}-\d{2}$/.test(mesParam) ? mesParam : null;
   const ambito: Ambito = ambitoParam === "personal" || ambitoParam === "conjunto" ? ambitoParam : "todo";
   const supabase = await createClient();
   const rango: Rango = RANGOS.includes(rangoParam as Rango) ? (rangoParam as Rango) : "12";
@@ -215,11 +217,6 @@ export default async function InformesPage({
   const historicoParaMedia = historicoCompleto as unknown as MovimientoHistorico[];
   const mediaPorCategoria = mapaMediaPorCategoria(historicoParaMedia, categoriaEfectiva);
 
-  // "En qué se va y de dónde viene": una sola pasada neteada sobre el mismo histórico ya
-  // filtrado, en vez de dos agregaciones separadas por signo.
-  const { gastos: gastosNetos, ingresos: ingresosNetos } = separarGastosEIngresos(
-    netoPorCategoria(historicoCompleto as unknown as MovimientoParaInforme[], categoriaEfectiva)
-  );
   const conNombre = (f: { categoriaId: string; neto: number; salidas: number; entradas: number; movimientosContrarios: number }) => ({
     nombre: f.categoriaId === SIN_CATEGORIA ? "Sin categorizar" : nombreCategoria.get(f.categoriaId) ?? "Sin categoría",
     neto: f.neto,
@@ -393,6 +390,19 @@ export default async function InformesPage({
     : "0000-00-00";
   const historicoEnRango = historicoCompleto.filter((m) => m.fecha >= inicioRango && m.fecha <= finRango);
 
+  // "En qué se va y de dónde viene": una sola pasada neteada, en vez de dos agregaciones
+  // separadas por signo.
+  //
+  // Antes usaba el histórico ENTERO mientras el encabezado decía "Últimos 12 meses", así que
+  // el rango elegido no cambiaba nada y el rótulo mentía. Ahora respeta el rango y, si se ha
+  // elegido un mes concreto, solo ese mes.
+  const historicoDelDesglose = mesDesglose
+    ? historicoCompleto.filter((m) => mesDeFecha(m.fecha) === mesDesglose)
+    : historicoEnRango;
+  const { gastos: gastosNetos, ingresos: ingresosNetos } = separarGastosEIngresos(
+    netoPorCategoria(historicoDelDesglose as unknown as MovimientoParaInforme[], categoriaEfectiva)
+  );
+
   const gastoPorCategoriaYMes = agruparPorCategoriaPadreYMes(historicoEnRango, "gasto", categoriaEfectiva, mesDeFecha);
   const ingresoPorCategoriaYMes = agruparPorCategoriaPadreYMes(historicoEnRango, "ingreso", categoriaEfectiva, mesDeFecha);
 
@@ -411,6 +421,17 @@ export default async function InformesPage({
     nombre: nombreCategoria.get(categoriaId) ?? "Sin categoría",
     valores: etiquetasMeses.map((mesKey) => porMes.get(mesKey) ?? 0),
   }));
+
+  // Meses que puede elegir el desglose: los mismos que ya se conocen del histórico, del más
+  // reciente al más antiguo, porque lo habitual es mirar el mes en curso o el anterior.
+  const mesesDelDesglose = [...mesesParaCategoria]
+    .reverse()
+    .map((m) => {
+      const clave = `${m.year}-${String(m.month).padStart(2, "0")}`;
+      const d = new Date(m.year, m.month - 1, 1);
+      const nombre = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(d);
+      return { clave, etiqueta: nombre.charAt(0).toUpperCase() + nombre.slice(1) };
+    });
 
   // ---- 8.5: previsto vs. real, último mes cerrado (el anterior al actual) ----
   const ultimoMesCerrado = mesesPasadosDisponibles.at(-1) ?? null;
@@ -501,7 +522,10 @@ export default async function InformesPage({
           patrimonioYDeuda={patrimonioYDeuda}
           gastosNetos={gastosNetos.map(conNombre)}
           ingresosNetos={ingresosNetos.map(conNombre)}
-          etiquetaPeriodo={rango === "todos" ? "Todo el histórico" : `Últimos ${rango} meses`}
+          etiquetaRango={rango === "todos" ? "Todo el histórico" : `Últimos ${rango} meses`}
+          mesesDelDesglose={mesesDelDesglose}
+          mesDesglose={mesDesglose}
+          queryBaseDesglose={`rango=${rango}${ambitoQS}${cuentasQS}`}
           fechaCierreAnterior={fechaCierreAnterior}
           notaMes={
             opcionesMes.activo

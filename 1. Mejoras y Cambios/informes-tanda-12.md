@@ -72,6 +72,16 @@ Dentro de un ámbito concreto el selector de cuentas no se muestra (no decidirí
 selección no se arrastra en la URL, para que al volver a "Todo" no aparezca filtrado por las
 cuentas del ámbito anterior.
 
+### Filtro por mes en el desglose
+
+El bloque tiene su propio selector de periodo, independiente del rango de la pantalla: "todo
+el rango" o un mes concreto. Va en la URL (`?mes=YYYY-MM`) para poder compartirlo y para que
+el botón de atrás funcione.
+
+Al ponerlo salió que el bloque usaba el **histórico entero** mientras el encabezado decía
+"Últimos 12 meses": el rango elegido arriba no cambiaba nada y el rótulo mentía. Ahora
+respeta el rango de verdad.
+
 ### Neteo por categoría — `netoPorCategoria` y `separarGastosEIngresos`
 
 Una categoría cae en un lado o en el otro por su **saldo neto**, nunca en los dos. Ocio pasa
