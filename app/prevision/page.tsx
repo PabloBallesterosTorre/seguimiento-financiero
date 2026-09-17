@@ -37,11 +37,14 @@ export default async function PrevisionPage({
   } = await supabase.auth.getUser();
 
   const hoyDate = new Date();
-  const inicioMes = `${hoyDate.getFullYear()}-${String(hoyDate.getMonth() + 1).padStart(2, "0")}-01`;
-  const inicioMesSiguienteDate = new Date(hoyDate.getFullYear(), hoyDate.getMonth() + 1, 1);
-  const inicioMesSiguiente = `${inicioMesSiguienteDate.getFullYear()}-${String(
-    inicioMesSiguienteDate.getMonth() + 1
-  ).padStart(2, "0")}-01`;
+  // Un mes natural por cada lado del actual. El mes financiero arranca dentro del mes
+  // natural anterior —la nómina del 28 de agosto es la de septiembre—, así que acotar la
+  // consulta al mes natural dejaba fuera justo los movimientos más importantes del mes: la
+  // nómina y la cuota de la hipoteca, que se cobran a final de mes. El recorte exacto al mes
+  // financiero se hace más abajo, cuando ya se conoce la configuración del usuario.
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  const inicioMes = iso(new Date(hoyDate.getFullYear(), hoyDate.getMonth() - 1, 1));
+  const inicioMesSiguiente = iso(new Date(hoyDate.getFullYear(), hoyDate.getMonth() + 2, 1));
 
   const desde = new Date();
   desde.setFullYear(desde.getFullYear() - 3);
@@ -87,10 +90,16 @@ export default async function PrevisionPage({
   const cuentasFiltradas = (cuentas ?? []).filter((c) => cuentasSeleccionadas.has(c.id));
 
   const saldoInicial = cuentasFiltradas.reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
-  const movimientosDelMes = filtrarMovimientosPorCuentasSeleccionadas(
-    (movimientosMes ?? []) as { id: string; descripcion: string; importe: number; tipo: string; categoria_id: string | null; fecha: string; cuenta_id: string; traspaso_grupo_id: string | null }[],
-    cuentasSeleccionadas
-  );
+  const movimientosVentana = (movimientosMes ?? []) as {
+    id: string;
+    descripcion: string;
+    importe: number;
+    tipo: string;
+    categoria_id: string | null;
+    fecha: string;
+    cuenta_id: string;
+    traspaso_grupo_id: string | null;
+  }[];
 
   const conciliaciones = conciliacionesRaw ?? [];
 
@@ -121,6 +130,18 @@ export default async function PrevisionPage({
   const mesDeFecha = (fecha: string) => mesDe(fecha, opcionesMes);
   const mesActualLabel = mesDeFecha(new Date().toISOString().slice(0, 10));
   const mesEnCurso = { year: Number(mesActualLabel.slice(0, 4)), month: Number(mesActualLabel.slice(5, 7)) };
+
+  // Los movimientos del mes financiero en curso, en dos versiones:
+  //
+  // - `movimientosDelMes` respeta la selección de cuentas, porque se compara contra un saldo
+  //   y unas previsiones que también la respetan.
+  // - `movimientosParaConciliar` NO la respeta. Conciliar es registrar un hecho —"esta
+  //   previsión ya ha ocurrido"—, y ese hecho no deja de ser cierto porque la cuenta de la
+  //   que salió el pago esté escondida del resumen. Con el filtro puesto, la comunidad que
+  //   Pablo paga desde la cuenta Común no ofrecía ningún candidato.
+  const delMesFinanciero = movimientosVentana.filter((m) => mesDeFecha(m.fecha) === mesActualLabel);
+  const movimientosDelMes = filtrarMovimientosPorCuentasSeleccionadas(delMesFinanciero, cuentasSeleccionadas);
+  const movimientosParaConciliar = delMesFinanciero;
 
   const periodosConciliados = construirPeriodosConciliados(conciliaciones, mesDeFecha);
   const conciliacionesPorMes = contarConciliacionesPorMes(conciliaciones, mesDeFecha);
@@ -347,8 +368,13 @@ export default async function PrevisionPage({
             </p>
 
             {previstosSinVincular.map((p) => {
-              const candidatos = movimientosDelMes.filter(
-                (m) => (m.categoria_id ?? null) === p.categoria_id
+              // Por categoría efectiva: una previsión puesta sobre la categoría padre tiene
+              // que poder emparejarse con un movimiento de una de sus hijas.
+              const candidatos = movimientosParaConciliar.filter(
+                (m) =>
+                  m.categoria_id !== null &&
+                  p.categoria_id !== null &&
+                  categoriaEfectiva(m.categoria_id) === categoriaEfectiva(p.categoria_id)
               );
               return (
                 <form key={p.id} action={vincularMovimientoPrevisto} className="flex items-center gap-2 text-sm">
