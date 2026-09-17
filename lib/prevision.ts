@@ -212,6 +212,10 @@ export function previstosCoincidentes(
   const importeAbs = Math.abs(movimiento.importe);
 
   return previstos.filter((p) => {
+    // Un presupuesto de categoría no representa una transacción concreta, así que nunca se
+    // empareja con un movimiento: lo que lo apaga es que su categoría tenga gasto real ese
+    // mes (ver ocurrenciasPendientesEnMes). Emparejarlo sería tratarlo como un recibo.
+    if (p.es_presupuesto) return false;
     if (p.tipo !== movimiento.tipo) return false;
     if (p.categoria_id !== movimiento.categoria_id) return false;
     if (!previstoAplicaEnMes(p, year, month)) return false;

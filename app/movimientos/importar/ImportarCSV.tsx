@@ -438,13 +438,39 @@ export function ImportarCSV({
     }
 
     setNuevasInversiones([...nuevas.values()]);
-    setFilasPreview(filas);
+    setFilasPreview(
+      filas.map((f) =>
+        f.valida && !f.esTraspaso ? { ...f, previstoId: previstoAutomatico(f) } : f
+      )
+    );
     setPaso("previsualizar");
+  }
+
+  // Conciliación automática: si un movimiento encaja con UNA sola previsión, se vincula
+  // solo. Con varios candidatos no se elige ninguno — una conciliación equivocada descuadra
+  // la proyección de ese mes, y ahí sí compensa preguntar.
+  //
+  // Sin esto había que vincular a mano previsión por previsión, y en la práctica no se hacía:
+  // los previstos fijos ya pagados se seguían sumando a un saldo que ya los tenía
+  // descontados. En septiembre de 2026 eran unos 1.600 € contados dos veces.
+  function previstoAutomatico(fila: { fecha: string; tipo: "ingreso" | "gasto"; categoria_id: string | null; importe: number }) {
+    const candidatos = previstosCoincidentes(fila, previstos);
+    return candidatos.length === 1 ? candidatos[0].id : null;
   }
 
   function actualizarCategoria(index: number, categoriaId: string) {
     setFilasPreview((prev) =>
-      prev.map((f, i) => (i === index ? { ...f, categoria_id: categoriaId || null, previstoId: null } : f))
+      prev.map((f, i) =>
+        i === index
+          ? {
+              ...f,
+              categoria_id: categoriaId || null,
+              // La categoría es lo que decide qué previsiones encajan, así que al cambiarla
+              // se recalcula el vínculo en vez de limpiarlo sin más.
+              previstoId: previstoAutomatico({ ...f, categoria_id: categoriaId || null }),
+            }
+          : f
+      )
     );
   }
 
@@ -1235,6 +1261,11 @@ export function ImportarCSV({
                                     value={fila.previstoId ?? ""}
                                     onChange={(e) => actualizarPrevisto(index, e.target.value)}
                                     className="w-full rounded-btn border border-accent/40 bg-accent-soft px-2 py-1 text-xs text-accent"
+                                    title={
+                                      fila.previstoId && candidatos.length === 1
+                                        ? "Vinculada automáticamente por ser la única previsión que encaja. Puedes deshacerlo aquí."
+                                        : undefined
+                                    }
                                   >
                                     <option value="">¿Es una previsión? — no vincular</option>
                                     {candidatos.map((p) => (

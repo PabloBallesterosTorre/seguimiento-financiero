@@ -516,3 +516,32 @@ describe("ocurrenciasPendientesEnMes", () => {
     expect(ocurrenciasPendientesEnMes({ ...mensual, estado: "pausado" } as never, 2026, 9)).toBe(0);
   });
 });
+
+describe("previstosCoincidentes y los presupuestos", () => {
+  const movimiento = { fecha: "2026-09-10", tipo: "gasto" as const, categoria_id: "ocio", importe: -120 };
+  const comun = {
+    id: "x",
+    tipo: "gasto" as const,
+    estado: "activo" as const,
+    origen_calculo: "fijo" as const,
+    categoria_id: "ocio",
+    importe_estimado: 120,
+    importe_min: null,
+    importe_max: null,
+    tipo_recurrencia: "recurrente" as const,
+    periodicidad: "mensual" as const,
+    fecha: null,
+    fecha_inicio: "2026-01-01",
+    fecha_fin: null,
+  };
+
+  it("un previsto fijo del mismo importe es candidato", () => {
+    expect(previstosCoincidentes(movimiento, [comun as never])).toHaveLength(1);
+  });
+
+  it("un presupuesto nunca se empareja con un movimiento", () => {
+    // Un presupuesto no es un recibo que vaya a llegar: se apaga porque su categoría tiene
+    // gasto real, no vinculándolo a una transacción concreta.
+    expect(previstosCoincidentes(movimiento, [{ ...comun, es_presupuesto: true } as never])).toHaveLength(0);
+  });
+});

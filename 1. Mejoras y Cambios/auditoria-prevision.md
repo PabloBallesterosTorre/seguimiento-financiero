@@ -122,6 +122,25 @@ deuda ya era así (las amortizaciones extra viven en su propia tabla). En invers
 porque nadie concilia un previsto de 50 € con un movimiento de 200 €: el extra ya está en el
 saldo real y el previsto sigue pendiente. Hay un test que lo fija.
 
+### La conciliación ya no es manual
+
+Al importar, un movimiento que encaja con **una sola** previsión se vincula solo. Con varios
+candidatos no se elige ninguno: una conciliación equivocada descuadra la proyección del mes
+entero, y ahí sí compensa preguntar. El desplegable sigue estando para deshacerlo.
+
+El emparejamiento ya existía (`previstosCoincidentes`, por tipo, categoría, mes e importe con
+tolerancia); lo que faltaba era que la preselección no viniera vacía. En la práctica nadie
+vinculaba nada: tres conciliaciones en toda la base de datos, las tres de agosto, mientras los
+fijos ya pagados se seguían sumando a un saldo que ya los tenía descontados.
+
+Un presupuesto de categoría nunca se empareja con un movimiento (`previstosCoincidentes` lo
+descarta): no es un recibo que vaya a llegar, y lo que lo apaga es que su categoría tenga
+gasto real ese mes.
+
+La importación también guarda ahora la **fecha del movimiento** como periodo de la
+conciliación, no el día 1 del mes (migración `0031`). Sin eso, al importar cuatro aportaciones
+semanales la segunda pisaba a la primera por el `on conflict` y las demás desaparecían.
+
 ## Qué hacer, por orden
 
 1. **Borrar o desactivar** el previsto "Cuota Hipoteca vivienda habitual". Decisión de Pablo:
@@ -132,9 +151,9 @@ saldo real y el previsto sigue pendiente. Hay un test que lo fija.
    de alta). Los fijos se quedan como están.
 5. Con eso hecho, la estimación de cierre del mes se puede apoyar en la previsión.
 
-Sigue pendiente que la conciliación sea **automática al importar**: hoy hay que enlazar a
-mano y en toda la base de datos solo hay tres conciliaciones, las tres de agosto. Mientras no
-lo sea, los previstos fijos ya pagados del mes en curso se siguen contando dos veces.
+La conciliación automática ya está (más arriba), pero solo actúa **al importar**. Los
+movimientos de septiembre que ya están dentro se importaron antes de tenerla, así que siguen
+sin conciliar: hay que enlazarlos una vez a mano desde Previsión, o volver a importar el mes.
 
 Mientras tanto el bloque "Cómo va el mes" del Resumen **no usa previsión**: solo enseña lo
 acumulado de verdad y las dos referencias del mes anterior. Ese número no depende de nada de
