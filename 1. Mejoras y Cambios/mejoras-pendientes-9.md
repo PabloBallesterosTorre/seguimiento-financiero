@@ -66,6 +66,37 @@ Resultado: **321 movimientos, 12.401,86 €, desfase 0,00** — idéntico al ext
 
 La tabla de respaldo se puede borrar cuando haya confianza en el resultado.
 
+## Segunda reparación: 101 movimientos invisibles en Revolut — Personal
+
+El detector de descuadres encontró un problema real **en su primera ejecución en
+producción**, minutos después de desplegarlo.
+
+Revolut — Personal tenía **101 movimientos cuyo `usuario_id` era el del usuario de
+pruebas** (`prueba@prueba.com`), creados el 26 y 27 de agosto — una importación hecha
+bajo esa sesión apuntando a producción. El efecto era doble y silencioso:
+
+- **RLS se los ocultaba en la app**: no aparecían en Movimientos ni contaban en informes.
+- **Pero sí se habían sumado a `saldo_actual`** al importarlos.
+
+De los 101, **95 eran duplicados exactos** de movimientos que sí eran del usuario (misma
+cuenta, fecha, importe y descripción), y los 6 restantes eran tres parejas que se anulan
+entre sí. Esto explica además por qué el detector de duplicados de la importación no
+avisó al reimportarlos: RLS se los ocultaba también a él, así que la app creía que no
+existían.
+
+Lección para diagnósticos futuros: **las consultas por el MCP de Supabase corren como
+administrador y se saltan RLS**. Un diagnóstico hecho así puede mostrar una cuenta que
+cuadra mientras el usuario ve otra cosa. Al comprobar saldos hay que filtrar también por
+`movimientos.usuario_id`, no solo por el dueño de la cuenta.
+
+Reparación aplicada (respaldo previo en `public.respaldo_revolut_personal_ajenos_20260917`):
+borrados los 101 movimientos y recalculado `saldo_inicial` de la cuenta a 5.122,40 €,
+manteniendo `saldo_actual` en 112,59 € (que es el que cuadra con el banco). El backfill de
+la migración 0019 había derivado 8.697,23 €, contaminado por esos duplicados invisibles.
+
+Verificación final, simulando RLS (contando solo movimientos del propio usuario): las seis
+cuentas con desfase 0,00 €.
+
 ## Prevención (código, pendiente de desplegar)
 
 ### 1. El saldo pasa a ser verificable — migración `0019_saldo_inicial.sql`
@@ -120,15 +151,23 @@ importar_movimientos(...) language plpgsql`) para que inserciones y saldo entren
 
 ### Verificar el resto de cuentas
 
-Solo se ha reconciliado Trade Republic, contra su extracto completo. Los saldos iniciales
-que la migración deja en Revolut (Comun 71,43 €, Personal 8.697,23 €) e Ibercaja
-(1.050,65 €) son los que se deducen de su estado actual, **no saldos verificados**: como el
-backfill preserva el estado, después de la migración esas cuentas aparecerán cuadradas por
-construcción, lo cual no significa que coincidan con su banco. Para comprobarlas hace falta
-el histórico completo de cada una.
+Reconciliadas contra su extracto y coincidiendo con el banco: **Trade Republic — Personal**
+(12.401,86 €), **Ibercaja — Personal** (761,83 €) y **Revolut — Suscripciones** (49,86 €).
 
-Además, Revolut exporta su propia columna `Comisión`, así que conviene revisar si arrastra
-el mismo problema del error 1.
+**Revolut — Comun es la única que sigue sin verificar**: su saldo inicial (71,43 €) es el
+que se deduce de su estado actual, no un saldo comprobado. Como el backfill preserva el
+estado, aparece cuadrada por construcción, lo cual no significa que coincida con su banco.
+Hace falta su extracto completo.
+
+Revolut — Personal queda en 112,59 € frente a los 122,37 € que dice la columna de saldo de
+su extracto: la diferencia es el pago de Leroy Merlin del 16/09 (−9,79 €), que el extracto
+incluye como fila pero no refleja todavía en su saldo, más 1 céntimo que la cuenta ya
+arrastraba.
+
+Descartado que Revolut arrastre el problema de comisiones del error 1: **en Revolut el
+`Importe` ya viene neto** y la columna `Comisión` es informativa (verificado contra la
+columna de saldo). No debe mapearse al importar, aunque la autodetección la proponga —
+hacerlo introduciría el error en vez de corregirlo.
 
 ## Orden de despliegue (importante)
 
