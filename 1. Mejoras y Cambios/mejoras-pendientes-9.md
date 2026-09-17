@@ -167,20 +167,35 @@ Verificado contra el proyecto de desarrollo, simulando la sesión de un usuario 
 | Importar un lote cuya segunda fila viola una restricción | 0 filas insertadas, saldo intacto |
 | Importar un traspaso entre dos cuentas | Ambos lados creados, ambos saldos cuadrados |
 
-### Verificar el resto de cuentas
+### ~~Verificar el resto de cuentas~~ — HECHO
 
-Reconciliadas contra su extracto y coincidiendo con el banco: **Trade Republic — Personal**
-(12.401,86 €), **Ibercaja — Personal** (761,83 €) y **Revolut — Suscripciones** (49,86 €).
+**Las siete cuentas cuadran con su banco**, confirmado por Pablo cuenta a cuenta el 17/09/2026:
 
-**Revolut — Comun es la única que sigue sin verificar**: su saldo inicial (71,43 €) es el
-que se deduce de su estado actual, no un saldo comprobado. Como el backfill preserva el
-estado, aparece cuadrada por construcción, lo cual no significa que coincida con su banco.
-Hace falta su extracto completo.
+| Cuenta | Saldo |
+|---|---|
+| Trade Republic — Personal | 12.401,86 € |
+| Ibercaja — Personal | 761,83 € |
+| Revolut — Comun | 114,21 € |
+| Revolut — Personal | 112,59 € |
+| Revolut — Ahorro Conjunto | 572,64 € |
+| Revolut — Remunerada IVA | 762,43 € |
+| Revolut — Suscripciones | 49,86 € |
 
-Revolut — Personal queda en 112,59 € frente a los 122,37 € que dice la columna de saldo de
-su extracto: la diferencia es el pago de Leroy Merlin del 16/09 (−9,79 €), que el extracto
-incluye como fila pero no refleja todavía en su saldo, más 1 céntimo que la cuenta ya
-arrastraba.
+Dos cuentas nuevas salieron de esta reconciliación: **Ahorro Conjunto** (el producto Depósito
+de la cuenta común, que nunca se había importado) y **Remunerada IVA** (donde migró el Depósito
+de la personal el 10/09).
+
+Trade Republic marca 12.376,86 € en la app del banco: la diferencia de 25 € es la ejecución del
+plan de ahorro de Emerging Markets del 17/09, que TR contabiliza a las 03:30 del día siguiente y
+por eso no estaba en el extracto. Se decidió esperar a la siguiente importación en vez de añadirla
+a mano, para que todo apunte tenga un extracto detrás.
+
+Revolut — Comun arrastraba 0,70 € de desfase previo, corregidos en su saldo inicial.
+
+**Ojo con los extractos de Revolut**: sus filas no están en orden de saldo, porque los pagos con
+tarjeta liquidan después de su fecha. Ordenar por "Fecha de inicio" y leer el último `Saldo` da un
+número equivocado (488,84 € en vez de 114,21 € en la cuenta común). Hay que encadenar los saldos o
+preguntar el saldo real.
 
 Descartado que Revolut arrastre el problema de comisiones del error 1: **en Revolut el
 `Importe` ya viene neto** y la columna `Comisión` es informativa (verificado contra la
