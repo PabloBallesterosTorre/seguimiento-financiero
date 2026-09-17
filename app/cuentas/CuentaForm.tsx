@@ -60,16 +60,20 @@ export function CuentaForm({
           <option value="conjunta">Conjunta</option>
         </select>
       </div>
-      <div>
-        <label className={labelClass}>Saldo actual</label>
-        <input
-          name="saldo_actual"
-          type="number"
-          step="0.01"
-          defaultValue={cuenta?.saldo_actual ?? 0}
-          className={inputClass}
-        />
-      </div>
+      {/* El saldo solo se fija al crear la cuenta. Al editar no se muestra a propósito:
+          reescribirlo a mano lo desacopla de los movimientos sin dejar rastro, que es
+          justo como se descuadró la cuenta de Trade Republic. Para corregir un saldo
+          está "Recalcular saldo", que lo reconstruye desde los movimientos. */}
+      {!cuenta && (
+        <div>
+          <label className={labelClass}>Saldo inicial</label>
+          <input name="saldo_actual" type="number" step="0.01" defaultValue={0} className={inputClass} />
+          <p className="mt-1.5 text-xs text-ink-tertiary">
+            El saldo de la cuenta antes del primer movimiento que vayas a registrar. Si vas a importar
+            el histórico completo desde que abriste la cuenta, déjalo a 0.
+          </p>
+        </div>
+      )}
       <div className="sm:col-span-2">
         <label className={labelClass}>IBAN (opcional)</label>
         <input

@@ -81,6 +81,18 @@ export function combinarImporteConComisionYRetencion(
   return total;
 }
 
+// Día siguiente a una fecha ISO (AAAA-MM-DD). Se calcula en UTC a propósito: la
+// versión anterior hacía `new Date("2026-09-09T00:00:00")`, que se interpreta en hora
+// LOCAL, y devolvía el resultado con `toISOString()`, que convierte a UTC. En
+// cualquier huso con desfase positivo (Europe/Madrid es +1/+2) esa conversión
+// retrocedía unas horas y el "día siguiente" acababa cayendo otra vez en el mismo día,
+// así que la fecha de corte por defecto de la importación se quedaba en la fecha del
+// último movimiento en vez de la posterior.
+export function diaSiguienteISO(fechaISO: string): string {
+  const [anio, mes, dia] = fechaISO.split("-").map(Number);
+  return new Date(Date.UTC(anio, mes - 1, dia + 1)).toISOString().slice(0, 10);
+}
+
 // Saldo de una cuenta tras importar un lote de movimientos: el saldo actual más la
 // suma de los importes importados (positivos suman, negativos restan). No depende de
 // origen/orden de las filas — solo del total neto del lote.

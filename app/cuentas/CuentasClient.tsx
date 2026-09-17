@@ -19,12 +19,16 @@ type Cuenta = {
   periodicidad_pago_interes: string | null;
 };
 
+type Desfase = { cuentaId: string; desfase: number; saldoEsperado: number };
+
 export function CuentasClient({
   cuentas,
   moneda,
   crearCuenta,
   actualizarCuenta,
   eliminarCuenta,
+  recalcularSaldoCuenta,
+  desfases = {},
   ordenInicial = null,
 }: {
   cuentas: Cuenta[];
@@ -32,6 +36,8 @@ export function CuentasClient({
   crearCuenta: (formData: FormData) => void;
   actualizarCuenta: (formData: FormData) => void;
   eliminarCuenta: (formData: FormData) => void;
+  recalcularSaldoCuenta: (formData: FormData) => void;
+  desfases?: Record<string, Desfase>;
   ordenInicial?: OrdenTabla;
 }) {
   const formatEUR = (v: number) => formatMoneda(v, moneda);
@@ -46,8 +52,51 @@ export function CuentasClient({
     saldo: (c) => Number(c.saldo_actual),
   });
 
+  const cuentasDescuadradas = cuentas.filter((c) => desfases[c.id]);
+
   return (
     <div className="space-y-6">
+      {cuentasDescuadradas.length > 0 && (
+        <div className="rounded-card border border-danger/30 bg-danger/5 p-5">
+          <p className="text-sm font-semibold text-danger">
+            {cuentasDescuadradas.length === 1
+              ? "Una cuenta no cuadra con sus movimientos"
+              : `${cuentasDescuadradas.length} cuentas no cuadran con sus movimientos`}
+          </p>
+          <p className="mt-1.5 text-[13px] text-ink-secondary">
+            El saldo guardado debería ser el saldo inicial más todos los movimientos de la cuenta. Cuando
+            no coincide, es que alguna operación no llegó a completarse. Recalcular reconstruye el saldo
+            desde los movimientos, que son la fuente fiable.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {cuentasDescuadradas.map((cuenta) => {
+              const d = desfases[cuenta.id];
+              return (
+                <li key={cuenta.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px]">
+                  <span className="font-semibold text-ink">
+                    {cuenta.banco_nombre} — {cuenta.nombre}
+                  </span>
+                  <span className="text-ink-secondary">
+                    muestra {formatEUR(Number(cuenta.saldo_actual))} y debería mostrar{" "}
+                    {formatEUR(d.saldoEsperado)}
+                  </span>
+                  <span className="rounded-full bg-danger/10 px-2 py-0.5 font-semibold text-danger">
+                    {d.desfase > 0 ? "+" : ""}
+                    {formatEUR(d.desfase)}
+                  </span>
+                  <form action={recalcularSaldoCuenta}>
+                    <input type="hidden" name="id" value={cuenta.id} />
+                    <button type="submit" className="font-semibold text-accent hover:underline">
+                      Recalcular saldo
+                    </button>
+                  </form>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {abierto === "nueva" ? (
         <div className="rounded-card border border-border bg-surface p-7 shadow-card">
           <div className="mb-5 flex items-center justify-between">
@@ -93,7 +142,12 @@ export function CuentasClient({
                   <td className="px-4 py-3.5 text-ink-secondary">
                     {cuenta.es_remunerada ? `${cuenta.tipo_interes ?? "—"}%` : <span className="text-faint">—</span>}
                   </td>
-                  <td className="px-4 py-3.5 text-right font-semibold text-ink">{formatEUR(Number(cuenta.saldo_actual))}</td>
+                  <td className="px-4 py-3.5 text-right font-semibold text-ink">
+                    {formatEUR(Number(cuenta.saldo_actual))}
+                    {desfases[cuenta.id] && (
+                      <div className="text-xs font-semibold text-danger">No cuadra</div>
+                    )}
+                  </td>
                   <td className="px-4 py-3.5 text-right whitespace-nowrap">
                     <button
                       type="button"

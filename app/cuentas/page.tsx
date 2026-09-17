@@ -2,8 +2,9 @@ import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { obtenerOrdenTabla } from "@/lib/ordenTabla";
-import { crearCuenta, actualizarCuenta, eliminarCuenta } from "./actions";
+import { crearCuenta, actualizarCuenta, eliminarCuenta, recalcularSaldoCuenta } from "./actions";
 import { CuentasClient } from "./CuentasClient";
+import { diagnosticarSaldos } from "@/lib/saldos";
 
 export default async function CuentasPage() {
   const supabase = await createClient();
@@ -11,11 +12,24 @@ export default async function CuentasPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: cuentas }, config, ordenInicial] = await Promise.all([
+  const [{ data: cuentas }, config, ordenInicial, { data: movimientos }] = await Promise.all([
     supabase.from("cuentas").select("*").order("created_at", { ascending: true }),
     user ? obtenerConfiguracion(supabase, user.id) : null,
     user ? obtenerOrdenTabla(supabase, user.id, "cuentas") : null,
+    supabase.from("movimientos").select("cuenta_id, importe"),
   ]);
+
+  // El saldo guardado debería ser siempre saldo_inicial + suma de movimientos. Se
+  // comprueba en cada carga de esta pantalla para que un descuadre se vea en cuanto
+  // aparece, en vez de propagarse en silencio al patrimonio y a los informes.
+  const desfases = diagnosticarSaldos(
+    (cuentas ?? []).map((c) => ({
+      id: c.id,
+      saldo_actual: Number(c.saldo_actual),
+      saldo_inicial: Number(c.saldo_inicial ?? 0),
+    })),
+    (movimientos ?? []).map((m) => ({ cuenta_id: m.cuenta_id, importe: Number(m.importe) }))
+  );
 
   return (
     <>
@@ -29,6 +43,8 @@ export default async function CuentasPage() {
           crearCuenta={crearCuenta}
           actualizarCuenta={actualizarCuenta}
           eliminarCuenta={eliminarCuenta}
+          recalcularSaldoCuenta={recalcularSaldoCuenta}
+          desfases={Object.fromEntries(desfases)}
           ordenInicial={ordenInicial}
         />
       </main>

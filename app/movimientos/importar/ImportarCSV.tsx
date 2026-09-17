@@ -10,6 +10,7 @@ import {
   combinarImporteConComisionYRetencion,
   detectarFormatoFecha,
   detectarSeparadorDecimal,
+  diaSiguienteISO,
   type FormatoFecha,
 } from "@/lib/importarCsv";
 import { sugerirCategoria, type ReglaCategorizacion } from "@/lib/categorizacion";
@@ -59,12 +60,6 @@ function normalizarIban(valor: string): string {
 
 const formatFecha = (v: string) => new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(new Date(v));
 
-function diaSiguiente(fecha: string): string {
-  const d = new Date(`${fecha}T00:00:00`);
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
 export function ImportarCSV({
   cuentas,
   categorias,
@@ -101,13 +96,13 @@ export function ImportarCSV({
   const [cuentaId, setCuentaIdState] = useState(cuentas[0]?.id ?? "");
   const [fechaCorte, setFechaCorte] = useState(() => {
     const ultima = ultimaFechaPorCuenta.get(cuentas[0]?.id ?? "");
-    return ultima ? diaSiguiente(ultima) : "";
+    return ultima ? diaSiguienteISO(ultima) : "";
   });
 
   function setCuentaId(id: string) {
     setCuentaIdState(id);
     const ultima = ultimaFechaPorCuenta.get(id);
-    setFechaCorte(ultima ? diaSiguiente(ultima) : "");
+    setFechaCorte(ultima ? diaSiguienteISO(ultima) : "");
   }
   const [nombreArchivo, setNombreArchivo] = useState("");
   const [modoArchivo, setModoArchivo] = useState<"csv" | "xlsx">("csv");

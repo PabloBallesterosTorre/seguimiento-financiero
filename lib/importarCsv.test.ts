@@ -3,6 +3,7 @@ import {
   calcularSaldoTrasImportar,
   combinarImporteConComisionYRetencion,
   detectarFormatoFecha,
+  diaSiguienteISO,
   detectarSeparadorDecimal,
   parseFechaImportada,
   parseImporteImportado,
@@ -146,5 +147,28 @@ describe("calcularSaldoTrasImportar", () => {
 
   it("admite saldo actual negativo (cuenta en descubierto)", () => {
     expect(calcularSaldoTrasImportar(-100, [{ importe: 50 }])).toBeCloseTo(-50, 2);
+  });
+});
+
+describe("diaSiguienteISO", () => {
+  it("avanza un día", () => {
+    expect(diaSiguienteISO("2026-09-09")).toBe("2026-09-10");
+  });
+
+  // Regresión: la versión anterior construía la fecha en hora local y la devolvía en
+  // UTC, así que en Europe/Madrid (+1/+2) el "día siguiente" volvía a caer en el mismo
+  // día y la fecha de corte por defecto de la importación se quedaba una jornada corta.
+  it("avanza un día también en husos con desfase positivo respecto a UTC", () => {
+    expect(diaSiguienteISO("2026-09-09")).not.toBe("2026-09-09");
+    expect(diaSiguienteISO("2026-06-30")).toBe("2026-07-01");
+  });
+
+  it("cruza el cambio de mes y de año", () => {
+    expect(diaSiguienteISO("2026-01-31")).toBe("2026-02-01");
+    expect(diaSiguienteISO("2026-12-31")).toBe("2027-01-01");
+  });
+
+  it("resuelve el 29 de febrero de un año bisiesto", () => {
+    expect(diaSiguienteISO("2024-02-28")).toBe("2024-02-29");
   });
 });
