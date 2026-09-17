@@ -83,14 +83,76 @@ La segunda pintaba la hipoteca a nombre propio como deuda compartida. La inversi
 ahora el ámbito de su cuenta de custodia (sin cuenta asignada, personal), y la deuda el suyo
 propio.
 
+## El mes financiero: los meses van de nómina a nómina
+
+Preguntando cómo computaba el desfase de la nómina salió que no era un matiz.
+
+| Mes | Neto por mes natural | Neto por mes financiero |
+|---|---:|---:|
+| Junio | +6.523,59 € | +3.507,02 € |
+| Julio | **−2.131,73 €** | **+799,78 €** |
+| Agosto | −1.498,21 € | −2.463,27 € |
+| Septiembre | **−305,77 €** | **+744,35 €** |
+
+En julio y en septiembre **cambia el signo**: la app respondía "no has ahorrado" a meses en
+los que sí se había ahorrado. La causa es que la nómina con la que se vive septiembre entra
+el 28 de agosto, así que por mes natural septiembre no tiene sueldo y agosto tiene dos.
+
+### Por qué no vale un día de corte fijo
+
+Las fechas reales de cobro son **28, 29, 30** (y el banco adelanta si cae en fin de semana).
+Cualquier día fijo acierta unos meses y falla otros. La frontera se ancla en la propia
+nómina: el mes financiero M empieza el día en que se cobró la última nómina antes del 1 de M.
+
+| Mes financiero | Empieza |
+|---|---|
+| Junio 2026 | 28 de mayo |
+| Julio 2026 | 29 de junio |
+| Agosto 2026 | 30 de julio |
+| Septiembre 2026 | 28 de agosto |
+
+### La paga extra
+
+En junio de 2026 hay **dos** nóminas: la extra el día 15 y la ordinaria el 29. Un "coge la
+nómina del mes" ingenuo habría hecho que julio empezara el 15 de junio y se comiera medio
+mes. Solo se aceptan como ancla las nóminas de los últimos días del mes (desde el día de
+corte menos 5), así que la del 15 no mueve nada y sigue contando como ingreso de junio,
+que es cuando se cobró.
+
+### El respaldo
+
+Cuando no hay nómina que anclar —el mes en curso hasta que entra, o un periodo sin cobrar—
+se usa un día de corte configurable, por defecto el 25. Por eso **el mes en curso se cierra
+en el día de respaldo y se recoloca solo** en cuanto entra su nómina. La vista previa de
+Configuración enseña las fechas concretas para que no haya que fiarse de la descripción.
+
+### Tres nóminas estaban sin categorizar
+
+De las cinco nóminas del histórico solo dos tenían categoría. Las otras tres caían en "Sin
+categorizar", así que el bloque "de dónde viene mi dinero" **no enseñaba el sueldo como
+fuente de ingresos**, que es la respuesta más obvia a esa pregunta. Migración `0029`,
+con criterio estrecho: solo ingresos cuya descripción sea exactamente "NOMINA" y que no
+tuvieran ya una categoría puesta a mano.
+
+### Dónde se aplica
+
+En todas las pantallas con cifras mensuales: Informes, Resumen, Planificador y el histórico
+de patrimonio (que cierra cada mes en su frontera, no el día 31). Si una pantalla contara
+por mes natural y otra no, el mismo mes daría dos cifras distintas según dónde se mire.
+
+La **previsión** conserva etiquetas de mes: un previsto "mensual" significa "una vez al mes"
+y el mes financiero sigue siendo un mes. Lo que se movía era la frontera del pasado, que es
+donde vive lo real. Por el mismo motivo no se tocó el periodo de las conciliaciones, para no
+desestabilizar las que ya existen.
+
 ## Estado de las cinco peticiones
 
 | | Estado |
 |---|---|
 | 2. En qué se va y de dónde viene | **Hecho**: bloque nuevo, neteado, con las dos mitades a la misma escala |
 | 5. Personal / conjunto | **Hecho**: eje propio en datos, formularios e informes |
-| 1. Cuánto entra y sale al mes | **Parcial**: el flujo mensual ya existía y ahora respeta el ámbito |
-| 4. ¿Estoy ahorrando? | **Parcial**: hay variación frente al mes anterior, pero mide "líquido + inversión", no la pregunta tal como la hizo |
+| 1. Cuánto entra y sale al mes | **Hecho**: el flujo mensual respeta el ámbito y cuenta los meses de nómina a nómina |
+| 4. ¿Estoy ahorrando? | **Parcial**: la frontera del mes ya es la correcta (era lo que cambiaba el signo), pero la cifra sigue midiendo "líquido + inversión", no la pregunta tal como la hizo |
 | 3. Previsión por delante | **Pendiente**: vive en la sección Futuro, sin resumen en Informes |
 
 ## Pendiente
@@ -105,3 +167,7 @@ propio.
   Se arregla separando "Alquiler" (ingreso) de los gastos de vivienda, que es una decisión de
   categorización, no de código.
 - Las preguntas 3 y 4, en los términos en que las hizo.
+- `previstosCoincidentes` empareja un movimiento con una previsión usando su mes **natural**,
+  no el financiero. Se dejó así a propósito: los previstos recurrentes aplican igual en los
+  dos meses candidatos, así que cambiarlo arriesgaría el emparejamiento al importar sin
+  ganancia clara. Si algún día aparece un desajuste al importar a final de mes, mirar aquí.

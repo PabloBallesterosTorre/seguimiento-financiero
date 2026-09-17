@@ -10,20 +10,29 @@ export type MovimientoParaInforme = {
   fecha: string;
 };
 
+// Cómo se traduce una fecha al mes al que pertenece ("YYYY-MM"). Por defecto es el mes
+// natural; con el mes financiero activo se pasa `mesDe` de lib/mesFinanciero, que ancla
+// la frontera en la nómina. Se inyecta en vez de importarse para que estas funciones
+// sigan siendo puras y comprobables sin configuración.
+export type MesDeFecha = (fecha: string) => string;
+
+export const MES_NATURAL: MesDeFecha = (fecha) => fecha.slice(0, 7);
+
 // Total absoluto por categoría padre y por mes ("YYYY-MM"), para un tipo (ingreso o
 // gasto) concreto. Sirve de base tanto para la media del periodo (8.3, dividiendo el
 // total entre el número de meses del rango) como para la serie mensual (8.4).
 export function agruparPorCategoriaPadreYMes(
   movimientos: MovimientoParaInforme[],
   tipo: "ingreso" | "gasto",
-  categoriaEfectiva: (categoriaId: string) => string
+  categoriaEfectiva: (categoriaId: string) => string,
+  mesDe: MesDeFecha = MES_NATURAL
 ): Map<string, Map<string, number>> {
   const resultado = new Map<string, Map<string, number>>();
 
   for (const m of movimientos) {
     if (m.tipo !== tipo || !m.categoria_id) continue;
     const categoriaId = categoriaEfectiva(m.categoria_id);
-    const mesKey = m.fecha.slice(0, 7);
+    const mesKey = mesDe(m.fecha);
     if (!resultado.has(categoriaId)) resultado.set(categoriaId, new Map());
     const porMes = resultado.get(categoriaId)!;
     porMes.set(mesKey, (porMes.get(mesKey) ?? 0) + Math.abs(Number(m.importe)));

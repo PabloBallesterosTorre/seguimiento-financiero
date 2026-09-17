@@ -11,6 +11,7 @@ import {
   resolverCuentasSeleccionadas,
   type MovimientoParaInforme,
 } from "./informes";
+import { mesDe } from "./mesFinanciero";
 
 const categoriaEfectiva = (id: string) => (id === "restaurantes" || id === "cine" ? "ocio" : id);
 
@@ -229,5 +230,38 @@ describe("separarGastosEIngresos", () => {
       { categoriaId: "grande", salidas: 900, entradas: 0, neto: 900, movimientosContrarios: 0 },
     ]);
     expect(gastos.map((g) => g.categoriaId)).toEqual(["grande", "pequeno"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tanda 12: agrupación por mes financiero
+// ---------------------------------------------------------------------------
+
+describe("agruparPorCategoriaPadreYMes con mes financiero", () => {
+  const mismaCategoria = (id: string) => id;
+
+  // El caso real: la nómina del 28 de agosto es el ingreso con el que se vive septiembre.
+  const movimientos = [
+    { categoria_id: "nomina", tipo: "ingreso", importe: 2139.89, fecha: "2026-08-28" },
+    { categoria_id: "nomina", tipo: "ingreso", importe: 2175.27, fecha: "2026-07-30" },
+  ];
+
+  it("por mes natural, agosto cobra dos veces y septiembre ninguna", () => {
+    const porMes = agruparPorCategoriaPadreYMes(movimientos, "ingreso", mismaCategoria).get("nomina")!;
+    expect(porMes.get("2026-08")).toBeCloseTo(2139.89, 2);
+    expect(porMes.get("2026-09")).toBeUndefined();
+  });
+
+  it("con el mes financiero, cada nómina cae en el mes que financia", () => {
+    const opciones = { activo: true, diaCorte: 25, anclas: ["2026-07-30", "2026-08-28"] };
+    const porMes = agruparPorCategoriaPadreYMes(
+      movimientos,
+      "ingreso",
+      mismaCategoria,
+      (f) => mesDe(f, opciones)
+    ).get("nomina")!;
+
+    expect(porMes.get("2026-09")).toBeCloseTo(2139.89, 2);
+    expect(porMes.get("2026-08")).toBeCloseTo(2175.27, 2);
   });
 });

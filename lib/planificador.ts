@@ -252,6 +252,10 @@ export function construirHistoricoPatrimonio(params: {
   hoy: string;
   valoracionesInversion?: ValoracionParaHistorico[];
   movimientosVinculadosAInversion?: Set<string>;
+  // Cuándo cierra cada mes. Por defecto el último día natural; con el mes financiero
+  // activo se pasa finMesFinanciero, para que "¿tengo más que el mes pasado?" compare
+  // saldos en la misma frontera que usa el resto de la pantalla y no unos días después.
+  finDeMes?: (year: number, month: number) => string;
 }): PuntoProyeccion[] {
   const {
     meses,
@@ -263,10 +267,11 @@ export function construirHistoricoPatrimonio(params: {
     hoy,
     valoracionesInversion = [],
     movimientosVinculadosAInversion = new Set<string>(),
+    finDeMes = finDeMesISO,
   } = params;
   const [hoyYear, hoyMonth] = hoy.split("-").map(Number);
 
-  const finesDeMes = meses.map((mes) => finDeMesISO(mes.year, mes.month));
+  const finesDeMes = meses.map((mes) => finDeMes(mes.year, mes.month));
 
   const liquidoPorMes = finesDeMes.map((fin) => {
     const sumaPosterior = movimientos.filter((m) => m.fecha > fin).reduce((s, m) => s + Number(m.importe), 0);

@@ -39,7 +39,17 @@ function TooltipFlujo({
   );
 }
 
-export function FlujoMensual({ moneda, datos }: { moneda: string; datos: MesFlujo[] }) {
+export function FlujoMensual({
+  moneda,
+  datos,
+  notaMes,
+}: {
+  moneda: string;
+  datos: MesFlujo[];
+  // Cómo se está contando el mes cuando no va del 1 al 31. Sin decirlo, un "septiembre"
+  // que empieza el 28 de agosto parece un error de la aplicación.
+  notaMes?: string;
+}) {
   const formatEUR = (v: number) => formatMoneda(v, moneda);
   const [comoTabla, setComoTabla] = useState(false);
 
@@ -53,6 +63,7 @@ export function FlujoMensual({ moneda, datos }: { moneda: string; datos: MesFluj
             <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-accent">Meses en azul</span> son
             previsión.
           </p>
+          {notaMes && <p className="mt-1 text-[12px] text-ink-tertiary">{notaMes}</p>}
         </div>
         <button type="button" onClick={() => setComoTabla((v) => !v)} className={`shrink-0 ${rowLinkClass} hover:underline`}>
           {comoTabla ? "Ver como gráfico" : "Ver como tabla"}

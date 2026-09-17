@@ -35,7 +35,8 @@ import {
   separarGastosEIngresos,
   SIN_CATEGORIA,
 } from "@/lib/informes";
-import { obtenerConfiguracion } from "@/lib/configuracion";
+import { obtenerConfiguracion, obtenerOpcionesMesFinanciero } from "@/lib/configuracion";
+import { mesDe, inicioMesFinanciero, finMesFinanciero, descripcionMes } from "@/lib/mesFinanciero";
 import { rentabilidadPonderada } from "@/lib/inversiones";
 import { SelectorAmbito, type Ambito } from "./SelectorAmbito";
 import { SelectorCuentas } from "@/components/SelectorCuentas";
@@ -60,7 +61,6 @@ export default async function InformesPage({
 
   const hoy = new Date().toISOString().slice(0, 10);
   const hoyDate = new Date();
-  const mesActualLabel = `${hoyDate.getFullYear()}-${String(hoyDate.getMonth() + 1).padStart(2, "0")}`;
 
   const [
     { data: cuentas },
@@ -102,6 +102,16 @@ export default async function InformesPage({
   ]);
 
   const moneda = config?.moneda_base ?? "EUR";
+
+  // El mes financiero: los meses van de nómina a nómina en vez del 1 al 31. Ver
+  // lib/mesFinanciero.ts — sin esto, la nómina del 28 de agosto cuenta como ingreso de
+  // agosto y septiembre aparece como un mes sin sueldo.
+  const opcionesMes = config
+    ? await obtenerOpcionesMesFinanciero(supabase, config)
+    : { activo: false, diaCorte: 25, anclas: [] };
+  const mesDeFecha = (fecha: string) => mesDe(fecha, opcionesMes);
+  const finDeMes = (year: number, month: number) => finMesFinanciero(year, month, opcionesMes);
+  const mesActualLabel = mesDeFecha(hoy);
 
   const idsCuentasActivas = (cuentas ?? []).map((c) => c.id);
 
@@ -226,7 +236,7 @@ export default async function InformesPage({
 
   const mesesPasadosSolicitados = generarMesesHaciaAtras(rangoMesesPasados);
   const mesesPasadosDisponibles = primeraFecha
-    ? mesesPasadosSolicitados.filter((m) => `${m.year}-${String(m.month).padStart(2, "0")}` >= primeraFecha.slice(0, 7))
+    ? mesesPasadosSolicitados.filter((m) => `${m.year}-${String(m.month).padStart(2, "0")}` >= mesDeFecha(primeraFecha))
     : [];
 
   const mesesFuturos = generarMeses(futuroMeses);
@@ -262,6 +272,7 @@ export default async function InformesPage({
           hoy,
           valoracionesInversion,
           movimientosVinculadosAInversion,
+          finDeMes,
         })
       : [];
 
@@ -308,7 +319,7 @@ export default async function InformesPage({
     let ingresos = 0;
     let gastos = 0;
     for (const m of historicoCompleto) {
-      if (m.fecha.slice(0, 7) !== mesLabel || m.tipo === "traspaso") continue;
+      if (mesDeFecha(m.fecha) !== mesLabel || m.tipo === "traspaso") continue;
       const importe = Number(m.importe);
       if (m.tipo === "ingreso") ingresos += importe;
       else gastos += importe;
@@ -338,13 +349,29 @@ export default async function InformesPage({
   });
 
   // ---- 8.3 y 8.4: agregaciones por categoría, solo histórico real (incluye el mes en curso hasta hoy) ----
-  const mesesParaCategoria = [...mesesPasadosDisponibles, { year: hoyDate.getFullYear(), month: hoyDate.getMonth() + 1, label: "" }];
-  const finRango = `${mesActualLabel}-31`;
-  const inicioRango = mesesParaCategoria[0] ? `${mesesParaCategoria[0].year}-${String(mesesParaCategoria[0].month).padStart(2, "0")}-01` : "0000-00-00";
+  // El mes financiero en curso puede ir por delante del natural: a partir del día en que
+  // entra la nómina ya se está viviendo el mes siguiente. Se rellena hasta llegar a él en
+  // vez de añadirlo suelto, porque si no quedaría un mes sin contar entre medias y la
+  // media por categoría se dividiría entre menos meses de los que abarca el rango.
+  const mesActualYear = Number(mesActualLabel.slice(0, 4));
+  const mesActualMonth = Number(mesActualLabel.slice(5, 7));
+  const mesesParaCategoria = [...mesesPasadosDisponibles];
+  const ultimoPasado = mesesPasadosDisponibles.at(-1);
+  let cursor = ultimoPasado
+    ? { year: ultimoPasado.year, month: ultimoPasado.month }
+    : { year: mesActualYear, month: mesActualMonth - 1 };
+  while (cursor.year * 12 + cursor.month < mesActualYear * 12 + mesActualMonth) {
+    cursor = cursor.month === 12 ? { year: cursor.year + 1, month: 1 } : { year: cursor.year, month: cursor.month + 1 };
+    mesesParaCategoria.push({ year: cursor.year, month: cursor.month, label: "" });
+  }
+  const finRango = finDeMes(mesActualYear, mesActualMonth);
+  const inicioRango = mesesParaCategoria[0]
+    ? inicioMesFinanciero(mesesParaCategoria[0].year, mesesParaCategoria[0].month, opcionesMes)
+    : "0000-00-00";
   const historicoEnRango = historicoCompleto.filter((m) => m.fecha >= inicioRango && m.fecha <= finRango);
 
-  const gastoPorCategoriaYMes = agruparPorCategoriaPadreYMes(historicoEnRango, "gasto", categoriaEfectiva);
-  const ingresoPorCategoriaYMes = agruparPorCategoriaPadreYMes(historicoEnRango, "ingreso", categoriaEfectiva);
+  const gastoPorCategoriaYMes = agruparPorCategoriaPadreYMes(historicoEnRango, "gasto", categoriaEfectiva, mesDeFecha);
+  const ingresoPorCategoriaYMes = agruparPorCategoriaPadreYMes(historicoEnRango, "ingreso", categoriaEfectiva, mesDeFecha);
 
   const mediaGasto: CategoriaMedia[] = mediaPorCategoriaEnRango(gastoPorCategoriaYMes, mesesParaCategoria.length).map(
     (m) => ({ nombre: nombreCategoria.get(m.categoriaId) ?? "Sin categoría", media: m.media })
@@ -373,9 +400,9 @@ export default async function InformesPage({
       filasDiagnostico.filter((f) => f.importesPorMes[0] < 0).map((f) => [f.categoriaId, Math.abs(f.importesPorMes[0])])
     );
     const mesLabelCerrado = `${ultimoMesCerrado.year}-${String(ultimoMesCerrado.month).padStart(2, "0")}`;
-    const realDelMes = historicoCompleto.filter((m) => m.fecha.slice(0, 7) === mesLabelCerrado);
+    const realDelMes = historicoCompleto.filter((m) => mesDeFecha(m.fecha) === mesLabelCerrado);
     const realPorCategoria = new Map(
-      Array.from(agruparPorCategoriaPadreYMes(realDelMes, "gasto", categoriaEfectiva).entries()).map(([id, porMes]) => [
+      Array.from(agruparPorCategoriaPadreYMes(realDelMes, "gasto", categoriaEfectiva, mesDeFecha).entries()).map(([id, porMes]) => [
         id,
         Array.from(porMes.values()).reduce((s, v) => s + v, 0),
       ])
@@ -452,6 +479,11 @@ export default async function InformesPage({
           gastosNetos={gastosNetos.map(conNombre)}
           ingresosNetos={ingresosNetos.map(conNombre)}
           etiquetaPeriodo={rango === "todos" ? "Todo el histórico" : `Últimos ${rango} meses`}
+          notaMes={
+            opcionesMes.activo
+              ? `Los meses van de nómina a nómina: este ${descripcionMes(mesActualYear, mesActualMonth, opcionesMes)}.`
+              : undefined
+          }
         />
       </main>
     </>

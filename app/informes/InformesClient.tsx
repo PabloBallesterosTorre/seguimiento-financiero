@@ -32,6 +32,7 @@ export function InformesClient({
   gastosNetos,
   ingresosNetos,
   etiquetaPeriodo,
+  notaMes,
 }: {
   moneda: string;
   patrimonioHoy: number;
@@ -49,11 +50,12 @@ export function InformesClient({
   gastosNetos: FilaCategoria[];
   ingresosNetos: FilaCategoria[];
   etiquetaPeriodo: string;
+  notaMes?: string;
 }) {
   return (
     <div className="space-y-6">
       <KpiDineroDisponible moneda={moneda} valor={patrimonioHoy} variacion={variacion} miniSerie={miniSerie} />
-      <FlujoMensual moneda={moneda} datos={flujoPorMes} />
+      <FlujoMensual moneda={moneda} datos={flujoPorMes} notaMes={notaMes} />
       <EnQueSeVa gastos={gastosNetos} ingresos={ingresosNetos} moneda={moneda} etiquetaPeriodo={etiquetaPeriodo} />
       <MediaPorCategoria
         moneda={moneda}

@@ -13,7 +13,8 @@ import {
   type AmortizacionProgramadaDeuda,
   type PuntoProyeccion,
 } from "@/lib/planificador";
-import { obtenerConfiguracion } from "@/lib/configuracion";
+import { obtenerConfiguracion, obtenerOpcionesMesFinanciero } from "@/lib/configuracion";
+import { mesDe, finMesFinanciero } from "@/lib/mesFinanciero";
 import { formatMoneda, formatPorcentaje } from "@/lib/formato";
 import { rentabilidadPonderada } from "@/lib/inversiones";
 import { filtrarMovimientosPorCuentasSeleccionadas, resolverCuentasSeleccionadas } from "@/lib/informes";
@@ -85,6 +86,13 @@ export default async function PlanificadorPage({
 
   const moneda = config?.moneda_base ?? "EUR";
   const formatEUR = (v: number) => formatMoneda(v, moneda);
+
+  // Mismos meses que en Informes y el Resumen (de nómina a nómina si está activado).
+  const opcionesMes = config
+    ? await obtenerOpcionesMesFinanciero(supabase, config)
+    : { activo: false, diaCorte: 25, anclas: [] };
+  const mesDeFecha = (fecha: string) => mesDe(fecha, opcionesMes);
+  const finDeMes = (year: number, month: number) => finMesFinanciero(year, month, opcionesMes);
 
   const idsCuentasActivas = (cuentas ?? []).map((c) => c.id);
   const cuentasSeleccionadas = resolverCuentasSeleccionadas(
@@ -211,7 +219,7 @@ export default async function PlanificadorPage({
   const mesesPasadosSolicitados = generarMesesHaciaAtras(horizonteMeses);
   const mesesPasadosDisponibles = primeraFecha
     ? mesesPasadosSolicitados.filter(
-        (m) => `${m.year}-${String(m.month).padStart(2, "0")}` >= primeraFecha.slice(0, 7)
+        (m) => `${m.year}-${String(m.month).padStart(2, "0")}` >= mesDeFecha(primeraFecha)
       )
     : [];
 
@@ -225,6 +233,7 @@ export default async function PlanificadorPage({
           amortizacionesAplicadasPorDeuda,
           esCategoriaInversion,
           hoy,
+          finDeMes,
         })
       : [];
 

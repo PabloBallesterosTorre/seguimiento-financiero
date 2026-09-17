@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { obtenerConfiguracion } from "@/lib/configuracion";
+import { obtenerConfiguracion, obtenerOpcionesMesFinanciero } from "@/lib/configuracion";
+import { mesDe, finMesFinanciero } from "@/lib/mesFinanciero";
 import { formatMoneda, formatMonedaTabla } from "@/lib/formato";
 import {
   construirPeriodosConciliados,
@@ -97,6 +98,15 @@ export default async function HomePage({
   ]);
 
   const moneda = config?.moneda_base ?? "EUR";
+
+  // Mismos meses que en Informes: de nómina a nómina si está activado. Si el Resumen
+  // usara meses naturales y los Informes no, el mismo mes daría dos cifras distintas
+  // según la pantalla, que es justo lo que no puede pasar.
+  const opcionesMes = config
+    ? await obtenerOpcionesMesFinanciero(supabase, config)
+    : { activo: false, diaCorte: 25, anclas: [] };
+  const mesDeFecha = (fecha: string) => mesDe(fecha, opcionesMes);
+  const finDeMes = (year: number, month: number) => finMesFinanciero(year, month, opcionesMes);
   const objetivoAhorroMensual = config?.objetivo_ahorro_mensual ?? null;
   const incluirInversionEnAhorro = config?.incluir_inversion_en_ahorro ?? true;
 
@@ -182,7 +192,7 @@ export default async function HomePage({
 
   const mesesPasadosSolicitados = generarMesesHaciaAtras(MESES_PASADOS);
   const mesesPasadosDisponibles = primeraFecha
-    ? mesesPasadosSolicitados.filter((m) => `${m.year}-${String(m.month).padStart(2, "0")}` >= primeraFecha.slice(0, 7))
+    ? mesesPasadosSolicitados.filter((m) => `${m.year}-${String(m.month).padStart(2, "0")}` >= mesDeFecha(primeraFecha))
     : [];
 
   const mesesFuturos = generarMeses(MESES_FUTUROS);
@@ -219,6 +229,7 @@ export default async function HomePage({
           amortizacionesAplicadasPorDeuda,
           esCategoriaInversion,
           hoy,
+          finDeMes,
           valoracionesInversion,
           movimientosVinculadosAInversion,
         })
@@ -263,7 +274,7 @@ export default async function HomePage({
   // criterio (incluir_inversion_en_ahorro) que el resto de la app ----
   function aportacionInversionMesHistorico(mesLabel: string) {
     return historicoCompleto
-      .filter((m) => m.fecha.slice(0, 7) === mesLabel && m.tipo === "gasto" && esCategoriaInversion(m.categoria_id))
+      .filter((m) => mesDeFecha(m.fecha) === mesLabel && m.tipo === "gasto" && esCategoriaInversion(m.categoria_id))
       .reduce((suma, m) => suma + Math.abs(Number(m.importe)), 0);
   }
 
