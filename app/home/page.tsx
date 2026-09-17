@@ -75,7 +75,7 @@ export default async function HomePage({
       .from("cuentas")
       .select("id, nombre, banco_nombre, saldo_actual, es_remunerada, tipo_interes")
       .eq("activa", true),
-    supabase.from("inversiones").select("valor_actual"),
+    supabase.from("inversiones").select("valor_actual, coste_neto"),
     supabase
       .from("deudas")
       .select("id, capital_inicial, capital_pendiente, cuota, tipo_interes, valor_residual, fecha_inicio"),
@@ -111,6 +111,11 @@ export default async function HomePage({
   const totalCuentas = cuentasFiltradas.reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
   const totalInversion = (inversiones ?? []).reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
   const totalDeuda = (deudasRaw ?? []).reduce((sum, d) => sum + Number(d.capital_pendiente ?? 0), 0);
+  // Segunda línea de las tarjetas de Inversión y Deuda: sin ella quedaban con un título y
+  // un número sueltos, mucho más bajas que la de Liquidez, que lleva variación y gráfico.
+  const aportadoInversion = (inversiones ?? []).reduce((sum, i) => sum + Number(i.coste_neto ?? 0), 0);
+  const gananciaInversion = totalInversion - aportadoInversion;
+  const cuotaMensualDeuda = (deudasRaw ?? []).reduce((sum, d) => sum + Number(d.cuota ?? 0), 0);
   const patrimonio = totalCuentas + totalInversion - (conDeuda ? totalDeuda : 0);
 
   const deudasHistorico: DeudaParaHistorico[] = (deudasRaw ?? []).map((d) => ({
@@ -329,7 +334,9 @@ export default async function HomePage({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-[1.3fr_1fr_1fr] sm:items-start">
+        {/* Mismo ancho (`grid-cols-3`, sin el 1.3fr de antes) y mismo alto: sin
+            `items-start` las tres se estiran a la altura de la más alta. */}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
           <KpiDineroDisponible
             moneda={moneda}
             valor={totalCuentas}
@@ -337,24 +344,40 @@ export default async function HomePage({
             miniSerie={miniSerieLiquidez}
             titulo="Liquidez"
           />
-          <div className="rounded-card border border-border bg-surface p-6 shadow-card">
+          <div className="flex flex-col rounded-card border border-border bg-surface p-6 shadow-card">
             <p className="text-sm text-ink-secondary">Inversión</p>
-            <p className="mt-2.5 break-words font-sora text-[21px] font-bold text-ink sm:text-[30px]">{formatMonedaTabla(totalInversion, moneda)}</p>
-            {totalInversion === 0 && (
+            <p className="mt-2.5 break-words font-sora text-[21px] font-bold tabular-nums text-ink sm:text-[30px]">
+              {formatMonedaTabla(totalInversion, moneda)}
+            </p>
+            {totalInversion === 0 ? (
               <>
                 <p className="mt-3 text-xs text-ink-tertiary">Sin inversiones registradas todavía.</p>
                 <Link href="/inversiones" className="mt-1.5 inline-block text-xs font-semibold text-accent">
                   + Añadir inversión
                 </Link>
               </>
+            ) : (
+              <p
+                className={`mt-2 text-[13px] font-semibold tabular-nums ${
+                  gananciaInversion >= 0 ? "text-success" : "text-danger"
+                }`}
+              >
+                {gananciaInversion >= 0 ? "+" : "−"}
+                {formatMonedaTabla(Math.abs(gananciaInversion), moneda)} sobre lo aportado
+              </p>
             )}
           </div>
-          <div className="rounded-card border border-border bg-surface p-6 shadow-card">
+          <div className="flex flex-col rounded-card border border-border bg-surface p-6 shadow-card">
             <p className="text-sm text-ink-secondary">Deuda pendiente</p>
-            {!conDeuda && (
-              <p className="mt-1 text-[11px] font-semibold text-ink-tertiary">No descontada arriba</p>
+            <p className="mt-2.5 break-words font-sora text-[21px] font-bold tabular-nums text-ink sm:text-[30px]">
+              {formatMonedaTabla(totalDeuda, moneda)}
+            </p>
+            {cuotaMensualDeuda > 0 && (
+              <p className="mt-2 text-[13px] tabular-nums text-ink-tertiary">
+                {formatMonedaTabla(cuotaMensualDeuda, moneda)} al mes en cuotas
+              </p>
             )}
-            <p className="mt-2.5 break-words font-sora text-[21px] font-bold text-ink sm:text-[30px]">{formatMonedaTabla(totalDeuda, moneda)}</p>
+            {!conDeuda && <p className="mt-1 text-[11px] font-semibold text-ink-tertiary">No descontada arriba</p>}
           </div>
         </div>
 

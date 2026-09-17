@@ -27,7 +27,7 @@ export function KpiDineroDisponible({
   return (
     <div className="rounded-card border border-border bg-surface p-6 shadow-card">
       <p className="text-sm text-ink-secondary">{titulo}</p>
-      <div className="mt-2.5 flex items-end justify-between">
+      <div className="mt-2.5">
         <div>
           <p className="break-words font-sora text-2xl font-bold text-ink sm:text-[30px]">{formatEUR(valor)}</p>
           {variacion === null ? (
@@ -52,7 +52,7 @@ export function KpiDineroDisponible({
             </p>
           )}
         </div>
-        <div className="h-[34px] w-28 shrink-0">
+        <div className="mt-3 h-[34px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={miniSerie}>
               <YAxis hide domain={["dataMin", "dataMax"]} />

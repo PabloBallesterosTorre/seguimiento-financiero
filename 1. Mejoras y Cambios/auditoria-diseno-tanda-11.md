@@ -246,6 +246,26 @@ distintas, con tests para cada una:
   `cuotaCubreIntereses` en `lib/amortizacion.ts`, con tests que usan el caso real de la
   hipoteca.
 
+## Retoque posterior: las tres tarjetas del Resumen, iguales
+
+Pablo señaló que las tres tarjetas de la fila no medían lo mismo. No era solo percepción: la
+de Liquidez era `1.3fr` frente a `1fr` de las otras dos, y además `items-start` dejaba que
+cada una se ajustara a su contenido, así que la de Liquidez —con variación y minigráfico—
+era también bastante más alta.
+
+Igualadas con `grid-cols-3` y sin `items-start`: **259 × 232 px las tres**. Y como Inversión
+y Deuda se quedaban con un título y un número sueltos, se les dio una segunda línea con un
+dato que ya estaba cacheado y no cuesta ninguna consulta extra:
+
+- **Inversión** → la ganancia sobre lo aportado (`coste_neto` ya vive en la tabla).
+- **Deuda pendiente** → la suma de las cuotas mensuales.
+
+Al estrecharse la tarjeta apareció un efecto secundario que no se veía antes: el minigráfico
+de Liquidez (`w-28`, 112 px, con `shrink-0`) **se salía 51 px por la derecha** del borde de
+su tarjeta. Estaba ahí desde siempre, pero con la tarjeta más ancha no llegaba a asomar.
+Movido debajo del texto y a todo el ancho, que funciona a cualquier tamaño: ahora mide
+209 px y termina 25 px antes del borde.
+
 ## Pendiente
 
 **El capital inicial real de la hipoteca.** La validación ya está, pero el dato de
