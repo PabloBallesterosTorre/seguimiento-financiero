@@ -9,19 +9,46 @@ Pablo pidió estimar el cierre del mes con los previstos pendientes, pero avisó
 revisar la lógica que se utiliza de previsión"*. Tenía razón. Esto es lo que salió al
 contrastar los 23 previstos activos contra lo que de verdad pagó.
 
-## 1. Hay un previsto fantasma de 650 € al mes
+## 1. Una hipoteca de 150.000 € que paga otra persona
 
-| Previsto | Importe | Activo desde | Movimientos reales |
-|---|---:|---|---:|
-| Cuota Hipoteca vivienda habitual | 650,00 € | 2023-01-01 | **0** |
-| Cuota Hipoteca Pablo | 591,83 € | 2024-11-24 | 2 |
+Primero se diagnosticó como "un previsto fantasma de 650 €". Era un diagnóstico a medias y lo
+corrigió Pablo al preguntar: la deuda **sí existe**; lo que no existe es el pago.
 
-La categoría "Pago Hipoteca vivienda habitual" **no tiene un solo movimiento en todo el
-histórico**. La hipoteca real es la otra, y cuadra al céntimo: 591,83 € en agosto y 591,83 €
-en septiembre.
+Pablo y Marta son titulares cada uno de una vivienda. Él alquila la suya (1.800 €/mes de
+LOCALOCOM) y, con ese dinero, le transfiere a Marta su parte de la hipoteca de la vivienda
+en la que viven: 363 € al mes por Bizum. El recibo de esa hipoteca lo paga Marta al banco y
+**nunca sale de una cuenta suya**.
 
-Son **7.800 € al año de gasto inventado** metidos en cada proyección desde 2023. Es la causa
-más probable de que la previsión parezca pesimista.
+Los movimientos reales lo dicen todo:
+
+| Categoría | Importe | Descripción real |
+|---|---:|---|
+| Pago Hipoteca Pablo | 591,83 € | `OPERACION PRESTAMO-CREDITO-AVAL` — recibo del banco |
+| Pago Hipoteca Marta | 363,00 € | `Bizum payment to: Marta G.G.` |
+| Pago Hipoteca vivienda habitual | — | **ningún movimiento, nunca** |
+
+El daño era doble:
+
+- **En el flujo**: la previsión restaba 650 € que no ocurren *y además* los 363 € que sí.
+  1.013 € al mes por una vivienda que le cuesta 363 €.
+- **En el patrimonio**: la deuda figuraba con `capital_pendiente = capital_inicial =
+  150.000,00 €`, sin bajar un euro desde enero de 2023. El Resumen enseñaba **297.875,52 €**
+  de deuda cuando la real son **147.875,52 €**.
+
+Resuelto: borrados la deuda y su previsto. Queda solo la cuota real, 591,83 €.
+
+### La lección: una deuda puede cuadrar consigo misma y ser falsa
+
+Nada de esto se veía en la ficha de la deuda — capital, cuota e interés eran coherentes entre
+sí. Solo aparece al contrastarla con los movimientos. De ahí `lib/revisionDeudas.ts`, que se
+pinta arriba del todo en la pantalla de Deuda y avisa de tres cosas:
+
+1. **Una deuda sin un solo pago registrado** en su categoría (con dos meses de cortesía para
+   no molestar con una recién dada de alta). Es el caso de esta hipoteca.
+2. **Capital pendiente que sigue siendo el inicial** después de meses.
+3. **Lo que se paga no coincide con la cuota registrada**, comparando contra la *mediana* de
+   los pagos para que una amortización extra no dispare el aviso. Caza las revisiones de tipo
+   de los préstamos variables.
 
 ## 2. La mitad de los previstos no tiene cuenta
 
@@ -143,8 +170,7 @@ semanales la segunda pisaba a la primera por el `on conflict` y las demás desap
 
 ## Qué hacer, por orden
 
-1. **Borrar o desactivar** el previsto "Cuota Hipoteca vivienda habitual". Decisión de Pablo:
-   es su dato, no se toca sin que lo confirme.
+1. ~~Borrar el previsto "Cuota Hipoteca vivienda habitual"~~ — **hecho**, junto con su deuda.
 2. **Asignar cuenta** a los 10 previstos que no la tienen, al menos a los dos ambiguos.
 3. **Dar de alta Restaurantes** y subir Ocio a algo parecido a la realidad.
 4. **Marcar como presupuesto** los previstos que lo sean (Ocio, y Restaurantes cuando se dé
