@@ -14,6 +14,12 @@ export type MovimientoPrevisto = {
   fecha_fin: string | null;
   estado: "activo" | "pausado";
   origen_calculo: "fijo" | "media_categoria";
+  // false: transacción esperada (hipoteca, seguro, aportación periódica a inversión). Se
+  // cumple tal cual y deja de contar cuando se concilia con su movimiento real.
+  // true: presupuesto de categoría (ocio, restaurantes). En el mes en curso pierde el
+  // importe esperado en cuanto hay gasto real en esa categoría — ver
+  // ocurrenciasPendientesEnMes. Ver migración 0030.
+  es_presupuesto?: boolean;
 };
 
 export type ConciliacionPeriodo = { previsto_id: string; periodo: string; movimiento_real_id: string };
@@ -23,9 +29,36 @@ export type ConciliacionPeriodo = { previsto_id: string; periodo: string; movimi
 // como, en el propio llamador, para localizar la conciliación de un previsto en un mes
 // concreto (p. ej. para desvincularla).
 export function construirPeriodosConciliados(
-  conciliaciones: Pick<ConciliacionPeriodo, "previsto_id" | "periodo">[]
+  conciliaciones: Pick<ConciliacionPeriodo, "previsto_id" | "periodo">[],
+  mesDe: (fecha: string) => string = (f) => f.slice(0, 7)
 ): Set<string> {
-  return new Set(conciliaciones.map((c) => `${c.previsto_id}:${c.periodo.slice(0, 7)}`));
+  return new Set(conciliaciones.map((c) => `${c.previsto_id}:${mesDe(c.periodo)}`));
+}
+
+// CUÁNTAS conciliaciones tiene cada previsto en cada mes, no si tiene alguna.
+//
+// La diferencia importa en los previstos semanales. Las aportaciones a inversión son tres
+// previstos semanales: conciliar la aportación de la primera semana no significa que el mes
+// esté cumplido, quedan otras tres. Con el conjunto de "meses conciliados" a secas, enlazar
+// una sola semana borraba el mes entero de la previsión — unos 375 € de aportación que
+// desaparecían.
+//
+// Las conciliaciones antiguas guardaban el día 1 del mes como periodo, así que cuentan como
+// una y el comportamiento de los previstos mensuales no cambia.
+export function contarConciliacionesPorMes(
+  conciliaciones: Pick<ConciliacionPeriodo, "previsto_id" | "periodo">[],
+  // A qué mes pertenece la fecha guardada. Importa desde que el periodo es la fecha del
+  // movimiento real: una nómina del 28 de agosto pertenece al mes financiero de septiembre,
+  // y con el mes natural la conciliación se contaría en agosto y el previsto de septiembre
+  // seguiría pendiente.
+  mesDe: (fecha: string) => string = (f) => f.slice(0, 7)
+): Map<string, number> {
+  const cuenta = new Map<string, number>();
+  for (const c of conciliaciones) {
+    const clave = `${c.previsto_id}:${mesDe(c.periodo)}`;
+    cuenta.set(clave, (cuenta.get(clave) ?? 0) + 1);
+  }
+  return cuenta;
 }
 
 // Un previsto puede estar conciliado en varios meses, cada uno potencialmente con un
@@ -373,4 +406,46 @@ export function generarMesesHaciaAtras(n: number, ancla?: MesAncla): { year: num
   }
 
   return meses;
+}
+
+// Cuántas ocurrencias de un previsto siguen PENDIENTES en un mes: lo único que debe sumarse
+// a una proyección que arranca del saldo real de hoy.
+//
+// Descuenta tres cosas, en este orden:
+//
+// 1. Lo que no aplica en ese mes (periodicidad, fechas de inicio y fin, estado).
+// 2. Lo ya conciliado. Un movimiento real conciliado ya está dentro del saldo de partida;
+//    volver a sumarlo como previsión lo contaría dos veces. Se descuenta por OCURRENCIAS,
+//    no por mes, para que los semanales no desaparezcan enteros al conciliar una semana.
+// 3. Si es un presupuesto de categoría y ese mes ya tiene gasto real en su categoría, no
+//    aporta nada: el mes vale lo real. Los meses futuros no tienen gasto real, así que
+//    siguen valiendo el presupuesto.
+//
+// Un gasto puntual extra —una inversión que apetece hacer, una amortización -- NO se
+// confunde con el previsto: no lo concilia nadie por importe distinto, así que el previsto
+// sigue pendiente y el extra ya está en el saldo. Los dos suman, que es lo correcto.
+export function ocurrenciasPendientesEnMes(
+  p: MovimientoPrevisto,
+  year: number,
+  month: number,
+  opciones: {
+    conciliacionesPorMes?: Map<string, number>;
+    // Claves "categoriaId:YYYY-MM" de las categorías que ya tienen movimiento real en ese mes.
+    categoriasConMovimiento?: ReadonlySet<string>;
+  } = {}
+): number {
+  const { conciliacionesPorMes = new Map(), categoriasConMovimiento = new Set<string>() } = opciones;
+
+  const total = ocurrenciasEnMes(p, year, month);
+  if (total === 0) return 0;
+
+  const mesClave = `${year}-${String(month).padStart(2, "0")}`;
+
+  if (p.es_presupuesto) {
+    if (p.categoria_id && categoriasConMovimiento.has(`${p.categoria_id}:${mesClave}`)) return 0;
+    return total;
+  }
+
+  const conciliadas = conciliacionesPorMes.get(`${p.id}:${mesClave}`) ?? 0;
+  return Math.max(total - conciliadas, 0);
 }

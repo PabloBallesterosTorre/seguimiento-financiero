@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import {
   construirPeriodosConciliados,
   generarMeses,
+  contarConciliacionesPorMes,
+  ocurrenciasPendientesEnMes,
   importeEfectivoPrevisto,
   ocurrenciasEnMes,
   previstoAplicaEnMes,
@@ -13,7 +15,8 @@ import {
 import { calcularInteresesPrevistos } from "@/lib/intereses";
 import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccionPatrones";
 import { desvincularMovimientoPrevisto, vincularMovimientoPrevisto } from "./actions";
-import { obtenerConfiguracion } from "@/lib/configuracion";
+import { obtenerConfiguracion, obtenerOpcionesMesFinanciero } from "@/lib/configuracion";
+import { mesDe } from "@/lib/mesFinanciero";
 import { formatMoneda } from "@/lib/formato";
 import { filtrarMovimientosPorCuentasSeleccionadas, resolverCuentasSeleccionadas } from "@/lib/informes";
 import { SelectorCuentas } from "@/components/SelectorCuentas";
@@ -90,7 +93,6 @@ export default async function PrevisionPage({
   );
 
   const conciliaciones = conciliacionesRaw ?? [];
-  const periodosConciliados = construirPeriodosConciliados(conciliaciones);
 
   const cuentasRemuneradas = cuentasFiltradas
     .filter((c) => c.es_remunerada && c.tipo_interes !== null)
@@ -112,7 +114,23 @@ export default async function PrevisionPage({
   ) as unknown as MovimientoHistorico[];
   const mediaPorCategoria = mapaMediaPorCategoria(historico, categoriaEfectiva);
 
-  const mesesHorizonte = generarMeses(horizonte);
+  // Mismos meses que el resto de la app: de nómina a nómina si está activado.
+  const opcionesMes = config
+    ? await obtenerOpcionesMesFinanciero(supabase, config)
+    : { activo: false, diaCorte: 25, anclas: [] };
+  const mesDeFecha = (fecha: string) => mesDe(fecha, opcionesMes);
+  const mesActualLabel = mesDeFecha(new Date().toISOString().slice(0, 10));
+  const mesEnCurso = { year: Number(mesActualLabel.slice(0, 4)), month: Number(mesActualLabel.slice(5, 7)) };
+
+  const periodosConciliados = construirPeriodosConciliados(conciliaciones, mesDeFecha);
+  const conciliacionesPorMes = contarConciliacionesPorMes(conciliaciones, mesDeFecha);
+  const categoriasConMovimiento = new Set(
+    historico
+      .filter((m) => m.categoria_id)
+      .map((m) => `${m.categoria_id}:${mesDeFecha(m.fecha)}`)
+  );
+
+  const mesesHorizonte = generarMeses(horizonte, mesEnCurso);
   const interesesPorMes = calcularInteresesPrevistos(
     cuentasRemuneradas,
     previstos,
@@ -122,11 +140,18 @@ export default async function PrevisionPage({
   );
 
   const meses = mesesHorizonte.map((mes) => {
-    const aplicables = previstos.filter(
-      (p) =>
-        previstoAplicaEnMes(p, mes.year, mes.month) &&
-        !previstoYaMaterializadoEnMes(p.id, mes.year, mes.month, periodosConciliados)
-    );
+    // Cuántas ocurrencias quedan pendientes de cada previsto: descuenta lo ya conciliado
+    // ocurrencia a ocurrencia (los semanales no se cumplen enteros de golpe) y apaga los
+    // presupuestos de categoría cuyo mes ya tiene gasto real.
+    const pendientes = new Map<string, number>();
+    for (const p of previstos) {
+      const n = ocurrenciasPendientesEnMes(p, mes.year, mes.month, {
+        conciliacionesPorMes,
+        categoriasConMovimiento,
+      });
+      if (n > 0) pendientes.set(p.id, n);
+    }
+    const aplicables = previstos.filter((p) => pendientes.has(p.id));
     const traspasos = aplicables.filter((p) => p.tipo === "traspaso");
     const resto = aplicables.filter((p) => p.tipo !== "traspaso");
 
@@ -136,7 +161,7 @@ export default async function PrevisionPage({
       const nombre = p.categoria_id ? nombreCategoria.get(p.categoria_id) ?? "Categoría eliminada" : "Sin categoría";
       const signo = p.tipo === "ingreso" ? 1 : -1;
       const actual = porCategoria.get(clave) ?? { nombre, importe: 0 };
-      actual.importe += signo * importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrenciasEnMes(p, mes.year, mes.month);
+      actual.importe += signo * importeEfectivoPrevisto(p, mediaPorCategoria) * (pendientes.get(p.id) ?? 0);
       porCategoria.set(clave, actual);
     }
 
@@ -147,7 +172,7 @@ export default async function PrevisionPage({
 
     const totalMes = Array.from(porCategoria.values()).reduce((sum, c) => sum + c.importe, 0);
 
-    return { ...mes, porCategoria: Array.from(porCategoria.entries()), totalMes, traspasos, previstosMes: resto };
+    return { ...mes, porCategoria: Array.from(porCategoria.entries()), totalMes, traspasos, previstosMes: resto, pendientes };
   });
 
   let saldoAcumulado = saldoInicial;
@@ -157,19 +182,25 @@ export default async function PrevisionPage({
   });
 
   const mesActual = mesesConSaldo[0];
-  const periodoActual = mesActual ? `${mesActual.year}-${String(mesActual.month).padStart(2, "0")}-01` : null;
-  const movimientoRealPorPrevistoEnPeriodoActual = new Map(
-    conciliaciones.filter((c) => c.periodo.slice(0, 7) === periodoActual?.slice(0, 7)).map((c) => [c.previsto_id, c.movimiento_real_id])
-  );
-  // previstosMes ya excluye los conciliados para este periodo (previstoYaMaterializadoEnMes
-  // arriba), así que basta con listar los que quedan como "sin vincular".
+  const claveMesActual = mesActual ? `${mesActual.year}-${String(mesActual.month).padStart(2, "0")}` : null;
+
+  // Las conciliaciones del mes en curso, una por una y no una por previsto: un previsto
+  // semanal puede tener varias, y cada una se desvincula por su cuenta. Cada fila lleva su
+  // propio `periodo` (la fecha del movimiento real), que es la clave con la que se borra.
+  const conciliacionesDelMes = claveMesActual
+    ? conciliaciones
+        .filter((c) => mesDeFecha(c.periodo) === claveMesActual)
+        .map((c) => ({
+          ...c,
+          previsto: previstos.find((p) => p.id === c.previsto_id) ?? null,
+        }))
+        .filter((c) => c.previsto !== null)
+        .sort((a, b) => (a.periodo < b.periodo ? -1 : 1))
+    : [];
+
+  // previstosMes ya solo trae los que tienen ocurrencias PENDIENTES, así que un semanal a
+  // medio conciliar sigue apareciendo aquí con las que le quedan.
   const previstosSinVincular = mesActual?.previstosMes ?? [];
-  const previstosVinculados = previstos.filter(
-    (p) =>
-      movimientoRealPorPrevistoEnPeriodoActual.has(p.id) &&
-      mesActual &&
-      previstoAplicaEnMes(p, mesActual.year, mesActual.month)
-  );
 
   const cuentasQS =
     cuentasSeleccionadas.size === idsCuentasActivas.length ? "" : `&cuentas=${Array.from(cuentasSeleccionadas).join(",")}`;
@@ -305,7 +336,7 @@ export default async function PrevisionPage({
           </div>
         )}
 
-        {(previstosSinVincular.length > 0 || previstosVinculados.length > 0) && (
+        {(previstosSinVincular.length > 0 || conciliacionesDelMes.length > 0) && (
           <div className="space-y-4 rounded-card border border-border bg-surface p-6 shadow-card">
             <h2 className="font-sora text-base font-semibold text-ink">Conciliación — {mesActual?.label}</h2>
             <p className="text-xs text-ink-tertiary">
@@ -319,10 +350,19 @@ export default async function PrevisionPage({
               );
               return (
                 <form key={p.id} action={vincularMovimientoPrevisto} className="flex items-center gap-2 text-sm">
+                  {/* El periodo ya no se manda: lo deduce el servidor de la fecha del
+                      movimiento elegido, que es lo que permite varias conciliaciones de un
+                      mismo previsto semanal dentro del mes. */}
                   <input type="hidden" name="previsto_id" value={p.id} />
-                  <input type="hidden" name="periodo" value={periodoActual ?? ""} />
-                  <span className="w-48 truncate text-ink-secondary">{p.descripcion}</span>
-                  <span className="text-ink-tertiary">{formatEUR(importeEfectivoPrevisto(p, mediaPorCategoria))}</span>
+                  <span className="w-48 truncate text-ink-secondary" title={p.descripcion}>
+                    {p.descripcion}
+                  </span>
+                  <span className="shrink-0 text-ink-tertiary">
+                    {formatEUR(importeEfectivoPrevisto(p, mediaPorCategoria))}
+                    {(mesActual?.pendientes.get(p.id) ?? 1) > 1 && (
+                      <span className="ml-1.5 text-xs">× {mesActual?.pendientes.get(p.id)} pendientes</span>
+                    )}
+                  </span>
                   <select
                     name="movimiento_id"
                     className="flex-1 rounded-btn border border-border-strong bg-field px-2 py-1.5 text-sm"
@@ -345,13 +385,24 @@ export default async function PrevisionPage({
               );
             })}
 
-            {previstosVinculados.map((p) => (
-              <form key={p.id} action={desvincularMovimientoPrevisto} className="flex items-center gap-2 text-sm">
-                <input type="hidden" name="previsto_id" value={p.id} />
-                <input type="hidden" name="periodo" value={periodoActual ?? ""} />
-                <span className="w-48 truncate text-ink-secondary">{p.descripcion}</span>
+            {conciliacionesDelMes.map((c) => (
+              <form
+                key={`${c.previsto_id}:${c.periodo}`}
+                action={desvincularMovimientoPrevisto}
+                className="flex items-center gap-2 text-sm"
+              >
+                <input type="hidden" name="previsto_id" value={c.previsto_id} />
+                <input type="hidden" name="periodo" value={c.periodo} />
+                <span className="w-48 truncate text-ink-secondary" title={c.previsto?.descripcion}>
+                  {c.previsto?.descripcion}
+                </span>
                 <span className="rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-semibold text-success">
                   Vinculado
+                </span>
+                <span className="text-xs text-ink-tertiary">
+                  {new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short", timeZone: "UTC" }).format(
+                    new Date(`${c.periodo}T00:00:00Z`)
+                  )}
                 </span>
                 <button type="submit" className="text-xs text-ink-tertiary hover:text-danger">
                   Desvincular

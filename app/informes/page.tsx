@@ -3,11 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import {
   construirPeriodosConciliados,
+  contarConciliacionesPorMes,
   generarMeses,
   generarMesesHaciaAtras,
-  ocurrenciasEnMes,
-  previstoAplicaEnMes,
-  previstoYaMaterializadoEnMes,
+  ocurrenciasPendientesEnMes,
   importeEfectivoPrevisto,
   construirDiagnosticoPrevision,
   type MovimientoPrevisto,
@@ -229,7 +228,17 @@ export default async function InformesPage({
     movimientosContrarios: f.movimientosContrarios,
   });
 
-  const periodosConciliados = construirPeriodosConciliados(conciliacionesRaw ?? []);
+  const periodosConciliados = construirPeriodosConciliados(conciliacionesRaw ?? [], mesDeFecha);
+  // Por OCURRENCIAS, no por mes: los previstos semanales (las aportaciones a inversión)
+  // no deben darse por cumplidos enteros al conciliar una sola semana.
+  const conciliacionesPorMes = contarConciliacionesPorMes(conciliacionesRaw ?? [], mesDeFecha);
+  // Categorías que ya tienen movimiento real en cada mes financiero. Es lo que hace que un
+  // presupuesto de categoría deje de aportar en el mes en curso: ese mes ya vale lo real.
+  const categoriasConMovimiento = new Set(
+    historicoCompleto
+      .filter((m) => m.categoria_id)
+      .map((m) => `${m.categoria_id}:${mesDeFecha(m.fecha)}`)
+  );
 
   // ---- Horizonte: rango de histórico elegido (limitado a los datos disponibles) + previsión que le sigue ----
   const rangoMesesPasados = rango === "todos" ? 240 : Number(rango);
@@ -293,7 +302,8 @@ export default async function InformesPage({
     amortizacionesProgramadas,
     esCategoriaInversion,
     mediaPorCategoria,
-    periodosConciliados,
+    conciliacionesPorMes,
+    categoriasConMovimiento,
     rentabilidadAnualAsumidaInversion: rentabilidadAsumida,
   });
 
@@ -340,9 +350,12 @@ export default async function InformesPage({
     let gastos = 0;
     for (const p of previstos) {
       if (p.tipo === "traspaso") continue;
-      if (!previstoAplicaEnMes(p, year, month)) continue;
-      if (previstoYaMaterializadoEnMes(p.id, year, month, periodosConciliados)) continue;
-      const importe = importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrenciasEnMes(p, year, month);
+      const ocurrencias = ocurrenciasPendientesEnMes(p, year, month, {
+        conciliacionesPorMes,
+        categoriasConMovimiento,
+      });
+      if (ocurrencias === 0) continue;
+      const importe = importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrencias;
       if (p.tipo === "ingreso") ingresos += importe;
       else gastos += -importe;
     }

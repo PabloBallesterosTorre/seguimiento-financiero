@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { construirPeriodosConciliados, generarMeses, generarMesesHaciaAtras, type MovimientoPrevisto } from "@/lib/prevision";
+import { construirPeriodosConciliados, contarConciliacionesPorMes, generarMeses, generarMesesHaciaAtras, type MovimientoPrevisto } from "@/lib/prevision";
 import { calcularInteresesPrevistos } from "@/lib/intereses";
 import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccionPatrones";
 import {
@@ -176,7 +176,17 @@ export default async function PlanificadorPage({
   ) as unknown as MovimientoHistorico[];
   const mediaPorCategoria = mapaMediaPorCategoria(historico, categoriaEfectiva);
 
-  const periodosConciliados = construirPeriodosConciliados(conciliacionesRaw ?? []);
+  const periodosConciliados = construirPeriodosConciliados(conciliacionesRaw ?? [], mesDeFecha);
+  // Por OCURRENCIAS, no por mes: los previstos semanales (las aportaciones a inversión)
+  // no deben darse por cumplidos enteros al conciliar una sola semana.
+  const conciliacionesPorMes = contarConciliacionesPorMes(conciliacionesRaw ?? [], mesDeFecha);
+  // Categorías que ya tienen movimiento real en cada mes financiero. Es lo que hace que un
+  // presupuesto de categoría deje de aportar en el mes en curso: ese mes ya vale lo real.
+  const categoriasConMovimiento = new Set(
+    historico
+      .filter((m) => m.categoria_id)
+      .map((m) => `${m.categoria_id}:${mesDeFecha(m.fecha)}`)
+  );
 
   const meses = generarMeses(horizonteMeses, mesEnCurso);
   const interesesPorMes = calcularInteresesPrevistos(
@@ -198,7 +208,8 @@ export default async function PlanificadorPage({
     mediaPorCategoria,
     amortizacionesProgramadas,
     esCategoriaInversion,
-    periodosConciliados,
+    conciliacionesPorMes,
+    categoriasConMovimiento,
     rentabilidadAnualAsumidaInversion: rentabilidadAsumida,
   });
 

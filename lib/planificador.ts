@@ -1,6 +1,7 @@
 import {
   importeEfectivoPrevisto,
   ocurrenciasEnMes,
+  ocurrenciasPendientesEnMes,
   previstoAplicaEnMes,
   previstoYaMaterializadoEnMes,
   type MovimientoPrevisto,
@@ -61,7 +62,11 @@ export function construirProyeccionPatrimonio(params: {
   amortizacionesProgramadas: AmortizacionProgramadaDeuda[];
   esCategoriaInversion: (categoriaId: string | null) => boolean;
   mediaPorCategoria?: Map<string, number>;
-  periodosConciliados?: Set<string>;
+  // Cuántas ocurrencias de cada previsto están ya conciliadas en cada mes, y qué categorías
+  // tienen ya gasto real en cada mes. Los dos se usan en ocurrenciasPendientesEnMes, que es
+  // quien decide cuánto de cada previsto queda por ocurrir.
+  conciliacionesPorMes?: Map<string, number>;
+  categoriasConMovimiento?: ReadonlySet<string>;
   rentabilidadAnualAsumidaInversion?: number | null;
 }): PuntoProyeccion[] {
   const {
@@ -75,7 +80,8 @@ export function construirProyeccionPatrimonio(params: {
     amortizacionesProgramadas,
     esCategoriaInversion,
     mediaPorCategoria = new Map(),
-    periodosConciliados = new Set(),
+    conciliacionesPorMes = new Map(),
+    categoriasConMovimiento = new Set<string>(),
     rentabilidadAnualAsumidaInversion = null,
   } = params;
   const tasaMensualInversion = rentabilidadAnualAsumidaInversion
@@ -104,17 +110,18 @@ export function construirProyeccionPatrimonio(params: {
   let valorInversion = valorInversionInicial;
 
   return meses.map((mes, i) => {
-    const aplicables = previstos.filter(
-      (p) =>
-        p.tipo !== "traspaso" &&
-        previstoAplicaEnMes(p, mes.year, mes.month) &&
-        !previstoYaMaterializadoEnMes(p.id, mes.year, mes.month, periodosConciliados)
-    );
     let flujoNeto = interesesPorMes.get(`${mes.year}-${mes.month}`) ?? 0;
     let aportacionInversion = 0;
 
-    for (const p of aplicables) {
-      const importe = importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrenciasEnMes(p, mes.year, mes.month);
+    for (const p of previstos) {
+      if (p.tipo === "traspaso") continue;
+      const ocurrencias = ocurrenciasPendientesEnMes(p, mes.year, mes.month, {
+        conciliacionesPorMes,
+        categoriasConMovimiento,
+      });
+      if (ocurrencias === 0) continue;
+
+      const importe = importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrencias;
       const signo = p.tipo === "ingreso" ? 1 : -1;
       flujoNeto += signo * importe;
       if (p.tipo === "gasto" && esCategoriaInversion(p.categoria_id)) {

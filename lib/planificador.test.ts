@@ -5,7 +5,7 @@ import {
   construirProyeccionPatrimonio,
   type PuntoProyeccion,
 } from "./planificador";
-import { construirPeriodosConciliados, type MovimientoPrevisto } from "./prevision";
+import { contarConciliacionesPorMes, type MovimientoPrevisto } from "./prevision";
 import { simularConProgramadas, type TipoReduccion } from "./amortizacion";
 
 // Calcula el saldo teórico "puro" (sin el anclaje al capital pendiente real que aplica
@@ -165,7 +165,7 @@ describe("construirProyeccionPatrimonio", () => {
   });
 
   it("un previsto ya conciliado para ese mismo mes no se cuenta dos veces", () => {
-    const periodosConciliados = construirPeriodosConciliados([{ previsto_id: "p1", periodo: "2026-01-01" }]);
+    const periodosConciliados = contarConciliacionesPorMes([{ previsto_id: "p1", periodo: "2026-01-01" }]);
     const puntos = construirProyeccionPatrimonio({
       meses,
       fechaInicio: "2026-01-01",
@@ -176,7 +176,7 @@ describe("construirProyeccionPatrimonio", () => {
       deudas: [],
       amortizacionesProgramadas: [],
       esCategoriaInversion: () => false,
-      periodosConciliados,
+      conciliacionesPorMes: periodosConciliados,
     });
 
     expect(puntos[0].flujoNeto).toBe(0);
@@ -184,7 +184,7 @@ describe("construirProyeccionPatrimonio", () => {
   });
 
   it("un previsto conciliado en OTRO mes sí se proyecta con normalidad en este", () => {
-    const periodosConciliados = construirPeriodosConciliados([{ previsto_id: "p1", periodo: "2025-12-01" }]);
+    const periodosConciliados = contarConciliacionesPorMes([{ previsto_id: "p1", periodo: "2025-12-01" }]);
     const puntos = construirProyeccionPatrimonio({
       meses,
       fechaInicio: "2026-01-01",
@@ -195,7 +195,7 @@ describe("construirProyeccionPatrimonio", () => {
       deudas: [],
       amortizacionesProgramadas: [],
       esCategoriaInversion: () => false,
-      periodosConciliados,
+      conciliacionesPorMes: periodosConciliados,
     });
 
     expect(puntos[0].flujoNeto).toBeCloseTo(-800, 2);

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   generarMeses,
   generarMesesHaciaAtras,
+  ocurrenciasPendientesEnMes,
+  contarConciliacionesPorMes,
   categoriaEfectivaId,
   construirDiagnosticoPrevision,
   construirPeriodosConciliados,
@@ -434,5 +436,83 @@ describe("generarMeses y generarMesesHaciaAtras con ancla", () => {
   it("sin ancla se sigue contando desde el mes natural de hoy", () => {
     const hoy = new Date();
     expect(generarMeses(1)[0]).toMatchObject({ year: hoy.getFullYear(), month: hoy.getMonth() + 1 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tanda 12: previstos fijos, presupuestos y conciliación por ocurrencias
+// ---------------------------------------------------------------------------
+
+describe("ocurrenciasPendientesEnMes", () => {
+  const base = {
+    id: "p1",
+    tipo: "gasto" as const,
+    estado: "activo" as const,
+    origen_calculo: "fijo" as const,
+    categoria_id: "ocio",
+    importe_estimado: 400,
+    importe_min: null,
+    importe_max: null,
+    tipo_recurrencia: "recurrente" as const,
+    fecha: null,
+    fecha_fin: null,
+  };
+
+  const semanal = { ...base, id: "inv", categoria_id: "inversion", periodicidad: "semanal" as const, fecha_inicio: "2026-09-02", importe_estimado: 50 };
+  const mensual = { ...base, id: "hipoteca", categoria_id: "hipoteca", periodicidad: "mensual" as const, fecha_inicio: "2026-01-01" };
+  const presupuesto = { ...base, periodicidad: "mensual" as const, fecha_inicio: "2026-01-01", es_presupuesto: true };
+
+  it("un previsto fijo sin conciliar cuenta entero", () => {
+    expect(ocurrenciasPendientesEnMes(mensual as never, 2026, 9)).toBe(1);
+  });
+
+  it("un previsto fijo conciliado deja de contar", () => {
+    const conciliaciones = contarConciliacionesPorMes([{ previsto_id: "hipoteca", periodo: "2026-09-01" }]);
+    expect(ocurrenciasPendientesEnMes(mensual as never, 2026, 9, { conciliacionesPorMes: conciliaciones })).toBe(0);
+  });
+
+  it("conciliar UNA semana no borra las demás", () => {
+    // Septiembre de 2026 tiene 5 miércoles desde el día 2: 2, 9, 16, 23 y 30.
+    const total = ocurrenciasPendientesEnMes(semanal as never, 2026, 9);
+    expect(total).toBeGreaterThan(1);
+
+    const conciliaciones = contarConciliacionesPorMes([{ previsto_id: "inv", periodo: "2026-09-09" }]);
+    expect(ocurrenciasPendientesEnMes(semanal as never, 2026, 9, { conciliacionesPorMes: conciliaciones })).toBe(total - 1);
+  });
+
+  it("nunca baja de cero aunque haya más conciliaciones que ocurrencias", () => {
+    const conciliaciones = contarConciliacionesPorMes([
+      { previsto_id: "hipoteca", periodo: "2026-09-01" },
+      { previsto_id: "hipoteca", periodo: "2026-09-15" },
+    ]);
+    expect(ocurrenciasPendientesEnMes(mensual as never, 2026, 9, { conciliacionesPorMes: conciliaciones })).toBe(0);
+  });
+
+  it("un presupuesto cuenta entero mientras el mes no tenga gasto real", () => {
+    expect(ocurrenciasPendientesEnMes(presupuesto as never, 2026, 10, { categoriasConMovimiento: new Set(["ocio:2026-09"]) })).toBe(1);
+  });
+
+  it("un presupuesto deja de contar en cuanto hay gasto real en su categoría", () => {
+    expect(ocurrenciasPendientesEnMes(presupuesto as never, 2026, 9, { categoriasConMovimiento: new Set(["ocio:2026-09"]) })).toBe(0);
+  });
+
+  it("a un presupuesto no le afectan las conciliaciones", () => {
+    // Un presupuesto no representa una transacción concreta, así que no se concilia: lo que
+    // lo apaga es que su categoría tenga gasto real, no un enlace.
+    const conciliaciones = contarConciliacionesPorMes([{ previsto_id: "p1", periodo: "2026-09-01" }]);
+    expect(ocurrenciasPendientesEnMes(presupuesto as never, 2026, 9, { conciliacionesPorMes: conciliaciones })).toBe(1);
+  });
+
+  it("un gasto extra no apaga un previsto fijo de la misma categoría", () => {
+    // Una inversión puntual que apetece hacer, o una amortización: ya está en el saldo real
+    // y el previsto sigue pendiente. Los dos suman, que es lo que pidió el usuario.
+    const total = ocurrenciasPendientesEnMes(semanal as never, 2026, 9);
+    expect(
+      ocurrenciasPendientesEnMes(semanal as never, 2026, 9, { categoriasConMovimiento: new Set(["inversion:2026-09"]) })
+    ).toBe(total);
+  });
+
+  it("un previsto pausado no cuenta nunca", () => {
+    expect(ocurrenciasPendientesEnMes({ ...mensual, estado: "pausado" } as never, 2026, 9)).toBe(0);
   });
 });

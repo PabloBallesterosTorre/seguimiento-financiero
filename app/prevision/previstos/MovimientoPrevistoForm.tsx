@@ -13,6 +13,7 @@ export type PrevistoParaEditar = {
   categoria_id: string | null;
   cuenta_id: string | null;
   importe_estimado: number;
+  es_presupuesto?: boolean;
   importe_min: number | null;
   importe_max: number | null;
   tipo_recurrencia: "unica_vez" | "recurrente";
@@ -151,6 +152,29 @@ export function MovimientoPrevistoForm({
           />
         </div>
       )}
+
+      {/* Fijo o presupuesto: no es de dónde sale el importe (eso es `origen_calculo`),
+          sino cómo se comporta el previsto dentro del mes en curso. Ver migración 0030. */}
+      <div className="sm:col-span-3">
+        <label className="flex cursor-pointer items-start gap-2.5">
+          <input
+            type="checkbox"
+            name="es_presupuesto"
+            defaultChecked={previsto?.es_presupuesto ?? false}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span>
+            <span className="block text-sm text-ink">Es un presupuesto de categoría, no un pago concreto</span>
+            <span className="mt-1 block text-xs text-ink-tertiary">
+              Para gastos que van rotando, como ocio o restaurantes: el importe es lo que cuentas gastarte, no
+              un recibo que vaya a llegar. En cuanto el mes en curso tiene gasto real en esa categoría, el
+              presupuesto deja de contar y el mes pasa a valer lo gastado de verdad. Déjalo sin marcar para
+              hipotecas, seguros, comunidades y aportaciones periódicas a inversión, que se cumplen tal cual y
+              se concilian con su movimiento.
+            </span>
+          </span>
+        </label>
+      </div>
 
       <div className="sm:col-span-3">
         <label className={labelClass}>Recurrencia</label>

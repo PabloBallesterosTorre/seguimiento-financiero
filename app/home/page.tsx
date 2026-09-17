@@ -6,11 +6,10 @@ import { mesDe, finMesFinanciero, inicioMesFinanciero } from "@/lib/mesFinancier
 import { formatMoneda, formatMonedaTabla } from "@/lib/formato";
 import {
   construirPeriodosConciliados,
+  contarConciliacionesPorMes,
   generarMeses,
   generarMesesHaciaAtras,
-  ocurrenciasEnMes,
-  previstoAplicaEnMes,
-  previstoYaMaterializadoEnMes,
+  ocurrenciasPendientesEnMes,
   importeEfectivoPrevisto,
   type MovimientoPrevisto,
   type CategoriaInfo,
@@ -203,7 +202,17 @@ export default async function HomePage({
   const historicoParaMedia = historicoCompleto as unknown as MovimientoHistorico[];
   const mediaPorCategoria = mapaMediaPorCategoria(historicoParaMedia, categoriaEfectiva);
 
-  const periodosConciliados = construirPeriodosConciliados(conciliacionesRaw ?? []);
+  const periodosConciliados = construirPeriodosConciliados(conciliacionesRaw ?? [], mesDeFecha);
+  // Por OCURRENCIAS, no por mes: los previstos semanales (las aportaciones a inversión)
+  // no deben darse por cumplidos enteros al conciliar una sola semana.
+  const conciliacionesPorMes = contarConciliacionesPorMes(conciliacionesRaw ?? [], mesDeFecha);
+  // Categorías que ya tienen movimiento real en cada mes financiero. Es lo que hace que un
+  // presupuesto de categoría deje de aportar en el mes en curso: ese mes ya vale lo real.
+  const categoriasConMovimiento = new Set(
+    historicoCompleto
+      .filter((m) => m.categoria_id)
+      .map((m) => `${m.categoria_id}:${mesDeFecha(m.fecha)}`)
+  );
 
   const primeraFecha = historicoCompleto.reduce(
     (min, m) => (min === null || m.fecha < min ? m.fecha : min),
@@ -270,7 +279,8 @@ export default async function HomePage({
     amortizacionesProgramadas,
     esCategoriaInversion,
     mediaPorCategoria,
-    periodosConciliados,
+    conciliacionesPorMes,
+    categoriasConMovimiento,
   });
 
   const puntos = [...puntosHistoricos, ...puntosFuturos];
@@ -325,9 +335,11 @@ export default async function HomePage({
     let suma = 0;
     for (const p of previstos) {
       if (p.tipo !== "gasto" || !esCategoriaInversion(p.categoria_id)) continue;
-      if (!previstoAplicaEnMes(p, year, month)) continue;
-      if (previstoYaMaterializadoEnMes(p.id, year, month, periodosConciliados)) continue;
-      suma += importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrenciasEnMes(p, year, month);
+      const ocurrencias = ocurrenciasPendientesEnMes(p, year, month, {
+        conciliacionesPorMes,
+        categoriasConMovimiento,
+      });
+      suma += importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrencias;
     }
     return suma;
   }

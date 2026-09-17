@@ -77,13 +77,64 @@ los gastos de la casa —ya anotado en la tanda 12—, así que su media no sign
 parece. Se arregla separando "Alquiler" de los gastos de vivienda, que es decisión de
 categorización.
 
+## Lo aplicado: fijos, presupuestos y conciliación por ocurrencias
+
+### Los previstos no eran todos la misma cosa
+
+Migración `0030`: `movimientos_previstos.es_presupuesto`.
+
+- **Fijo** (por defecto): una transacción esperada de importe conocido — hipoteca, seguros,
+  comunidad, aportación periódica a inversión. Se cumple tal cual y deja de contar cuando se
+  concilia con su movimiento real.
+- **Presupuesto**: un techo de categoría — "cuento con 400 € de ocio". En cuanto el mes en
+  curso tiene gasto real en esa categoría, el presupuesto deja de aportar y el mes vale lo
+  gastado de verdad. Los meses futuros siguen valiendo el presupuesto.
+
+Sin esta distinción el mes en curso contaba las dos cosas: el gasto real ya estaba descontado
+del saldo y encima se le sumaba el previsto entero.
+
+No se reutilizó `origen_calculo` a propósito. Ese campo dice de dónde sale el **importe**;
+este dice cómo se **comporta** el previsto dentro del mes. Son dos ejes distintos y
+mezclarlos es el mismo error que ya se cometió con `cuentas.tipo` (tanda 12).
+
+### La conciliación se contaba por mes, no por ocurrencia
+
+Las tres aportaciones a inversión son previstos **semanales**. La conciliación guardaba una
+marca por previsto y mes, así que enlazar la aportación de una sola semana daba el mes entero
+por cumplido y borraba las otras cuatro: unos **375 € de aportación prevista que
+desaparecían**.
+
+Ahora se cuentan ocurrencias (`contarConciliacionesPorMes` + `ocurrenciasPendientesEnMes`) y
+el periodo guardado es la **fecha del movimiento real**, no el día 1 del mes — que es lo que
+permite varias conciliaciones de un mismo previsto dentro del mes, por la clave única
+`(previsto_id, periodo)`. Las conciliaciones antiguas guardaban el día 1 y siguen contando
+como una, así que los previstos mensuales no cambian de comportamiento.
+
+El mes de una conciliación se calcula con el **mes financiero**, no con
+`periodo.slice(0, 7)`: una nómina del 28 de agosto pertenece a septiembre, y con el mes
+natural la conciliación caería en agosto mientras el previsto de septiembre seguiría
+pendiente.
+
+### Un extra puntual suma, no sustituye
+
+Una inversión que apetece hacer o una amortización anticipada **se suman** a lo previsto. En
+deuda ya era así (las amortizaciones extra viven en su propia tabla). En inversión funciona
+porque nadie concilia un previsto de 50 € con un movimiento de 200 €: el extra ya está en el
+saldo real y el previsto sigue pendiente. Hay un test que lo fija.
+
 ## Qué hacer, por orden
 
 1. **Borrar o desactivar** el previsto "Cuota Hipoteca vivienda habitual". Decisión de Pablo:
    es su dato, no se toca sin que lo confirme.
 2. **Asignar cuenta** a los 10 previstos que no la tienen, al menos a los dos ambiguos.
 3. **Dar de alta Restaurantes** y subir Ocio a algo parecido a la realidad.
-4. Con eso hecho, la estimación de cierre del mes se puede apoyar en la previsión.
+4. **Marcar como presupuesto** los previstos que lo sean (Ocio, y Restaurantes cuando se dé
+   de alta). Los fijos se quedan como están.
+5. Con eso hecho, la estimación de cierre del mes se puede apoyar en la previsión.
+
+Sigue pendiente que la conciliación sea **automática al importar**: hoy hay que enlazar a
+mano y en toda la base de datos solo hay tres conciliaciones, las tres de agosto. Mientras no
+lo sea, los previstos fijos ya pagados del mes en curso se siguen contando dos veces.
 
 Mientras tanto el bloque "Cómo va el mes" del Resumen **no usa previsión**: solo enseña lo
 acumulado de verdad y las dos referencias del mes anterior. Ese número no depende de nada de

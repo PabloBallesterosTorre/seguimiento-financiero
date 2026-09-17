@@ -27,6 +27,9 @@ export async function crearMovimientoPrevisto(formData: FormData) {
   const fecha_inicio = (formData.get("fecha_inicio") as string) || null;
   const fecha_fin = (formData.get("fecha_fin") as string) || null;
   const origen_calculo = (formData.get("origen_calculo") as string) === "media_categoria" ? "media_categoria" : "fijo";
+  // Presupuesto de categoría en vez de transacción esperada: ver migración 0030 y
+  // ocurrenciasPendientesEnMes.
+  const es_presupuesto = formData.get("es_presupuesto") === "on";
 
   await supabase
     .from("movimientos_previstos")
@@ -46,6 +49,7 @@ export async function crearMovimientoPrevisto(formData: FormData) {
       fecha_fin: tipo_recurrencia === "recurrente" ? fecha_fin : null,
       estado: "activo",
       origen_calculo,
+      es_presupuesto,
     })
     .throwOnError();
 
@@ -71,6 +75,7 @@ export async function actualizarMovimientoPrevisto(formData: FormData) {
   const fecha = (formData.get("fecha") as string) || null;
   const fecha_inicio = (formData.get("fecha_inicio") as string) || null;
   const fecha_fin = (formData.get("fecha_fin") as string) || null;
+  const es_presupuesto = formData.get("es_presupuesto") === "on";
 
   await supabase
     .from("movimientos_previstos")
@@ -87,6 +92,7 @@ export async function actualizarMovimientoPrevisto(formData: FormData) {
       fecha: tipo_recurrencia === "unica_vez" ? fecha : null,
       fecha_inicio: tipo_recurrencia === "recurrente" ? fecha_inicio : null,
       fecha_fin: tipo_recurrencia === "recurrente" ? fecha_fin : null,
+      es_presupuesto,
     })
     .eq("id", id)
     .throwOnError();
@@ -147,14 +153,30 @@ export async function vincularMovimientoPrevisto(formData: FormData) {
 
   const previsto_id = formData.get("previsto_id") as string;
   const movimiento_id = formData.get("movimiento_id") as string;
-  const periodo = formData.get("periodo") as string;
 
-  if (!movimiento_id || !periodo) return;
+  if (!movimiento_id) return;
+
+  // El periodo es la FECHA del movimiento real, no el día 1 del mes.
+  //
+  // El mes sigue siendo el mismo (todo lo que lee `periodo` se queda con los siete primeros
+  // caracteres), pero así un previsto semanal puede tener varias conciliaciones en un mismo
+  // mes: las aportaciones a inversión ocurren cuatro o cinco veces al mes y con el día 1
+  // fijo solo se podía enlazar una, por la clave única (previsto_id, periodo).
+  //
+  // Se lee de la base de datos en vez de aceptarla del formulario: la fecha del movimiento
+  // es un hecho, no algo que deba poder mandar el cliente.
+  const { data: movimiento } = await supabase
+    .from("movimientos")
+    .select("fecha")
+    .eq("id", movimiento_id)
+    .maybeSingle();
+
+  if (!movimiento) return;
 
   await supabase
     .from("previsto_conciliaciones")
     .upsert(
-      { usuario_id: user.id, previsto_id, periodo, movimiento_real_id: movimiento_id },
+      { usuario_id: user.id, previsto_id, periodo: movimiento.fecha, movimiento_real_id: movimiento_id },
       { onConflict: "previsto_id,periodo" }
     )
     .throwOnError();
