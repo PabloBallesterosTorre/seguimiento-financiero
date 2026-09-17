@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcularCuota, simularAmortizacion, simularConProgramadas } from "./amortizacion";
+import { calcularCuota, simularAmortizacion, simularConProgramadas, cuotaCubreIntereses } from "./amortizacion";
 
 describe("calcularCuota + simularAmortizacion (hipoteca estándar)", () => {
   it("amortiza exactamente a 0 en el número de meses pactado (150k, 3%, 20 años)", () => {
@@ -91,5 +91,24 @@ describe("simularConProgramadas", () => {
     // debería seguir siendo válida (más baja, no negativa) — comprobamos que al menos
     // no revienta y siempre devuelve una cuota final numérica coherente.
     expect(Number.isFinite(resultado.cuotaFinal)).toBe(true);
+  });
+});
+
+describe("cuotaCubreIntereses", () => {
+  it("una hipoteca normal cubre de sobra sus intereses", () => {
+    const r = cuotaCubreIntereses({ capital: 237000, cuota: 591.83, tipoInteresAnual: 2.2 });
+    expect(r.cubre).toBe(true);
+    expect(r.interesPrimerMes).toBeCloseTo(434.5, 1);
+  });
+
+  it("detecta el capital mal tecleado: con 2.370.000 € la cuota no llega ni a los intereses", () => {
+    const r = cuotaCubreIntereses({ capital: 2370000, cuota: 591.83, tipoInteresAnual: 2.2 });
+    expect(r.cubre).toBe(false);
+    expect(r.interesPrimerMes).toBeCloseTo(4345, 0);
+  });
+
+  it("sin interés, cualquier cuota positiva amortiza", () => {
+    expect(cuotaCubreIntereses({ capital: 10000, cuota: 50, tipoInteresAnual: null }).cubre).toBe(true);
+    expect(cuotaCubreIntereses({ capital: 10000, cuota: 0, tipoInteresAnual: 0 }).cubre).toBe(false);
   });
 });

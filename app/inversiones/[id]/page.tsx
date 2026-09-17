@@ -14,7 +14,7 @@ import {
   type OperacionInversion,
 } from "@/lib/inversiones";
 import { obtenerConfiguracion } from "@/lib/configuracion";
-import { formatMoneda } from "@/lib/formato";
+import { formatMoneda, formatPorcentaje, formatPrecio } from "@/lib/formato";
 import { cardClass, tableWrapClass } from "@/components/formStyles";
 
 function formatFecha(value: string) {
@@ -142,13 +142,13 @@ export default async function InversionDetallePage({ params }: { params: Promise
             clase={hayLibro ? (posicion.ganancia >= 0 ? "text-success" : "text-danger") : undefined}
             nota={
               posicion.rentabilidadSimple !== null
-                ? `${posicion.rentabilidadSimple >= 0 ? "+" : ""}${posicion.rentabilidadSimple.toFixed(2)}% sobre lo aportado`
+                ? `${formatPorcentaje(posicion.rentabilidadSimple, { signo: "siempre" })} sobre lo aportado`
                 : undefined
             }
           />
           <InfoCard
             label="TIR anual"
-            value={tir !== null ? `${tir >= 0 ? "+" : ""}${tir.toFixed(2)}%` : "—"}
+            value={tir !== null ? formatPorcentaje(tir, { signo: "siempre" }) : "—"}
             clase={tir !== null ? (tir >= 0 ? "text-success" : "text-danger") : undefined}
             nota="Rentabilidad anualizada real"
           />
@@ -165,7 +165,7 @@ export default async function InversionDetallePage({ params }: { params: Promise
           />
           <InfoCard
             label="Precio medio de compra"
-            value={posicion.precioMedioCompra !== null ? formatEUR(posicion.precioMedioCompra) : "—"}
+            value={posicion.precioMedioCompra !== null ? formatPrecio(posicion.precioMedioCompra, moneda) : "—"}
             nota="Media ponderada de lo comprado"
           />
           <InfoCard
@@ -175,7 +175,7 @@ export default async function InversionDetallePage({ params }: { params: Promise
           />
           <InfoCard
             label="Rentabilidad anual asumida"
-            value={rentabilidad !== null ? `${rentabilidad}%` : "Sin definir"}
+            value={rentabilidad !== null ? formatPorcentaje(rentabilidad, { decimales: 1 }) : "Sin definir"}
             nota="Supuesto, solo para proyectar"
           />
         </div>

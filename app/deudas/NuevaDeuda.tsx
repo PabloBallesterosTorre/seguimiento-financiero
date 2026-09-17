@@ -1,10 +1,26 @@
 "use client";
 
 import { useState } from "react";
+import { cuotaCubreIntereses } from "@/lib/amortizacion";
+import { formatMoneda } from "@/lib/formato";
 import { inputClass, labelClass, btnPrimaryClass, cardClass } from "@/components/formStyles";
 
 export function NuevaDeuda({ action }: { action: (formData: FormData) => void }) {
   const [abierto, setAbierto] = useState(false);
+  const [capital, setCapital] = useState("");
+  const [cuota, setCuota] = useState("");
+  const [interes, setInteres] = useState("");
+
+  // Aviso, no bloqueo: el usuario puede tener un caso raro (carencia, cuota que sube más
+  // adelante) y no es la app quien decide. Pero si la cuota no cubre ni los intereses del
+  // primer mes, casi siempre es un dígito de más en el capital.
+  const capitalNum = Number(capital);
+  const cuotaNum = Number(cuota);
+  const revision =
+    capitalNum > 0 && cuotaNum > 0
+      ? cuotaCubreIntereses({ capital: capitalNum, cuota: cuotaNum, tipoInteresAnual: interes === "" ? null : Number(interes) })
+      : null;
+  const avisoCuota = revision !== null && !revision.cubre;
 
   if (!abierto) {
     return (
@@ -39,7 +55,16 @@ export function NuevaDeuda({ action }: { action: (formData: FormData) => void })
         </div>
         <div>
           <label className={labelClass}>Capital inicial</label>
-          <input name="capital_inicial" type="number" step="0.01" min="0" required className={inputClass} />
+          <input
+            name="capital_inicial"
+            type="number"
+            step="0.01"
+            min="0"
+            required
+            value={capital}
+            onChange={(e) => setCapital(e.target.value)}
+            className={inputClass}
+          />
         </div>
         <div>
           <label className={labelClass}>Capital pendiente actual</label>
@@ -54,11 +79,34 @@ export function NuevaDeuda({ action }: { action: (formData: FormData) => void })
         </div>
         <div>
           <label className={labelClass}>Cuota</label>
-          <input name="cuota" type="number" step="0.01" min="0" required className={inputClass} />
+          <input
+            name="cuota"
+            type="number"
+            step="0.01"
+            min="0"
+            required
+            value={cuota}
+            onChange={(e) => setCuota(e.target.value)}
+            className={inputClass}
+          />
         </div>
         <div>
           <label className={labelClass}>Tipo de interés (% anual)</label>
-          <input name="tipo_interes" type="number" step="0.001" placeholder="3.1" className={inputClass} />
+          <input
+            name="tipo_interes"
+            type="number"
+            step="0.001"
+            placeholder="3,1"
+            value={interes}
+            onChange={(e) => setInteres(e.target.value)}
+            className={inputClass}
+          />
+          {avisoCuota && revision !== null && (
+            <p className="mt-1.5 text-xs font-semibold text-forecast">
+              La cuota no cubre los intereses del primer mes ({formatMoneda(revision.interesPrimerMes)}): con estos
+              datos la deuda nunca se amortizaría. Revisa el capital, la cuota o el interés.
+            </p>
+          )}
         </div>
         <div>
           <label className={labelClass}>Modalidad</label>

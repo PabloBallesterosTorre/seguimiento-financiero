@@ -107,7 +107,26 @@ describe("calcularPosicion", () => {
     expect(p.aportadoNeto).toBe(200);
     expect(p.precioMedioCompra).toBeCloseTo(200 / 15, 6); // 13,33 €, no la media de 10 y 20
     expect(p.ganancia).toBe(50);
+    expect(p.aportadoBruto).toBe(200);
     expect(p.rentabilidadSimple).toBeCloseTo(25, 6);
+  });
+
+  it("una posición vendida entera no da -100%: el porcentaje se mide sobre todo lo metido", () => {
+    // Se compran 100 €, se venden por 93 €: se perdieron 7 € de 100, o sea un -7%.
+    // Con el aportado neto (100 - 93 = 7) como denominador salía -100%, que sugiere
+    // haberlo perdido todo.
+    const p = calcularPosicion(
+      [
+        compra("2026-01-01", 100, 10),
+        { fecha: "2026-06-01", tipo: "venta", importe: -93, participaciones: -10, precio: 9.3 },
+      ],
+      0
+    );
+    expect(p.participaciones).toBe(0);
+    expect(p.aportadoNeto).toBe(7);
+    expect(p.aportadoBruto).toBe(100);
+    expect(p.ganancia).toBe(-7);
+    expect(p.rentabilidadSimple).toBeCloseTo(-7, 6);
   });
 
   it("una venta reduce participaciones y aportado neto, y la ganancia incluye lo realizado", () => {

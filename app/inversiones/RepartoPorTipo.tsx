@@ -1,4 +1,4 @@
-import { formatMoneda } from "@/lib/formato";
+import { formatMoneda, formatPorcentaje } from "@/lib/formato";
 
 // Reparto de la cartera por tipo de activo. Barras en vez de un donut a propósito: lo que
 // importa aquí es comparar pesos entre sí y leer el importe exacto, y para eso una barra
@@ -27,7 +27,7 @@ export function RepartoPorTipo({
             <div className="flex items-baseline justify-between text-[13px]">
               <span className="font-semibold capitalize text-ink">{r.tipo.replace(/_/g, " ")}</span>
               <span className="text-ink-secondary">
-                {formatEUR(r.valor)} <span className="text-ink-tertiary">· {peso.toFixed(1)}%</span>
+                {formatEUR(r.valor)} <span className="text-ink-tertiary">· {formatPorcentaje(peso, { decimales: 1 })}</span>
               </span>
             </div>
             <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-chip">

@@ -1,4 +1,4 @@
-import { formatMoneda } from "@/lib/formato";
+import { formatMoneda, formatPorcentaje } from "@/lib/formato";
 
 // Las cuatro cifras que responden a "¿cómo va mi inversión?". Se separan a propósito el
 // porcentaje simple y la TIR: dicen cosas distintas y con aportaciones periódicas el
@@ -41,11 +41,15 @@ export function ResumenCartera({
         label="Ganancia"
         valor={`${signo}${formatEUR(ganancia)}`}
         clase={colorGanancia}
-        nota={rentabilidadSimple !== null ? `${signo}${rentabilidadSimple.toFixed(2)}% sobre lo aportado` : undefined}
+        nota={
+          rentabilidadSimple !== null
+            ? `${formatPorcentaje(rentabilidadSimple, { signo: "siempre" })} sobre lo aportado`
+            : undefined
+        }
       />
       <Tarjeta
         label="TIR anual"
-        valor={tir !== null ? `${tir >= 0 ? "+" : ""}${tir.toFixed(2)}%` : "—"}
+        valor={tir !== null ? formatPorcentaje(tir, { signo: "siempre" }) : "—"}
         clase={tir !== null ? (tir >= 0 ? "text-success" : "text-danger") : undefined}
         nota={tir !== null ? "Rentabilidad anualizada real" : "Hacen falta al menos dos fechas"}
       />

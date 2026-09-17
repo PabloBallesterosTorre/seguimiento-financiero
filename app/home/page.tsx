@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerConfiguracion } from "@/lib/configuracion";
-import { formatMoneda } from "@/lib/formato";
+import { formatMoneda, formatMonedaTabla } from "@/lib/formato";
 import {
   construirPeriodosConciliados,
   generarMeses,
@@ -41,11 +41,15 @@ const MESES_FUTUROS = 6;
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ sinDeuda?: string; cuentas?: string }>;
+  searchParams: Promise<{ conDeuda?: string; cuentas?: string }>;
 }) {
-  const { sinDeuda, cuentas: cuentasParam } = await searchParams;
+  const { conDeuda: conDeudaParam, cuentas: cuentasParam } = await searchParams;
   const supabase = await createClient();
-  const conDeuda = sinDeuda !== "1";
+  // La portada abre SIN deuda a propósito (auditoría de diseño, tanda 11). El patrimonio
+  // con una hipoteca a 30 años dentro es un número correcto, pero enorme, rojo y que no
+  // cambia de un día para otro: no es lo que quieres ver al abrir la app cada mañana. La
+  // deuda sigue a un clic, y su tarjeta la enseña siempre.
+  const conDeuda = conDeudaParam === "1";
 
   const {
     data: { user },
@@ -231,22 +235,23 @@ export default async function HomePage({
 
   const puntos = [...puntosHistoricos, ...puntosFuturos];
 
-  // ---- Liquidez (mismo cálculo que el KPI 8.1 de Informes) ----
-  const patrimonioHoy = saldoLiquidoInicial + valorInversionInicial;
-  const patrimonioMesAnterior = puntosHistoricos.at(-1)?.patrimonioSinDeuda ?? null;
+  // ---- Liquidez ----
+  // Esta tarjeta enseñaba líquido + inversión con el título "Liquidez", y justo al lado
+  // había otra tarjeta de "Inversión": quien sumara las dos se equivocaba por el valor de
+  // la cartera entera. Ahora enseña el líquido y solo el líquido, y la variación y la
+  // mini-serie van con él en vez de con el patrimonio (auditoría de diseño, tanda 11).
+  const liquidoMesAnterior = puntosHistoricos.at(-1)?.saldoLiquido ?? null;
   const variacionLiquidez =
-    patrimonioMesAnterior === null
+    liquidoMesAnterior === null
       ? null
       : {
-          abs: patrimonioHoy - patrimonioMesAnterior,
+          abs: totalCuentas - liquidoMesAnterior,
           pct:
-            patrimonioMesAnterior !== 0
-              ? ((patrimonioHoy - patrimonioMesAnterior) / Math.abs(patrimonioMesAnterior)) * 100
-              : 0,
+            liquidoMesAnterior !== 0 ? ((totalCuentas - liquidoMesAnterior) / Math.abs(liquidoMesAnterior)) * 100 : 0,
         };
   const miniSerieLiquidez = [
-    ...puntosHistoricos.map((p) => ({ label: p.label, valor: p.patrimonioSinDeuda })),
-    { label: "Hoy", valor: patrimonioHoy },
+    ...puntosHistoricos.map((p) => ({ label: p.label, valor: p.saldoLiquido })),
+    { label: "Hoy", valor: totalCuentas },
   ];
 
   // ---- Flujo mensual disponible: ahorro real/previsto de cada mes, con el mismo
@@ -279,30 +284,30 @@ export default async function HomePage({
 
   const cuentasQS =
     cuentasSeleccionadas.size === idsCuentasActivas.length ? "" : `&cuentas=${Array.from(cuentasSeleccionadas).join(",")}`;
-  const hrefConDeuda = cuentasQS ? `/home?${cuentasQS.slice(1)}` : "/home";
+  const hrefSinDeuda = cuentasQS ? `/home?${cuentasQS.slice(1)}` : "/home";
 
   return (
     <>
       <Nav />
       <main className="mx-auto max-w-4xl space-y-5 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
-          <h1 className="font-sora text-xl font-bold text-ink sm:text-[26px]">Patrimonio global</h1>
+          <h1 className="font-sora text-xl font-bold text-ink sm:text-[26px]">Resumen</h1>
           <div className="flex rounded-full bg-chip p-1">
             <Link
-              href={hrefConDeuda}
-              className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
-                conDeuda ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
-              }`}
-            >
-              Con deuda
-            </Link>
-            <Link
-              href={`/home?sinDeuda=1${cuentasQS}`}
+              href={hrefSinDeuda}
               className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
                 !conDeuda ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
               }`}
             >
               Sin deuda
+            </Link>
+            <Link
+              href={`/home?conDeuda=1${cuentasQS}`}
+              className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
+                conDeuda ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
+              }`}
+            >
+              Con deuda
             </Link>
           </div>
         </div>
@@ -313,28 +318,28 @@ export default async function HomePage({
         />
 
         <div className="rounded-card border border-border bg-surface p-[22px] shadow-card sm:p-9">
-          <p className="text-sm text-ink-secondary">Patrimonio total</p>
+          <p className="text-sm text-ink-secondary">Patrimonio</p>
           <p className={`mt-2.5 break-words font-sora text-[38px] font-bold leading-none sm:text-[56px] ${patrimonio < 0 ? "text-danger" : "text-ink"}`}>
-            {formatMoneda(patrimonio, moneda)}
+            {formatMonedaTabla(patrimonio, moneda)}
           </p>
           <p className="mt-3.5 text-[13px] text-ink-tertiary">
             {conDeuda
-              ? `Incluye ${formatMoneda(totalDeuda, moneda)} de deuda pendiente.`
-              : "No incluye la deuda pendiente."}
+              ? `Líquido más inversión, menos ${formatMoneda(totalDeuda, moneda)} de deuda pendiente.`
+              : `Líquido más inversión. No descuenta ${formatMoneda(totalDeuda, moneda)} de deuda pendiente.`}
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-[1.3fr_1fr_1fr] sm:items-start">
           <KpiDineroDisponible
             moneda={moneda}
-            valor={patrimonioHoy}
+            valor={totalCuentas}
             variacion={variacionLiquidez}
             miniSerie={miniSerieLiquidez}
             titulo="Liquidez"
           />
           <div className="rounded-card border border-border bg-surface p-6 shadow-card">
             <p className="text-sm text-ink-secondary">Inversión</p>
-            <p className="mt-2.5 break-words font-sora text-[21px] font-bold text-ink sm:text-[30px]">{formatMoneda(totalInversion, moneda)}</p>
+            <p className="mt-2.5 break-words font-sora text-[21px] font-bold text-ink sm:text-[30px]">{formatMonedaTabla(totalInversion, moneda)}</p>
             {totalInversion === 0 && (
               <>
                 <p className="mt-3 text-xs text-ink-tertiary">Sin inversiones registradas todavía.</p>
@@ -345,15 +350,11 @@ export default async function HomePage({
             )}
           </div>
           <div className="rounded-card border border-border bg-surface p-6 shadow-card">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-ink-secondary">Deuda pendiente</p>
-              {!conDeuda && (
-                <span className="rounded-full bg-chip px-2 py-0.5 text-[10px] font-semibold text-ink-tertiary">
-                  Excluida del total
-                </span>
-              )}
-            </div>
-            <p className="mt-2.5 break-words font-sora text-[21px] font-bold text-ink sm:text-[30px]">{formatMoneda(totalDeuda, moneda)}</p>
+            <p className="text-sm text-ink-secondary">Deuda pendiente</p>
+            {!conDeuda && (
+              <p className="mt-1 text-[11px] font-semibold text-ink-tertiary">No descontada arriba</p>
+            )}
+            <p className="mt-2.5 break-words font-sora text-[21px] font-bold text-ink sm:text-[30px]">{formatMonedaTabla(totalDeuda, moneda)}</p>
           </div>
         </div>
 

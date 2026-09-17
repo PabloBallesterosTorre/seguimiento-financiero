@@ -1,7 +1,7 @@
 "use client";
 
 import { LineChart, Line, ResponsiveContainer, Tooltip, YAxis } from "recharts";
-import { formatMoneda } from "@/lib/formato";
+import { formatMonedaTabla, formatPorcentaje } from "@/lib/formato";
 import type { PuntoMini } from "./InformesClient";
 
 export function KpiDineroDisponible({
@@ -17,8 +17,12 @@ export function KpiDineroDisponible({
   miniSerie: PuntoMini[];
   titulo?: string;
 }) {
-  const formatEUR = (v: number) => formatMoneda(v, moneda);
-  const subiendo = variacion !== null && variacion.abs >= 0;
+  const formatEUR = (v: number) => formatMonedaTabla(v, moneda);
+  // Tres estados, no dos: sube, baja y no se ha movido. Sin el caso "igual", una variación
+  // de 0,00 € se pintaba en verde con una flecha hacia arriba, que dice algo que no ha
+  // pasado (auditoría de diseño, tanda 11).
+  const sinCambio = variacion !== null && Math.abs(variacion.abs) < 0.005;
+  const subiendo = variacion !== null && variacion.abs > 0;
 
   return (
     <div className="rounded-card border border-border bg-surface p-6 shadow-card">
@@ -29,12 +33,22 @@ export function KpiDineroDisponible({
           {variacion === null ? (
             <p className="mt-2 text-[13px] text-ink-tertiary">Sin periodo anterior con el que comparar todavía.</p>
           ) : (
-            <p className={`mt-2 flex items-center gap-1.5 text-[13px] font-semibold ${subiendo ? "text-success" : "text-danger"}`}>
-              <svg width="9" height="9" viewBox="0 0 10 10" className={subiendo ? "" : "rotate-180"}>
-                <path d="M1 3 L9 3 L5 8 Z" fill="currentColor" />
-              </svg>
-              {formatEUR(Math.abs(variacion.abs))} ({variacion.pct >= 0 ? "+" : ""}
-              {variacion.pct.toFixed(1)}%) frente al mes anterior
+            <p
+              className={`mt-2 flex items-center gap-1.5 text-[13px] font-semibold ${
+                sinCambio ? "text-ink-tertiary" : subiendo ? "text-success" : "text-danger"
+              }`}
+            >
+              {!sinCambio && (
+                <svg width="9" height="9" viewBox="0 0 10 10" className={subiendo ? "" : "rotate-180"} aria-hidden="true">
+                  <path d="M1 3 L9 3 L5 8 Z" fill="currentColor" />
+                </svg>
+              )}
+              {sinCambio
+                ? "Sin cambios frente al mes anterior"
+                : `${formatEUR(Math.abs(variacion.abs))} (${formatPorcentaje(variacion.pct, {
+                    decimales: 1,
+                    signo: "siempre",
+                  })}) frente al mes anterior`}
             </p>
           )}
         </div>

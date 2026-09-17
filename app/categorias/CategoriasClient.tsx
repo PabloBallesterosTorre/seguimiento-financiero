@@ -33,9 +33,11 @@ export function CategoriasClient({
   eliminarCategoria,
   crearCategoriasSugeridas,
   obtenerMovimientosDeCategoria,
+  usos,
   moneda = "EUR",
 }: {
   categorias: Categoria[];
+  usos: Record<string, number>;
   crearCategoria: (formData: FormData) => void;
   actualizarCategoria: (formData: FormData) => void;
   eliminarCategoria: (formData: FormData) => void;
@@ -46,7 +48,31 @@ export function CategoriasClient({
   const [abierto, setAbierto] = useState<"nueva" | string | null>(null);
   const [movimientos, setMovimientos] = useState<MovimientoAsociado[] | null>(null);
   const [cargando, setCargando] = useState(false);
-  const padres = categorias.filter((c) => c.categoria_padre_id === null);
+  const [busqueda, setBusqueda] = useState("");
+
+  const normalizar = (t: string) =>
+    t
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "");
+  const termino = normalizar(busqueda.trim());
+
+  // Al buscar se conserva la jerarquía: si coincide una subcategoría, su padre sigue
+  // apareciendo para que no quede colgando sin contexto; y si coincide un padre, se ven
+  // todas sus hijas.
+  const coincide = (c: Categoria) => termino === "" || normalizar(c.nombre).includes(termino);
+  const visibles =
+    termino === ""
+      ? categorias
+      : categorias.filter((c) => {
+          if (coincide(c)) return true;
+          if (c.categoria_padre_id === null) return categorias.some((h) => h.categoria_padre_id === c.id && coincide(h));
+          const padre = categorias.find((p) => p.id === c.categoria_padre_id);
+          return padre ? coincide(padre) : false;
+        });
+
+  const sinUsar = categorias.filter((c) => (usos[c.id] ?? 0) === 0).length;
+  const padres = visibles.filter((c) => c.categoria_padre_id === null);
   const formatEUR = (v: number) => formatMoneda(v, moneda);
 
   useEffect(() => {
@@ -96,11 +122,32 @@ export function CategoriasClient({
         </div>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <input
+          type="search"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar categoría…"
+          aria-label="Buscar categoría"
+          className="w-full max-w-xs rounded-btn border border-border-strong bg-field px-3 py-2 text-sm text-ink placeholder:text-faint"
+        />
+        <p className="text-[13px] text-ink-tertiary">
+          {categorias.length} categorías · {sinUsar} sin usar
+        </p>
+      </div>
+
       <div className={tableWrapClass}>
         <table className="w-full text-sm">
           <tbody>
+            {padres.length === 0 && busqueda !== "" && (
+              <tr>
+                <td className="px-5 py-6 text-center text-ink-tertiary">
+                  Ninguna categoría coincide con &quot;{busqueda}&quot;.
+                </td>
+              </tr>
+            )}
             {padres.map((cat) => {
-              const subcategorias = categorias.filter((c) => c.categoria_padre_id === cat.id);
+              const subcategorias = visibles.filter((c) => c.categoria_padre_id === cat.id);
               return (
                 <Fragment key={cat.id}>
                   <FilaCategoria
@@ -109,6 +156,7 @@ export function CategoriasClient({
                     abierto={abierto}
                     setAbierto={setAbierto}
                     eliminarCategoria={eliminarCategoria}
+                    usos={usos[cat.id] ?? 0}
                   />
                   {abierto === cat.id && (
                     <tr className="border-t border-border bg-page">
@@ -133,6 +181,7 @@ export function CategoriasClient({
                         abierto={abierto}
                         setAbierto={setAbierto}
                         eliminarCategoria={eliminarCategoria}
+                        usos={usos[sub.id] ?? 0}
                       />
                       {abierto === sub.id && (
                         <tr className="border-t border-border bg-page">
@@ -175,22 +224,33 @@ function FilaCategoria({
   abierto,
   setAbierto,
   eliminarCategoria,
+  usos,
 }: {
   categoria: Categoria;
   indentada: boolean;
   abierto: "nueva" | string | null;
   setAbierto: (v: "nueva" | string | null) => void;
   eliminarCategoria: (formData: FormData) => void;
+  usos: number;
 }) {
   return (
     <tr className="border-t border-border first:border-t-0">
       <td className={`px-5 py-3.5 ${indentada ? "pl-10 text-[13px] text-ink-tertiary" : "text-sm text-ink"}`}>
         {categoria.nombre}
       </td>
-      <td className="px-5 py-3.5">
+      <td className="whitespace-nowrap px-5 py-3.5">
         {categoria.es_categoria_inversion && (
-          <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-[11px] font-semibold text-accent">
+          <span className="mr-2 rounded-full bg-accent-soft px-2.5 py-0.5 text-[11px] font-semibold text-accent">
             Inversión
+          </span>
+        )}
+        {usos === 0 ? (
+          <span className="rounded-full bg-chip px-2.5 py-0.5 text-[11px] font-semibold text-ink-tertiary">
+            Sin usar
+          </span>
+        ) : (
+          <span className="text-[11px] tabular-nums text-ink-tertiary">
+            {usos} {usos === 1 ? "movimiento" : "movimientos"}
           </span>
         )}
       </td>

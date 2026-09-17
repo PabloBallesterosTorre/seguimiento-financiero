@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react";
 import { CuentaForm } from "./CuentaForm";
 import { ConfirmForm } from "@/components/ConfirmForm";
-import { formatMoneda } from "@/lib/formato";
+import { formatMonedaTabla, formatPorcentaje } from "@/lib/formato";
 import { ordenarFilas, type OrdenTabla } from "@/lib/ordenTabla";
 import { useOrdenTabla, ThOrdenable } from "@/components/OrdenTabla";
 
@@ -28,6 +28,8 @@ export function CuentasClient({
   actualizarCuenta,
   eliminarCuenta,
   recalcularSaldoCuenta,
+  alternarExclusionInformes,
+  cuentasExcluidas,
   desfases = {},
   ordenInicial = null,
 }: {
@@ -37,10 +39,13 @@ export function CuentasClient({
   actualizarCuenta: (formData: FormData) => void;
   eliminarCuenta: (formData: FormData) => void;
   recalcularSaldoCuenta: (formData: FormData) => void;
+  alternarExclusionInformes: (formData: FormData) => void;
+  cuentasExcluidas: string[];
   desfases?: Record<string, Desfase>;
   ordenInicial?: OrdenTabla;
 }) {
-  const formatEUR = (v: number) => formatMoneda(v, moneda);
+  const excluidas = new Set(cuentasExcluidas);
+  const formatEUR = (v: number) => formatMonedaTabla(v, moneda);
   const [abierto, setAbierto] = useState<"nueva" | string | null>(null);
   const { orden, toggle } = useOrdenTabla("cuentas", ordenInicial);
 
@@ -53,6 +58,8 @@ export function CuentasClient({
   });
 
   const cuentasDescuadradas = cuentas.filter((c) => desfases[c.id]);
+  const totalIncluidas = cuentas.filter((c) => !excluidas.has(c.id)).reduce((s, c) => s + Number(c.saldo_actual), 0);
+  const totalTodas = cuentas.reduce((s, c) => s + Number(c.saldo_actual), 0);
 
   return (
     <div className="space-y-6">
@@ -135,20 +142,49 @@ export function CuentasClient({
                 <tr className="border-t border-border">
                   <td className="px-4 py-3.5 font-semibold text-ink">{cuenta.banco_nombre}</td>
                   <td className="px-4 py-3.5">
-                    <div className="text-ink">{cuenta.nombre}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-ink">{cuenta.nombre}</span>
+                      {/* Cuatro de las siete cuentas estaban excluidas de informes y esta
+                          pantalla no lo decía en ninguna parte: había que ir a Configuración
+                          para saberlo, siendo un estado que cambia lo que se ve en media
+                          app (auditoría de diseño, tanda 11). */}
+                      {excluidas.has(cuenta.id) && (
+                        <span className="rounded-full bg-chip px-2 py-0.5 text-[10px] font-semibold text-ink-tertiary">
+                          Fuera de informes
+                        </span>
+                      )}
+                    </div>
                     {cuenta.iban && <div className="text-xs text-faint">{cuenta.iban}</div>}
                   </td>
                   <td className="px-4 py-3.5 capitalize text-ink-secondary">{cuenta.tipo}</td>
                   <td className="px-4 py-3.5 text-ink-secondary">
-                    {cuenta.es_remunerada ? `${cuenta.tipo_interes ?? "—"}%` : <span className="text-faint">—</span>}
+                    {cuenta.es_remunerada && cuenta.tipo_interes !== null ? (
+                      <span className="tabular-nums">{formatPorcentaje(Number(cuenta.tipo_interes), { decimales: 2 })}</span>
+                    ) : (
+                      <span className="text-faint">—</span>
+                    )}
                   </td>
-                  <td className="px-4 py-3.5 text-right font-semibold text-ink">
+                  <td className="px-4 py-3.5 text-right text-[15px] font-semibold tabular-nums text-ink">
                     {formatEUR(Number(cuenta.saldo_actual))}
                     {desfases[cuenta.id] && (
                       <div className="text-xs font-semibold text-danger">No cuadra</div>
                     )}
                   </td>
-                  <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                  <td className="whitespace-nowrap px-4 py-3.5 text-right">
+                    <form action={alternarExclusionInformes} className="inline">
+                      <input type="hidden" name="id" value={cuenta.id} />
+                      <button
+                        type="submit"
+                        className="mr-3.5 text-[13px] font-semibold text-ink-tertiary hover:text-ink"
+                        title={
+                          excluidas.has(cuenta.id)
+                            ? "Volver a contar esta cuenta en informes y en el resumen"
+                            : "Dejar de contar esta cuenta en informes y en el resumen"
+                        }
+                      >
+                        {excluidas.has(cuenta.id) ? "Incluir" : "Excluir"}
+                      </button>
+                    </form>
                     <button
                       type="button"
                       onClick={() => setAbierto(abierto === cuenta.id ? null : cuenta.id)}
@@ -189,6 +225,24 @@ export function CuentasClient({
               </tr>
             )}
           </tbody>
+          {cuentas.length > 0 && (
+            <tfoot>
+              <tr className="border-t-2 border-border-strong bg-chip/60">
+                <td colSpan={4} className="px-4 py-3 text-[13px] font-semibold text-ink">
+                  Total
+                  {totalIncluidas !== totalTodas && (
+                    <span className="ml-1.5 font-normal text-ink-tertiary">
+                      (sin las cuentas fuera de informes; con ellas, {formatEUR(totalTodas)})
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right font-sora text-base font-bold tabular-nums text-ink">
+                  {formatEUR(totalIncluidas)}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>

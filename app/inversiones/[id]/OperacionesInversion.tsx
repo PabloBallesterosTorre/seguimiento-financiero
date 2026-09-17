@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ConfirmForm } from "@/components/ConfirmForm";
-import { formatMoneda } from "@/lib/formato";
+import { formatMonedaTabla, formatPrecio } from "@/lib/formato";
 import { inputClass, labelClass, btnPrimaryClass, btnSecondaryClass, rowDelClass } from "@/components/formStyles";
 
 export type OperacionEnTabla = {
@@ -47,7 +47,7 @@ export function OperacionesInversion({
   registrarOperacion: (formData: FormData) => void;
   eliminarOperacion: (formData: FormData) => void;
 }) {
-  const formatEUR = (v: number) => formatMoneda(v, moneda);
+  const formatEUR = (v: number) => formatMonedaTabla(v, moneda);
   const [abierto, setAbierto] = useState(false);
   const [tipo, setTipo] = useState("compra");
 
@@ -154,13 +154,13 @@ export function OperacionesInversion({
                   <span className="capitalize text-ink">{op.tipo}</span>
                   {op.nota && <p className="text-[11px] text-ink-tertiary">{op.nota}</p>}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right text-ink-secondary">
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-ink-secondary">
                   {op.participaciones !== null
                     ? op.participaciones.toLocaleString("es-ES", { maximumFractionDigits: 6 })
                     : "—"}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right text-ink-secondary">
-                  {op.precio !== null ? formatEUR(op.precio) : "—"}
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-ink-secondary">
+                  {op.precio !== null ? formatPrecio(op.precio, moneda) : "—"}
                 </td>
                 <td
                   className={`whitespace-nowrap px-4 py-3 text-right font-semibold ${

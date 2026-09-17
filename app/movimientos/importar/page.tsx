@@ -36,16 +36,16 @@ export default async function ImportarPage() {
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-4xl px-4 py-8 space-y-6">
+      <main className="mx-auto max-w-5xl space-y-6 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Importar movimientos desde CSV/Excel</h1>
-          <Link href="/movimientos" className="text-sm text-slate-500 hover:text-slate-900">
+          <h1 className="font-sora text-[26px] font-bold text-ink">Importar movimientos</h1>
+          <Link href="/movimientos" className="text-sm font-semibold text-ink-tertiary hover:text-ink">
             ← Volver a movimientos
           </Link>
         </div>
 
         {(cuentas ?? []).length === 0 ? (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-ink-tertiary">
             Antes de importar, da de alta una cuenta en la sección Cuentas.
           </p>
         ) : (

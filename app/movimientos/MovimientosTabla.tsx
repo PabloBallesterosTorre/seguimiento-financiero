@@ -4,7 +4,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { CategoriaCelda } from "./CategoriaCelda";
 import { MarcarComoTraspaso } from "./MarcarComoTraspaso";
 import { AsignarAInversion, type InversionOption } from "./AsignarAInversion";
-import { formatMoneda } from "@/lib/formato";
+import { formatMonedaTabla } from "@/lib/formato";
 import { ordenarFilas, type OrdenTabla } from "@/lib/ordenTabla";
 import { useOrdenTabla, ThOrdenable } from "@/components/OrdenTabla";
 import type { CategoriaJerarquica } from "@/lib/categorias";
@@ -61,8 +61,14 @@ export function MovimientosTabla({
   eliminarMovimiento: (formData: FormData) => void;
   asignarMovimientoAInversion: (formData: FormData) => void;
 }) {
-  const formatEUR = (v: number) => formatMoneda(v, moneda);
+  const formatEUR = (v: number) => formatMonedaTabla(v, moneda);
   const { orden, toggle } = useOrdenTabla(tablaKey, ordenInicial);
+
+  // Neto de lo que se muestra, para el pie de la tabla.
+  const hayTraspasos = movimientos.some((m) => m.tipo === "traspaso");
+  const neto = movimientos
+    .filter((m) => m.tipo !== "traspaso")
+    .reduce((suma, m) => suma + Number(m.importe), 0);
 
   const filasOrdenadas = ordenarFilas(movimientos, orden, {
     fecha: (m) => m.fecha,
@@ -108,6 +114,24 @@ export function MovimientosTabla({
           </tr>
         )}
       </tbody>
+      {/* El pie suma lo que se está viendo, no todo el histórico: con un filtro aplicado,
+          el número que interesa es el de lo filtrado. Los traspasos no entran — mueven
+          dinero entre cuentas propias y sumarlos falsearía el neto. */}
+      {filasOrdenadas.length > 0 && (
+        <tfoot>
+          <tr className="border-t-2 border-border-strong bg-chip/60">
+            <td colSpan={4} className="px-4 py-3 text-[13px] font-semibold text-ink">
+              Neto de {filasOrdenadas.length} {filasOrdenadas.length === 1 ? "movimiento" : "movimientos"}
+              {hayTraspasos && <span className="ml-1.5 font-normal text-ink-tertiary">(sin contar traspasos)</span>}
+            </td>
+            <td className="whitespace-nowrap px-4 py-3 text-right font-sora text-base font-bold tabular-nums text-ink">
+              {neto >= 0 ? "+" : "−"}
+              {formatEUR(Math.abs(neto))}
+            </td>
+            <td />
+          </tr>
+        </tfoot>
+      )}
     </table>
     </div>
   );
@@ -137,9 +161,9 @@ function FilaMovimiento({
   const esTraspaso = mov.tipo === "traspaso";
 
   return (
-    <tr className="border-t border-border">
-      <td className="whitespace-nowrap px-4 py-3.5 text-ink-secondary">{formatFecha(mov.fecha)}</td>
-      <td className="whitespace-nowrap px-4 py-3.5 text-ink">
+    <tr className="group border-t border-border">
+      <td className="whitespace-nowrap px-4 py-3.5 text-ink-tertiary">{formatFecha(mov.fecha)}</td>
+      <td className="whitespace-nowrap px-4 py-3.5 text-ink-tertiary">
         {mov.cuentas ? `${mov.cuentas.banco_nombre} — ${mov.cuentas.nombre}` : "—"}
       </td>
       <td className="px-4 py-3.5 text-ink">
@@ -180,14 +204,22 @@ function FilaMovimiento({
           />
         )}
       </td>
+      {/* El color deja de marcar el signo: con decenas de intereses de 0,02 € en verde, el
+          verde acababa significando "hay una fila aquí" en vez de "esto es bueno". El signo
+          lo lleva el propio número y el peso lo da la tipografía (auditoría, tanda 11). El
+          acento se reserva para los traspasos, que sí son una categoría aparte. */}
       <td
-        className={`px-4 py-3.5 text-right font-semibold ${
-          esTraspaso ? "text-accent" : Number(mov.importe) < 0 ? "text-ink" : "text-success"
+        className={`whitespace-nowrap px-4 py-3.5 text-right text-[15px] font-semibold tabular-nums ${
+          esTraspaso ? "text-accent" : "text-ink"
         }`}
       >
+        {Number(mov.importe) > 0 && !esTraspaso ? "+" : ""}
         {formatEUR(Number(mov.importe))}
       </td>
-      <td className="px-4 py-3.5 text-right">
+      {/* Siempre visible en móvil, donde no hay ratón con el que señalar; en escritorio
+          aparece al pasar por encima. "Eliminar" se repetía 98 veces con peso completo:
+          la acción más destructiva de la pantalla era también la palabra más frecuente. */}
+      <td className="px-4 py-3.5 text-right opacity-100 transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover:opacity-100">
         {esTraspaso ? (
           <ConfirmForm
             action={eliminarTraspaso}

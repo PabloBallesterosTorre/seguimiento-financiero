@@ -132,27 +132,38 @@ export type PosicionInversion = {
   // Flujo de caja neto: lo aportado menos lo retirado. No es el coste fiscal de lo que
   // queda en cartera (ver el comentario de coste_neto en la migración 0022).
   aportadoNeto: number;
+  // Todo lo que llegó a entrar, sin restar lo que salió. Es el denominador del porcentaje
+  // de rentabilidad: ver el comentario de rentabilidadSimple.
+  aportadoBruto: number;
   // Media ponderada del precio pagado en las COMPRAS, que es lo que el usuario entiende
   // por "a cuánto me salió". Null si la inversión no se mide en participaciones.
   precioMedioCompra: number | null;
   valorMercado: number;
   // Ganancia total: realizada (lo ya vendido) + latente (lo que sigue en cartera).
   ganancia: number;
-  // Ganancia sobre lo aportado, sin tener en cuenta cuánto tiempo llevaba dentro cada
-  // euro. Es la cifra intuitiva, pero engaña con aportaciones periódicas: para eso está
-  // la TIR. Null si no se ha aportado nada (no hay sobre qué calcular un porcentaje).
+  // Ganancia sobre TODO lo que se llegó a meter, sin tener en cuenta cuánto tiempo llevaba
+  // dentro cada euro. Es la cifra intuitiva, pero engaña con aportaciones periódicas: para
+  // eso está la TIR. Null si no se ha aportado nada.
+  //
+  // El denominador es el aportado BRUTO y no el neto a propósito. Con el neto, una posición
+  // ya vendida entera siempre daba −100 %, porque su aportado neto es el residuo que quedó
+  // tras la venta: Europe Defence decía "−10,41 € (−100 %)" cuando en realidad se metieron
+  // ~140 € y se recuperaron ~130. Matemáticamente correcto, y a la vez comunicando algo
+  // falso (auditoría de diseño, tanda 11).
   rentabilidadSimple: number | null;
 };
 
 export function calcularPosicion(operaciones: OperacionInversion[], valorMercado: number): PosicionInversion {
   let participaciones = 0;
   let aportadoNeto = 0;
+  let aportadoBruto = 0;
   let costeCompras = 0;
   let participacionesCompradas = 0;
 
   for (const op of operaciones) {
     participaciones += op.participaciones ?? 0;
     aportadoNeto += op.importe;
+    if (op.importe > 0) aportadoBruto += op.importe;
     if (op.importe > 0 && (op.participaciones ?? 0) > 0) {
       costeCompras += op.importe;
       participacionesCompradas += op.participaciones!;
@@ -164,10 +175,11 @@ export function calcularPosicion(operaciones: OperacionInversion[], valorMercado
   return {
     participaciones,
     aportadoNeto,
+    aportadoBruto,
     precioMedioCompra: participacionesCompradas > 0 ? costeCompras / participacionesCompradas : null,
     valorMercado,
     ganancia,
-    rentabilidadSimple: aportadoNeto > 0 ? (ganancia / aportadoNeto) * 100 : null,
+    rentabilidadSimple: aportadoBruto > 0 ? (ganancia / aportadoBruto) * 100 : null,
   };
 }
 

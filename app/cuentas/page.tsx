@@ -2,7 +2,13 @@ import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { obtenerOrdenTabla } from "@/lib/ordenTabla";
-import { crearCuenta, actualizarCuenta, eliminarCuenta, recalcularSaldoCuenta } from "./actions";
+import {
+  crearCuenta,
+  actualizarCuenta,
+  eliminarCuenta,
+  recalcularSaldoCuenta,
+  alternarExclusionInformes,
+} from "./actions";
 import { CuentasClient } from "./CuentasClient";
 import { diagnosticarSaldos } from "@/lib/saldos";
 
@@ -44,6 +50,8 @@ export default async function CuentasPage() {
           actualizarCuenta={actualizarCuenta}
           eliminarCuenta={eliminarCuenta}
           recalcularSaldoCuenta={recalcularSaldoCuenta}
+          alternarExclusionInformes={alternarExclusionInformes}
+          cuentasExcluidas={config?.cuentas_excluidas_informes ?? []}
           desfases={Object.fromEntries(desfases)}
           ordenInicial={ordenInicial}
         />

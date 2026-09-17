@@ -97,3 +97,40 @@ export async function eliminarCuenta(formData: FormData) {
   revalidatePath("/cuentas");
   revalidatePath("/home");
 }
+
+// Incluir o excluir una cuenta de los informes desde la propia pantalla de Cuentas.
+// El estado vivía solo en Configuración, escondido, siendo algo que cambia lo que se ve
+// en el Resumen, en Informes, en Previsión y en el Planificador (auditoría, tanda 11).
+export async function alternarExclusionInformes(formData: FormData) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const id = formData.get("id") as string;
+
+  const { data: config } = await supabase
+    .from("configuracion_usuario")
+    .select("cuentas_excluidas_informes")
+    .eq("usuario_id", user.id)
+    .maybeSingle();
+
+  const actuales: string[] = config?.cuentas_excluidas_informes ?? [];
+  const siguientes = actuales.includes(id) ? actuales.filter((c) => c !== id) : [...actuales, id];
+
+  await supabase
+    .from("configuracion_usuario")
+    .upsert({ usuario_id: user.id, cuentas_excluidas_informes: siguientes }, { onConflict: "usuario_id" })
+    .throwOnError();
+
+  // Todas las pantallas que filtran por cuenta dependen de esto.
+  revalidatePath("/cuentas");
+  revalidatePath("/home");
+  revalidatePath("/informes");
+  revalidatePath("/prevision");
+  revalidatePath("/planificador");
+  revalidatePath("/configuracion");
+}

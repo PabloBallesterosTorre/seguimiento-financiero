@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { traducirErrorAuth } from "@/lib/erroresAuth";
 
 export async function updatePassword(formData: FormData) {
   const supabase = await createClient();
@@ -10,7 +11,8 @@ export async function updatePassword(formData: FormData) {
   const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
-    redirect(`/restablecer-password?error=${encodeURIComponent(error.message)}`);
+    console.error("restablecerPassword", error.message);
+    redirect(`/restablecer-password?error=${encodeURIComponent(traducirErrorAuth(error.message))}`);
   }
 
   await supabase.auth.signOut();

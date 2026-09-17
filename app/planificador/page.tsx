@@ -14,7 +14,7 @@ import {
   type PuntoProyeccion,
 } from "@/lib/planificador";
 import { obtenerConfiguracion } from "@/lib/configuracion";
-import { formatMoneda } from "@/lib/formato";
+import { formatMoneda, formatPorcentaje } from "@/lib/formato";
 import { rentabilidadPonderada } from "@/lib/inversiones";
 import { filtrarMovimientosPorCuentasSeleccionadas, resolverCuentasSeleccionadas } from "@/lib/informes";
 import { SelectorCuentas } from "@/components/SelectorCuentas";
@@ -251,7 +251,15 @@ export default async function PlanificadorPage({
           seleccionadas={Array.from(cuentasSeleccionadas)}
         />
 
-        <p className="max-w-3xl text-[13px] leading-relaxed text-ink-secondary">
+        {/* El texto no se recorta ni se tira: explica por qué cada número es lo que es, y
+            eso es de lo mejor que tiene la pantalla. Pero siete líneas densas por delante de
+            todo hacían que la pantalla abriera con una lectura en vez de con los datos
+            (auditoría de diseño, tanda 11). */}
+        <details className="max-w-3xl">
+          <summary className="cursor-pointer list-none text-[13px] font-semibold text-accent hover:underline">
+            Cómo se calcula esta proyección
+          </summary>
+          <p className="mt-2.5 text-[13px] leading-relaxed text-ink-secondary">
           Evolución de líquido, deuda e inversión, hacia atrás (reconstruido a partir de tu
           histórico real) y hacia adelante (previsión de flujo de caja, calendario de amortización
           e intereses de cuentas remuneradas). El horizonte elegido aplica en ambas direcciones.
@@ -262,7 +270,7 @@ export default async function PlanificadorPage({
             <>
               {" "}
               compuestas a la rentabilidad anual asumida de cada inversión (
-              <span className="font-semibold text-ink">{rentabilidadAsumida.toFixed(1)}% de media ponderada</span> —
+              <span className="font-semibold text-ink">{formatPorcentaje(rentabilidadAsumida, { decimales: 1 })} de media ponderada</span> —
               es una <span className="font-semibold">proyección estimada</span>, no una previsión real)
             </>
           ) : (
@@ -270,7 +278,8 @@ export default async function PlanificadorPage({
           )}
           . Un previsto ya vinculado a un movimiento real de este mes no se suma también como
           previsión — el saldo de hoy ya lo incluye.
-        </p>
+          </p>
+        </details>
 
         <div className="rounded-card border border-border bg-surface p-6 shadow-card">
           <div className="flex items-center justify-between">

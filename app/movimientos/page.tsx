@@ -123,31 +123,35 @@ export default async function MovimientosPage() {
     <>
       <Nav />
       <main className="mx-auto max-w-4xl space-y-6 px-5 py-8 sm:px-10">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-sora text-[26px] font-bold text-ink">Movimientos</h1>
-          <div className="flex items-center gap-2.5">
-            <NuevoTraspaso cuentas={cuentas ?? []} categorias={categoriasOrdenadas} action={crearTraspaso} hoy={hoy} />
+          {/* Las tres acciones juntas y en una sola línea: antes "Nuevo traspaso" e
+              "Importar CSV" iban arriba a la derecha y "+ Nuevo movimiento" debajo a la
+              izquierda en negro, así que no se leía cuál era la principal. */}
+          <div className="flex flex-wrap items-center gap-2.5">
             <Link
               href="/movimientos/importar"
               className="rounded-btn border border-border-strong bg-surface px-[18px] py-2.5 text-sm font-semibold text-ink-secondary hover:bg-chip"
             >
               Importar CSV
             </Link>
+            <NuevoTraspaso cuentas={cuentas ?? []} categorias={categoriasOrdenadas} action={crearTraspaso} hoy={hoy} />
+            {hayCuentas && (
+              <NuevoMovimiento
+                action={crearMovimiento}
+                cuentas={cuentas ?? []}
+                categorias={categoriasOrdenadas}
+                reglas={reglasCategorizacion}
+                hoy={hoy}
+              />
+            )}
           </div>
         </div>
 
-        {!hayCuentas ? (
+        {!hayCuentas && (
           <p className="text-sm text-ink-tertiary">
             Antes de añadir movimientos, da de alta una cuenta en la sección Cuentas.
           </p>
-        ) : (
-          <NuevoMovimiento
-            action={crearMovimiento}
-            cuentas={cuentas ?? []}
-            categorias={categoriasOrdenadas}
-            reglas={reglasCategorizacion}
-            hoy={hoy}
-          />
         )}
 
         {filasSinCategorizar.length > 0 && (

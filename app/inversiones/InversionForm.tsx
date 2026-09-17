@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { inputClass, labelClass, btnPrimaryClass, cardClass } from "@/components/formStyles";
+import { formatMoneda } from "@/lib/formato";
 
 const TIPOS_ACTIVO = ["Fondo indexado", "Acciones", "Cripto", "Cuenta", "Otro"];
 
@@ -152,7 +153,7 @@ export function InversionForm({
               <option value="">Sin vincular todavía</option>
               {previstosInversion.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.descripcion} — {p.importe_estimado.toFixed(2)} €
+                  {p.descripcion} — {formatMoneda(p.importe_estimado)}
                 </option>
               ))}
             </select>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { traducirErrorAuth } from "@/lib/erroresAuth";
 
 // Deriva el origen público (para construir la URL de redirección de los emails de
 // Supabase Auth) a partir de las cabeceras de la petición, sin depender de una env var
@@ -28,7 +29,10 @@ export async function login(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    redirect(`/login?error=${encodeURIComponent(error.message)}`);
+    // El texto original se queda en el servidor: a la interfaz solo va el mensaje
+    // traducido (auditoría de diseño, tanda 11).
+    console.error("login", error.message);
+    redirect(`/login?error=${encodeURIComponent(traducirErrorAuth(error.message))}`);
   }
 
   revalidatePath("/", "layout");

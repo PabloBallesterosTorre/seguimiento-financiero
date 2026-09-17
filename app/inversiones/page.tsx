@@ -157,7 +157,10 @@ export default async function InversionesPage() {
     <>
       <Nav />
       <main className="mx-auto max-w-5xl space-y-6 px-5 py-8 sm:px-10">
-        <h1 className="font-sora text-[26px] font-bold text-ink">Inversión</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="font-sora text-[26px] font-bold text-ink">Inversión</h1>
+          <NuevaInversion action={crearInversion} previstosInversion={previstosInversion} cuentas={cuentas} />
+        </div>
 
         <ResumenCartera
           valor={valorTotal}
@@ -175,8 +178,6 @@ export default async function InversionesPage() {
             <EvolucionCarteraChart puntos={serieCartera} moneda={moneda} />
           </div>
         )}
-
-        <NuevaInversion action={crearInversion} previstosInversion={previstosInversion} cuentas={cuentas} />
 
         <InversionesClient
           inversiones={posiciones}

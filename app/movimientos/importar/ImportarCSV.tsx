@@ -573,23 +573,23 @@ export function ImportarCSV({
     <div className="space-y-6">
       {resultado && (
         <div
-          className={`rounded-md border px-4 py-3 text-sm ${
+          className={`rounded-btn border px-4 py-3 text-sm ${
             resultado.startsWith("Error")
-              ? "border-red-200 bg-red-50 text-red-700"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              ? "border-danger/25 bg-danger/8 text-danger"
+              : "border-success/25 bg-success/8 text-success"
           }`}
         >
           {resultado}
         </div>
       )}
 
-      <div className="rounded-lg border border-slate-200 bg-white p-6 space-y-4">
+      <div className="rounded-card border border-border bg-surface p-7 shadow-card space-y-4">
         <div>
-          <label className="block text-xs text-slate-500">Cuenta destino</label>
+          <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Cuenta destino</label>
           <select
             value={cuentaId}
             onChange={(e) => setCuentaId(e.target.value)}
-            className="mt-1 w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 w-full max-w-sm rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
           >
             {cuentas.map((cuenta) => (
               <option key={cuenta.id} value={cuenta.id}>
@@ -600,36 +600,39 @@ export function ImportarCSV({
         </div>
 
         <div>
-          <label className="block text-xs text-slate-500">Archivo CSV o Excel</label>
+          <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Archivo CSV o Excel</label>
           <input
             type="file"
             accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={onArchivoSeleccionado}
-            className="mt-1 block text-sm"
+            className="mt-1 block w-full max-w-md cursor-pointer rounded-btn border border-dashed border-border-strong bg-field px-3 py-3 text-sm text-ink-secondary file:mr-3 file:cursor-pointer file:rounded-btn file:border-0 file:bg-ink file:px-3.5 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-ink/90"
           />
-          {nombreArchivo && <p className="mt-1 text-xs text-slate-400">Archivo: {nombreArchivo}</p>}
+          <p className="mt-1.5 text-xs text-ink-tertiary">
+            Formatos admitidos: CSV y Excel (.xlsx). El archivo se procesa en tu navegador.
+          </p>
+          {nombreArchivo && <p className="mt-1.5 text-xs text-ink-tertiary">Archivo: {nombreArchivo}</p>}
         </div>
       </div>
 
       {paso !== "subir" && filasCSV.length > 0 && (
-        <div className="rounded-lg border border-slate-200 bg-white p-6 space-y-4">
-          <h2 className="text-sm font-medium text-slate-700">Mapeo de columnas</h2>
-          <p className="text-xs text-slate-400">
+        <div className="rounded-card border border-border bg-surface p-7 shadow-card space-y-4">
+          <h2 className="text-sm font-medium text-ink-secondary">Mapeo de columnas</h2>
+          <p className="text-xs text-ink-tertiary">
             Cada banco exporta el archivo con sus propias columnas (y a veces con filas de texto antes
             de la tabla) — indica aquí a qué corresponde cada cosa.
           </p>
 
-          <div className="max-h-40 overflow-y-auto overflow-x-auto rounded-md border border-slate-100 text-xs">
+          <div className="max-h-40 overflow-y-auto overflow-x-auto rounded-card border border-border text-xs">
             <table className="w-full">
               <tbody>
                 {previewFilasCrudas.map((fila, i) => (
                   <tr
                     key={i}
-                    className={`border-t border-slate-100 first:border-t-0 ${
-                      i === filaCabecera - 1 ? "bg-amber-50 font-medium" : ""
+                    className={`border-t border-border first:border-t-0 ${
+                      i === filaCabecera - 1 ? "bg-forecast/10 font-medium" : ""
                     }`}
                   >
-                    <td className="px-2 py-1 text-slate-400">{i + 1}</td>
+                    <td className="px-2 py-1 text-ink-tertiary">{i + 1}</td>
                     {fila.slice(0, 8).map((v, j) => (
                       <td key={j} className="whitespace-nowrap px-2 py-1">
                         {v || "—"}
@@ -643,26 +646,26 @@ export function ImportarCSV({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
-              <label className="block text-xs text-slate-500">Fila de cabecera</label>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Fila de cabecera</label>
               <input
                 type="number"
                 min={1}
                 max={filasCSV.length}
                 value={filaCabecera}
                 onChange={(e) => onCambiarFilaCabecera(Math.max(1, Number(e.target.value) || 1))}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
               />
-              <p className="mt-1 text-xs text-slate-400">Resaltada arriba. Súbela si el archivo trae texto antes.</p>
+              <p className="mt-1.5 text-xs text-ink-tertiary">Resaltada arriba. Súbela si el archivo trae texto antes.</p>
             </div>
             <div>
-              <label className="block text-xs text-slate-500">Fecha de corte (opcional)</label>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Fecha de corte (opcional)</label>
               <input
                 type="date"
                 value={fechaCorte}
                 onChange={(e) => setFechaCorte(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
               />
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1.5 text-xs text-ink-tertiary">
                 Se ignora todo lo anterior a esta fecha, aunque el archivo lo incluya (evita reimportar
                 movimientos antiguos o que borraste a propósito). Por defecto, el día siguiente al último
                 movimiento que ya tienes en esta cuenta.
@@ -670,11 +673,11 @@ export function ImportarCSV({
             </div>
             {modoArchivo === "csv" && (
               <div>
-                <label className="block text-xs text-slate-500">Delimitador</label>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Delimitador</label>
                 <select
                   value={delimitador}
                   onChange={(e) => setDelimitador(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
                 >
                   {DELIMITADORES.map((d) => (
                     <option key={d.value} value={d.value}>
@@ -685,11 +688,11 @@ export function ImportarCSV({
               </div>
             )}
             <div>
-              <label className="block text-xs text-slate-500">Columna fecha</label>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Columna fecha</label>
               <select
                 value={colFecha}
                 onChange={(e) => onCambiarColFecha(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
               >
                 <option value="">— Selecciona —</option>
                 {cabeceras.map((c) => (
@@ -700,11 +703,11 @@ export function ImportarCSV({
               </select>
             </div>
             <div>
-              <label className="block text-xs text-slate-500">Formato de fecha</label>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Formato de fecha</label>
               <select
                 value={formatoFecha}
                 onChange={(e) => setFormatoFecha(e.target.value as FormatoFecha)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
               >
                 {FORMATOS_FECHA.map((f) => (
                   <option key={f.value} value={f.value}>
@@ -714,11 +717,11 @@ export function ImportarCSV({
               </select>
             </div>
             <div>
-              <label className="block text-xs text-slate-500">Columna descripción</label>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Columna descripción</label>
               <select
                 value={colDescripcion}
                 onChange={(e) => setColDescripcion(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
               >
                 <option value="">— Selecciona —</option>
                 {cabeceras.map((c) => (
@@ -729,24 +732,24 @@ export function ImportarCSV({
               </select>
             </div>
             <div>
-              <label className="block text-xs text-slate-500">Separador decimal</label>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Separador decimal</label>
               <select
                 value={separadorDecimal}
                 onChange={(e) => setSeparadorDecimal(e.target.value as "," | ".")}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
               >
                 <option value=",">Coma (1.234,56)</option>
                 <option value=".">Punto (1234.56)</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs text-slate-500">
+              <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">
                 Columna IBAN contraparte (opcional)
               </label>
               <select
                 value={colIbanContraparte}
                 onChange={(e) => setColIbanContraparte(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
               >
                 <option value="">Sin usar</option>
                 {cabeceras.map((c) => (
@@ -755,19 +758,19 @@ export function ImportarCSV({
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1.5 text-xs text-ink-tertiary">
                 Si coincide con el IBAN de otra de tus cuentas, se marcará como traspaso.
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 rounded-md border border-slate-100 bg-slate-50 p-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 rounded-card border border-border bg-page p-5">
             <div>
-              <label className="block text-xs text-slate-500">Filtrar por columna (opcional)</label>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Filtrar por columna (opcional)</label>
               <select
                 value={colFiltro}
                 onChange={(e) => onCambiarColFiltro(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
               >
                 <option value="">Sin filtrar (usar todas las filas)</option>
                 {cabeceras.map((c) => (
@@ -776,18 +779,18 @@ export function ImportarCSV({
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1.5 text-xs text-ink-tertiary">
                 Útil si el archivo mezcla varias cuentas en uno (p. ej. Revolut exporta Actual, Ahorros y
                 Depósito juntos, distinguidas por una columna "Producto"): elige aquí esa columna.
               </p>
             </div>
             {colFiltro && (
               <div>
-                <label className="block text-xs text-slate-500">Valor a importar</label>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Valor a importar</label>
                 <select
                   value={valorFiltro}
                   onChange={(e) => setValorFiltro(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
                 >
                   <option value="">— Selecciona un valor —</option>
                   {valoresColumnaFiltro.map((v) => (
@@ -796,7 +799,7 @@ export function ImportarCSV({
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1.5 text-xs text-ink-tertiary">
                   Solo se leerán las filas donde &quot;{colFiltro}&quot; sea exactamente este valor
                   {valorFiltro ? ` (${filasDatosFiltradas.length} de ${filasDatos.length} filas)` : ""}. Repite
                   la importación con otro valor para cada una de tus otras cuentas de este mismo archivo.
@@ -806,7 +809,7 @@ export function ImportarCSV({
           </div>
 
           <div>
-            <label className="block text-xs text-slate-500">Cómo viene el importe</label>
+            <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Cómo viene el importe</label>
             <div className="mt-1 flex flex-wrap gap-4 text-sm">
               <label className="flex items-center gap-1.5">
                 <input type="radio" checked={modoImporte === "unico"} onChange={() => setModoImporte("unico")} />
@@ -825,11 +828,11 @@ export function ImportarCSV({
 
           {modoImporte === "unico" ? (
             <div className="max-w-sm">
-              <label className="block text-xs text-slate-500">Columna importe</label>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Columna importe</label>
               <select
                 value={colImporte}
                 onChange={(e) => onCambiarColImporte(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
               >
                 <option value="">— Selecciona —</option>
                 {cabeceras.map((c) => (
@@ -842,11 +845,11 @@ export function ImportarCSV({
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-xs text-slate-500">Columna cargo (gastos)</label>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Columna cargo (gastos)</label>
                 <select
                   value={colCargo}
                   onChange={(e) => onCambiarColCargo(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
                 >
                   <option value="">— Selecciona —</option>
                   {cabeceras.map((c) => (
@@ -857,11 +860,11 @@ export function ImportarCSV({
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-slate-500">Columna abono (ingresos)</label>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Columna abono (ingresos)</label>
                 <select
                   value={colAbono}
                   onChange={(e) => onCambiarColAbono(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
                 >
                   <option value="">— Selecciona —</option>
                   {cabeceras.map((c) => (
@@ -876,11 +879,11 @@ export function ImportarCSV({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs text-slate-500">Columna comisión (opcional)</label>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Columna comisión (opcional)</label>
               <select
                 value={colComision}
                 onChange={(e) => setColComision(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
               >
                 <option value="">Sin usar</option>
                 {cabeceras.map((c) => (
@@ -889,16 +892,16 @@ export function ImportarCSV({
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1.5 text-xs text-ink-tertiary">
                 Si el archivo trae la comisión en una columna aparte (ej. "fee"), se suma al importe.
               </p>
             </div>
             <div>
-              <label className="block text-xs text-slate-500">Columna retención fiscal (opcional)</label>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Columna retención fiscal (opcional)</label>
               <select
                 value={colRetencion}
                 onChange={(e) => setColRetencion(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
               >
                 <option value="">Sin usar</option>
                 {cabeceras.map((c) => (
@@ -907,16 +910,16 @@ export function ImportarCSV({
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1.5 text-xs text-ink-tertiary">
                 Si el archivo trae la retención fiscal en una columna aparte (ej. "tax"), se suma al importe.
               </p>
             </div>
           </div>
 
-          <div className="space-y-4 rounded-md border border-slate-200 bg-white p-4">
+          <div className="space-y-4 rounded-card border border-border bg-surface p-5">
             <div>
-              <p className="text-sm font-semibold text-slate-700">Inversión (opcional)</p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="text-sm font-semibold text-ink-secondary">Inversión (opcional)</p>
+              <p className="mt-1.5 text-xs text-ink-tertiary">
                 Si el extracto es el de un bróker y trae estas columnas, cada compra y cada venta se registran
                 también en el libro de la posición correspondiente, con sus participaciones y su precio. Un
                 extracto bancario normal no las tiene: déjalas sin usar.
@@ -924,11 +927,11 @@ export function ImportarCSV({
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-xs text-slate-500">Columna ISIN o símbolo</label>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Columna ISIN o símbolo</label>
                 <select
                   value={colIsin}
                   onChange={(e) => setColIsin(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
                 >
                   <option value="">Sin usar</option>
                   {cabeceras.map((c) => (
@@ -939,11 +942,11 @@ export function ImportarCSV({
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-slate-500">Columna participaciones</label>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Columna participaciones</label>
                 <select
                   value={colParticipaciones}
                   onChange={(e) => setColParticipaciones(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
                 >
                   <option value="">Sin usar</option>
                   {cabeceras.map((c) => (
@@ -952,14 +955,14 @@ export function ImportarCSV({
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-slate-400">En negativo si es una venta, como lo exporta el bróker.</p>
+                <p className="mt-1.5 text-xs text-ink-tertiary">En negativo si es una venta, como lo exporta el bróker.</p>
               </div>
               <div>
-                <label className="block text-xs text-slate-500">Columna precio por participación</label>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Columna precio por participación</label>
                 <select
                   value={colPrecio}
                   onChange={(e) => setColPrecio(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
                 >
                   <option value="">Sin usar</option>
                   {cabeceras.map((c) => (
@@ -968,16 +971,16 @@ export function ImportarCSV({
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1.5 text-xs text-ink-tertiary">
                   Con él, cada operación revaloriza la posición entera a esa fecha.
                 </p>
               </div>
               <div>
-                <label className="block text-xs text-slate-500">Columna nombre del activo</label>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Columna nombre del activo</label>
                 <select
                   value={colNombreActivo}
                   onChange={(e) => setColNombreActivo(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
                 >
                   <option value="">Sin usar</option>
                   {cabeceras.map((c) => (
@@ -986,7 +989,7 @@ export function ImportarCSV({
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-slate-400">Solo se usa para nombrar posiciones nuevas.</p>
+                <p className="mt-1.5 text-xs text-ink-tertiary">Solo se usa para nombrar posiciones nuevas.</p>
               </div>
             </div>
           </div>
@@ -1000,7 +1003,7 @@ export function ImportarCSV({
               (modoImporte === "unico" ? !colImporte : !colCargo && !colAbono) ||
               (colFiltro !== "" && valorFiltro === "")
             }
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
+            className="rounded-btn bg-ink px-[18px] py-2.5 text-sm font-semibold text-white hover:bg-ink/90 disabled:opacity-40"
           >
             Previsualizar
           </button>
@@ -1008,25 +1011,25 @@ export function ImportarCSV({
       )}
 
       {paso === "previsualizar" && (
-        <div className="rounded-lg border border-slate-200 bg-white p-6 space-y-4">
+        <div className="rounded-card border border-border bg-surface p-7 shadow-card space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-medium text-slate-700">
+            <h2 className="text-sm font-medium text-ink-secondary">
               Previsualización — {filasAImportar.length} movimientos listos para importar
             </h2>
             <p className="text-sm font-medium">Total: {formatEUR(totalImporte)}</p>
           </div>
 
           {filasInvalidas > 0 && (
-            <details className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            <details className="rounded-btn border border-forecast/30 bg-forecast/10 px-3 py-2 text-xs text-forecast">
               <summary className="cursor-pointer font-medium">
                 {filasInvalidas} filas no se han podido leer y se omitirán. Ver detalle.
               </summary>
-              <p className="mt-2 text-amber-600">
+              <p className="mt-2 text-forecast">
                 Revisa el mapeo de columnas si el número es mayor de lo esperado.
               </p>
               <table className="mt-2 w-full text-left">
                 <thead>
-                  <tr className="text-amber-500">
+                  <tr className="text-forecast/80">
                     <th className="pr-3 py-1 font-medium">Fila</th>
                     <th className="pr-3 py-1 font-medium">Motivo</th>
                     <th className="py-1 font-medium">Contenido original</th>
@@ -1034,12 +1037,12 @@ export function ImportarCSV({
                 </thead>
                 <tbody>
                   {filasInvalidasDetalle.map((fila, i) => (
-                    <tr key={i} className="border-t border-amber-100 align-top">
-                      <td className="pr-3 py-1 whitespace-nowrap text-amber-500">
+                    <tr key={i} className="border-t border-forecast/20 align-top">
+                      <td className="pr-3 py-1 whitespace-nowrap text-forecast/80">
                         {filasPreview.indexOf(fila) + 1}
                       </td>
                       <td className="pr-3 py-1 whitespace-nowrap">{fila.motivoInvalido}</td>
-                      <td className="py-1 font-mono text-amber-700">{fila.original}</td>
+                      <td className="py-1 font-mono text-forecast">{fila.original}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1048,26 +1051,26 @@ export function ImportarCSV({
           )}
 
           {filasOmitidasPorFecha.length > 0 && (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-ink-tertiary">
               {filasOmitidasPorFecha.length} filas son anteriores a la fecha de corte ({formatFecha(fechaCorte)})
               y se omiten.
             </p>
           )}
 
           {operacionesDetectadas > 0 && (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-ink-secondary">
               {operacionesDetectadas} filas traen ISIN y participaciones: además del movimiento se registrará su
               operación en el libro de la posición correspondiente.
             </p>
           )}
 
           {nuevasInversiones.length > 0 && (
-            <div className="space-y-3 rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm">
-              <p className="font-medium text-sky-800">
+            <div className="space-y-3 rounded-btn border border-accent/25 bg-accent-soft px-4 py-3 text-sm">
+              <p className="font-medium text-accent">
                 Se darán de alta {nuevasInversiones.length}{" "}
                 {nuevasInversiones.length === 1 ? "inversión nueva" : "inversiones nuevas"}
               </p>
-              <p className="text-xs text-sky-700">
+              <p className="text-xs text-accent">
                 Son ISIN que aparecen en el archivo y que todavía no tienes como posición. Corrige el nombre o el
                 tipo si hace falta, o desmárcala para que sus filas entren solo como movimientos.
               </p>
@@ -1083,14 +1086,14 @@ export function ImportarCSV({
                     }
                     className="h-4 w-4"
                   />
-                  <span className="font-mono text-xs uppercase text-sky-700">{nueva.isin}</span>
+                  <span className="font-mono text-xs uppercase text-accent">{nueva.isin}</span>
                   <input
                     value={nueva.nombre}
                     onChange={(e) =>
                       setNuevasInversiones((prev) => prev.map((n, j) => (i === j ? { ...n, nombre: e.target.value } : n)))
                     }
                     disabled={!nueva.incluir}
-                    className="min-w-0 flex-1 rounded-md border border-sky-200 px-2 py-1 text-sm disabled:opacity-40"
+                    className="min-w-0 flex-1 rounded-btn border border-accent/25 px-2 py-1 text-sm disabled:opacity-40"
                   />
                   <select
                     value={nueva.tipoActivo}
@@ -1100,7 +1103,7 @@ export function ImportarCSV({
                       )
                     }
                     disabled={!nueva.incluir}
-                    className="rounded-md border border-sky-200 px-2 py-1 text-sm disabled:opacity-40"
+                    className="rounded-btn border border-accent/25 px-2 py-1 text-sm disabled:opacity-40"
                   >
                     {["Fondo indexado", "Acciones", "Cripto", "Cuenta", "Otro"].map((t) => (
                       <option key={t} value={t}>
@@ -1114,16 +1117,16 @@ export function ImportarCSV({
           )}
 
           {filasDuplicadasSinConfirmar.length > 0 && (
-            <p className="text-xs text-amber-600">
+            <p className="text-xs text-forecast">
               {filasDuplicadasSinConfirmar.length} filas parecen ya existir en esta cuenta (misma fecha,
               importe y descripción) y se omitirán para no duplicarlas. Márcalas como "Importar de todas
               formas" si en realidad son movimientos distintos.
             </p>
           )}
 
-          <div className="max-h-[28rem] overflow-y-auto overflow-x-auto rounded-md border border-slate-100">
+          <div className="max-h-[28rem] overflow-y-auto overflow-x-auto rounded-card border border-border">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-slate-50 text-left text-slate-500">
+              <thead className="sticky top-0 bg-page text-left text-ink-tertiary">
                 <tr>
                   <th className="px-3 py-2 font-medium">Fecha</th>
                   <th className="px-3 py-2 font-medium">Descripción</th>
@@ -1137,29 +1140,29 @@ export function ImportarCSV({
                   return (
                   <tr
                     key={index}
-                    className={`border-t border-slate-100 ${
+                    className={`border-t border-border ${
                       !fila.valida || omitidaPorDuplicado || fila.omitidaPorFechaCorte ? "opacity-40" : ""
                     }`}
                   >
-                    <td className="px-3 py-2 whitespace-nowrap text-slate-500">
+                    <td className="px-3 py-2 whitespace-nowrap text-ink-secondary">
                       {fila.valida ? formatFecha(fila.fecha) : `Sin leer (${fila.original})`}
                     </td>
                     <td className="px-3 py-2">
                       {fila.descripcion || "—"}
                       {fila.esDuplicado && (
-                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        <span className="ml-2 rounded-full bg-forecast/15 px-2 py-0.5 text-xs font-medium text-forecast">
                           Posible duplicado
                         </span>
                       )}
                       {fila.omitidaPorFechaCorte && (
-                        <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                        <span className="ml-2 rounded-full bg-chip px-2 py-0.5 text-xs font-medium text-ink-secondary">
                           Anterior a la fecha de corte
                         </span>
                       )}
                     </td>
                     <td
                       className={`px-3 py-2 text-right font-medium ${
-                        fila.importe < 0 ? "text-slate-900" : "text-emerald-600"
+                        fila.importe < 0 ? "text-ink" : "text-success"
                       }`}
                     >
                       {fila.valida ? formatEUR(fila.importe) : "—"}
@@ -1168,7 +1171,7 @@ export function ImportarCSV({
                       {fila.valida && (
                         <div className="space-y-1">
                           {fila.esDuplicado && (
-                            <label className="flex items-center gap-1.5 text-xs text-amber-700">
+                            <label className="flex items-center gap-1.5 text-xs text-forecast">
                               <input
                                 type="checkbox"
                                 checked={fila.incluirDuplicado}
@@ -1177,7 +1180,7 @@ export function ImportarCSV({
                               Importar de todas formas
                             </label>
                           )}
-                          <label className="flex items-center gap-1.5 text-xs text-sky-700">
+                          <label className="flex items-center gap-1.5 text-xs text-accent">
                             <input
                               type="checkbox"
                               checked={fila.esTraspaso}
@@ -1190,7 +1193,7 @@ export function ImportarCSV({
                             <select
                               value={fila.cuentaContraparteId ?? ""}
                               onChange={(e) => actualizarContraparte(index, e.target.value)}
-                              className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                              className="w-full rounded-btn border border-border-strong px-2 py-1 text-sm"
                             >
                               {cuentasContraparte.map((c) => (
                                 <option key={c.id} value={c.id}>
@@ -1205,7 +1208,7 @@ export function ImportarCSV({
                           <select
                             value={fila.categoria_id ?? ""}
                             onChange={(e) => actualizarCategoria(index, e.target.value)}
-                            className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                            className="w-full rounded-btn border border-border-strong px-2 py-1 text-sm"
                           >
                             <option value="">Sin categoría</option>
                             {categorias.map((cat) => (
@@ -1231,7 +1234,7 @@ export function ImportarCSV({
                                   <select
                                     value={fila.previstoId ?? ""}
                                     onChange={(e) => actualizarPrevisto(index, e.target.value)}
-                                    className="w-full rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-xs text-sky-700"
+                                    className="w-full rounded-btn border border-accent/40 bg-accent-soft px-2 py-1 text-xs text-accent"
                                   >
                                     <option value="">¿Es una previsión? — no vincular</option>
                                     {candidatos.map((p) => (
@@ -1258,7 +1261,7 @@ export function ImportarCSV({
             <button
               type="button"
               onClick={() => setPaso("mapear")}
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="rounded-btn border border-border-strong bg-surface px-[18px] py-2.5 text-sm font-semibold text-ink-secondary hover:bg-chip"
             >
               Volver a mapear
             </button>
@@ -1266,7 +1269,7 @@ export function ImportarCSV({
               type="button"
               onClick={confirmarImportacion}
               disabled={importando || filasAImportar.length === 0}
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
+              className="rounded-btn bg-ink px-[18px] py-2.5 text-sm font-semibold text-white hover:bg-ink/90 disabled:opacity-40"
             >
               {importando ? "Importando…" : `Confirmar importación (${filasAImportar.length})`}
             </button>

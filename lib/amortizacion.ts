@@ -148,3 +148,26 @@ export function simularConProgramadas(
 
   return { filas, mesesRestantes: filas.length, interesesTotales, cuotaNoCubreIntereses, cuotaFinal: cuota };
 }
+
+// Una cuota que no llega a cubrir los intereses del primer mes describe un préstamo
+// imposible: el capital crece en vez de bajar y el cuadro de amortización no converge
+// nunca. En la práctica siempre significa que hay un dato mal metido.
+//
+// Pasó de verdad: una hipoteca con 2.370.000 € de capital inicial (en vez de 237.000) y
+// una cuota de 591,83 € al 2,2% hacía que el Planificador dibujara un salto de 4.420 € a
+// 147.826 € entre dos meses consecutivos, porque la simulación divergía y el anclaje al
+// capital real de hoy repartía el disparate por toda la curva (auditoría, tanda 11).
+export function cuotaCubreIntereses(params: {
+  capital: number;
+  cuota: number;
+  tipoInteresAnual: number | null;
+}): { cubre: boolean; interesPrimerMes: number } {
+  const { capital, cuota, tipoInteresAnual } = params;
+  const tasaMensual = (tipoInteresAnual ?? 0) / 100 / 12;
+  const interesPrimerMes = capital * tasaMensual;
+
+  // Sin intereses cualquier cuota positiva amortiza, por poco que sea.
+  if (tasaMensual <= 0) return { cubre: cuota > 0, interesPrimerMes: 0 };
+
+  return { cubre: cuota > interesPrimerMes, interesPrimerMes };
+}
