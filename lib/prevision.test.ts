@@ -14,6 +14,7 @@ import {
   previstoAplicaEnMes,
   previstoYaMaterializadoEnMes,
   previstosCoincidentes,
+  categoriaCoincideConPrevisto,
   type CategoriaInfo,
   type MovimientoPrevisto,
 } from "./prevision";
@@ -601,22 +602,55 @@ describe("ocurrenciasPendientesEnMes y las subcategorías", () => {
     fecha_fin: null,
     es_presupuesto: true,
   };
-  const alPadre = (id: string) => (id === "restaurantes" ? "ocio" : id);
 
-  it("sin resolver el padre, el gasto en la subcategoría no apaga el presupuesto", () => {
+  // Quien construye el conjunto mete una clave por la categoría del movimiento y otra por
+  // la de su padre, así que un gasto en Restaurantes aporta las dos.
+  const gastoEnRestaurantes = new Set(["restaurantes:2026-09", "ocio:2026-09"]);
+
+  it("el gasto en la subcategoría apaga el presupuesto del padre", () => {
     expect(
       ocurrenciasPendientesEnMes(presupuestoOcio as never, 2026, 9, {
-        categoriasConMovimiento: new Set(["restaurantes:2026-09"]),
+        categoriasConMovimiento: gastoEnRestaurantes,
+      })
+    ).toBe(0);
+  });
+
+  it("el gasto en el padre no apaga un presupuesto puesto sobre la hija", () => {
+    // Si se resolvieran los dos lados al padre, esto sería imposible de expresar.
+    const presupuestoRestaurantes = { ...presupuestoOcio, id: "rest", categoria_id: "restaurantes" };
+    expect(
+      ocurrenciasPendientesEnMes(presupuestoRestaurantes as never, 2026, 9, {
+        categoriasConMovimiento: new Set(["ocio:2026-09"]),
       })
     ).toBe(1);
   });
+});
 
-  it("resolviendo al padre, sí lo apaga", () => {
-    expect(
-      ocurrenciasPendientesEnMes(presupuestoOcio as never, 2026, 9, {
-        categoriasConMovimiento: new Set(["ocio:2026-09"]),
-        categoriaEfectiva: alPadre,
-      })
-    ).toBe(0);
+describe("categoriaCoincideConPrevisto", () => {
+  // Todas estas cuelgan de "Vivienda": si se resolvieran los dos lados al padre, la
+  // previsión del alquiler ofrecería como candidato el recibo de la comunidad.
+  const padre = (id: string) =>
+    ({ alquiler: "vivienda", comunidad: "vivienda", hipoteca: "vivienda", restaurantes: "ocio" })[id] ?? id;
+
+  it("coincide la categoría exacta", () => {
+    expect(categoriaCoincideConPrevisto("alquiler", "alquiler", padre)).toBe(true);
+  });
+
+  it("coincide un movimiento de una hija con una previsión sobre el padre", () => {
+    expect(categoriaCoincideConPrevisto("restaurantes", "ocio", padre)).toBe(true);
+  });
+
+  it("NO coinciden dos hermanas del mismo padre", () => {
+    expect(categoriaCoincideConPrevisto("comunidad", "alquiler", padre)).toBe(false);
+    expect(categoriaCoincideConPrevisto("hipoteca", "comunidad", padre)).toBe(false);
+  });
+
+  it("NO coincide un movimiento del padre con una previsión sobre la hija", () => {
+    expect(categoriaCoincideConPrevisto("ocio", "restaurantes", padre)).toBe(false);
+  });
+
+  it("sin categoría no coincide con nada", () => {
+    expect(categoriaCoincideConPrevisto(null, "ocio", padre)).toBe(false);
+    expect(categoriaCoincideConPrevisto("ocio", null, padre)).toBe(false);
   });
 });

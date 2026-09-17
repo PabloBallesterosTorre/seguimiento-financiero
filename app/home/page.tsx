@@ -211,8 +211,12 @@ export default async function HomePage({
   const categoriasConMovimiento = new Set(
     historicoCompleto
       .filter((m) => m.categoria_id)
-      // Resuelta al padre: el presupuesto vive en "Ocio" y el gasto cae en "Restaurantes".
-      .map((m) => `${categoriaEfectiva(m.categoria_id!)}:${mesDeFecha(m.fecha)}`)
+      // Dos claves por movimiento: su categoría y la de su padre. Un presupuesto sobre
+      // "Ocio" lo apaga el gasto en "Restaurantes"; uno sobre "Restaurantes", solo el suyo.
+      .flatMap((m) => [
+        `${m.categoria_id}:${mesDeFecha(m.fecha)}`,
+        `${categoriaEfectiva(m.categoria_id!)}:${mesDeFecha(m.fecha)}`,
+      ])
   );
 
   const primeraFecha = historicoCompleto.reduce(
@@ -282,7 +286,6 @@ export default async function HomePage({
     mediaPorCategoria,
     conciliacionesPorMes,
     categoriasConMovimiento,
-    categoriaEfectiva,
   });
 
   const puntos = [...puntosHistoricos, ...puntosFuturos];
@@ -340,7 +343,6 @@ export default async function HomePage({
       const ocurrencias = ocurrenciasPendientesEnMes(p, year, month, {
         conciliacionesPorMes,
         categoriasConMovimiento,
-        categoriaEfectiva,
       });
       suma += importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrencias;
     }

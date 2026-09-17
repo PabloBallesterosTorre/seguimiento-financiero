@@ -210,7 +210,8 @@ export function previstosCoincidentes(
   // previsto todavía no había empezado y el movimiento no encontraba con qué emparejarse:
   // no se conciliaba y septiembre lo contaba dos veces, una en el saldo real y otra como
   // previsión pendiente. Con el mes financiero, el 28 de agosto ya es septiembre y encaja.
-  mesDe: (fecha: string) => string = (fecha) => fecha.slice(0, 7)
+  mesDe: (fecha: string) => string = (fecha) => fecha.slice(0, 7),
+  categoriaEfectiva: (id: string) => string = (id) => id
 ): MovimientoPrevisto[] {
   if (movimiento.categoria_id === null) return [];
 
@@ -225,7 +226,7 @@ export function previstosCoincidentes(
     // mes (ver ocurrenciasPendientesEnMes). Emparejarlo sería tratarlo como un recibo.
     if (p.es_presupuesto) return false;
     if (p.tipo !== movimiento.tipo) return false;
-    if (p.categoria_id !== movimiento.categoria_id) return false;
+    if (!categoriaCoincideConPrevisto(movimiento.categoria_id, p.categoria_id, categoriaEfectiva)) return false;
     if (!previstoAplicaEnMes(p, year, month)) return false;
 
     if (p.importe_min != null && p.importe_max != null) {
@@ -442,21 +443,15 @@ export function ocurrenciasPendientesEnMes(
   month: number,
   opciones: {
     conciliacionesPorMes?: Map<string, number>;
-    // Claves "categoriaId:YYYY-MM" de las categorías que ya tienen movimiento real en ese
-    // mes, con la categoría ya resuelta a su padre.
+    // Claves "categoriaId:YYYY-MM" de las categorías con movimiento real en ese mes. Cada
+    // movimiento aporta DOS claves: la de su propia categoría y la de su padre. Así un
+    // presupuesto puesto sobre "Ocio" lo apaga el gasto en "Restaurantes" (que es hija
+    // suya), y uno puesto sobre "Restaurantes" solo lo apaga el gasto en Restaurantes.
+    // Resolver los dos lados al padre haría lo segundo imposible.
     categoriasConMovimiento?: ReadonlySet<string>;
-    // Resuelve una subcategoría a su categoría padre. Hace falta porque un presupuesto se
-    // pone sobre la categoría padre ("Ocio") mientras el gasto real cae en sus hijas
-    // ("Restaurantes", 63 movimientos). Comparando ids en crudo, el presupuesto de Ocio no
-    // se apagaba nunca en un mes en el que solo se hubiera gastado en Restaurantes.
-    categoriaEfectiva?: (categoriaId: string) => string;
   } = {}
 ): number {
-  const {
-    conciliacionesPorMes = new Map(),
-    categoriasConMovimiento = new Set<string>(),
-    categoriaEfectiva = (id: string) => id,
-  } = opciones;
+  const { conciliacionesPorMes = new Map(), categoriasConMovimiento = new Set<string>() } = opciones;
 
   const total = ocurrenciasEnMes(p, year, month);
   if (total === 0) return 0;
@@ -464,10 +459,32 @@ export function ocurrenciasPendientesEnMes(
   const mesClave = `${year}-${String(month).padStart(2, "0")}`;
 
   if (p.es_presupuesto) {
-    if (p.categoria_id && categoriasConMovimiento.has(`${categoriaEfectiva(p.categoria_id)}:${mesClave}`)) return 0;
+    if (p.categoria_id && categoriasConMovimiento.has(`${p.categoria_id}:${mesClave}`)) return 0;
     return total;
   }
 
   const conciliadas = conciliacionesPorMes.get(`${p.id}:${mesClave}`) ?? 0;
   return Math.max(total - conciliadas, 0);
+}
+
+/**
+ * ¿Puede este movimiento corresponder a esta previsión, mirando solo la categoría?
+ *
+ * La coincidencia es ASIMÉTRICA a propósito: vale la categoría exacta, o que la del
+ * movimiento cuelgue de la de la previsión. No vale al revés, ni "las dos comparten padre".
+ *
+ * Resolver los dos lados al padre parecía lo elegante y era mucho peor: "Pago Hipoteca
+ * Pablo", "Comunidad Marta", "Comunidad Pablo" y "Alquiler" son todas hijas de "Vivienda",
+ * así que la previsión del alquiler ofrecía como candidatos el recibo de la comunidad y la
+ * cuota de la hipoteca. Una conciliación equivocada descuadra el mes entero, así que aquí
+ * conviene quedarse corto antes que pasarse.
+ */
+export function categoriaCoincideConPrevisto(
+  categoriaMovimiento: string | null,
+  categoriaPrevisto: string | null,
+  categoriaEfectiva: (id: string) => string = (id) => id
+): boolean {
+  if (categoriaMovimiento === null || categoriaPrevisto === null) return false;
+  if (categoriaMovimiento === categoriaPrevisto) return true;
+  return categoriaEfectiva(categoriaMovimiento) === categoriaPrevisto;
 }

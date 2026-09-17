@@ -185,8 +185,12 @@ export default async function PlanificadorPage({
   const categoriasConMovimiento = new Set(
     historico
       .filter((m) => m.categoria_id)
-      // Resuelta al padre: el presupuesto vive en "Ocio" y el gasto cae en "Restaurantes".
-      .map((m) => `${categoriaEfectiva(m.categoria_id!)}:${mesDeFecha(m.fecha)}`)
+      // Dos claves por movimiento: su categoría y la de su padre. Un presupuesto sobre
+      // "Ocio" lo apaga el gasto en "Restaurantes"; uno sobre "Restaurantes", solo el suyo.
+      .flatMap((m) => [
+        `${m.categoria_id}:${mesDeFecha(m.fecha)}`,
+        `${categoriaEfectiva(m.categoria_id!)}:${mesDeFecha(m.fecha)}`,
+      ])
   );
 
   const meses = generarMeses(horizonteMeses, mesEnCurso);
@@ -211,7 +215,6 @@ export default async function PlanificadorPage({
     esCategoriaInversion,
     conciliacionesPorMes,
     categoriasConMovimiento,
-    categoriaEfectiva,
     rentabilidadAnualAsumidaInversion: rentabilidadAsumida,
   });
 

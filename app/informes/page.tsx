@@ -237,8 +237,12 @@ export default async function InformesPage({
   const categoriasConMovimiento = new Set(
     historicoCompleto
       .filter((m) => m.categoria_id)
-      // Resuelta al padre: el presupuesto vive en "Ocio" y el gasto cae en "Restaurantes".
-      .map((m) => `${categoriaEfectiva(m.categoria_id!)}:${mesDeFecha(m.fecha)}`)
+      // Dos claves por movimiento: su categoría y la de su padre. Un presupuesto sobre
+      // "Ocio" lo apaga el gasto en "Restaurantes"; uno sobre "Restaurantes", solo el suyo.
+      .flatMap((m) => [
+        `${m.categoria_id}:${mesDeFecha(m.fecha)}`,
+        `${categoriaEfectiva(m.categoria_id!)}:${mesDeFecha(m.fecha)}`,
+      ])
   );
 
   // ---- Horizonte: rango de histórico elegido (limitado a los datos disponibles) + previsión que le sigue ----
@@ -305,7 +309,6 @@ export default async function InformesPage({
     mediaPorCategoria,
     conciliacionesPorMes,
     categoriasConMovimiento,
-    categoriaEfectiva,
     rentabilidadAnualAsumidaInversion: rentabilidadAsumida,
   });
 
@@ -355,7 +358,6 @@ export default async function InformesPage({
       const ocurrencias = ocurrenciasPendientesEnMes(p, year, month, {
         conciliacionesPorMes,
         categoriasConMovimiento,
-        categoriaEfectiva,
       });
       if (ocurrencias === 0) continue;
       const importe = importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrencias;

@@ -67,7 +67,6 @@ export function construirProyeccionPatrimonio(params: {
   // quien decide cuánto de cada previsto queda por ocurrir.
   conciliacionesPorMes?: Map<string, number>;
   categoriasConMovimiento?: ReadonlySet<string>;
-  categoriaEfectiva?: (categoriaId: string) => string;
   rentabilidadAnualAsumidaInversion?: number | null;
 }): PuntoProyeccion[] {
   const {
@@ -83,7 +82,6 @@ export function construirProyeccionPatrimonio(params: {
     mediaPorCategoria = new Map(),
     conciliacionesPorMes = new Map(),
     categoriasConMovimiento = new Set<string>(),
-    categoriaEfectiva = (id: string) => id,
     rentabilidadAnualAsumidaInversion = null,
   } = params;
   const tasaMensualInversion = rentabilidadAnualAsumidaInversion
@@ -120,7 +118,6 @@ export function construirProyeccionPatrimonio(params: {
       const ocurrencias = ocurrenciasPendientesEnMes(p, mes.year, mes.month, {
         conciliacionesPorMes,
         categoriasConMovimiento,
-        categoriaEfectiva,
       });
       if (ocurrencias === 0) continue;
 

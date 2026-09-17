@@ -6,6 +6,7 @@ import {
   generarMeses,
   contarConciliacionesPorMes,
   ocurrenciasPendientesEnMes,
+  categoriaCoincideConPrevisto,
   importeEfectivoPrevisto,
   ocurrenciasEnMes,
   previstoAplicaEnMes,
@@ -148,8 +149,12 @@ export default async function PrevisionPage({
   const categoriasConMovimiento = new Set(
     historico
       .filter((m) => m.categoria_id)
-      // Resuelta al padre: el presupuesto vive en "Ocio" y el gasto cae en "Restaurantes".
-      .map((m) => `${categoriaEfectiva(m.categoria_id!)}:${mesDeFecha(m.fecha)}`)
+      // Dos claves por movimiento: su categoría y la de su padre. Un presupuesto sobre
+      // "Ocio" lo apaga el gasto en "Restaurantes"; uno sobre "Restaurantes", solo el suyo.
+      .flatMap((m) => [
+        `${m.categoria_id}:${mesDeFecha(m.fecha)}`,
+        `${categoriaEfectiva(m.categoria_id!)}:${mesDeFecha(m.fecha)}`,
+      ])
   );
 
   const mesesHorizonte = generarMeses(horizonte, mesEnCurso);
@@ -170,7 +175,6 @@ export default async function PrevisionPage({
       const n = ocurrenciasPendientesEnMes(p, mes.year, mes.month, {
         conciliacionesPorMes,
         categoriasConMovimiento,
-        categoriaEfectiva,
       });
       if (n > 0) pendientes.set(p.id, n);
     }
@@ -368,13 +372,8 @@ export default async function PrevisionPage({
             </p>
 
             {previstosSinVincular.map((p) => {
-              // Por categoría efectiva: una previsión puesta sobre la categoría padre tiene
-              // que poder emparejarse con un movimiento de una de sus hijas.
-              const candidatos = movimientosParaConciliar.filter(
-                (m) =>
-                  m.categoria_id !== null &&
-                  p.categoria_id !== null &&
-                  categoriaEfectiva(m.categoria_id) === categoriaEfectiva(p.categoria_id)
+              const candidatos = movimientosParaConciliar.filter((m) =>
+                categoriaCoincideConPrevisto(m.categoria_id, p.categoria_id, categoriaEfectiva)
               );
               return (
                 <form key={p.id} action={vincularMovimientoPrevisto} className="flex items-center gap-2 text-sm">
