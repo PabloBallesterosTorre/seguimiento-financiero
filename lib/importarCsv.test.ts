@@ -150,3 +150,38 @@ describe("diaSiguienteISO", () => {
     expect(diaSiguienteISO("2024-02-28")).toBe("2024-02-29");
   });
 });
+
+describe("parseFechaImportada con el mes escrito en letra", () => {
+  // Formato de los extractos de cuenta remunerada de Revolut.
+  it("lee el formato abreviado en español", () => {
+    expect(parseFechaImportada("1 sept 2026", "DMY")).toBe("2026-09-01");
+    expect(parseFechaImportada("17 sept 2026", "DMY")).toBe("2026-09-17");
+  });
+
+  it("lee el mes completo y la forma con «de»", () => {
+    expect(parseFechaImportada("3 de septiembre de 2026", "DMY")).toBe("2026-09-03");
+    expect(parseFechaImportada("30 enero 2027", "DMY")).toBe("2027-01-30");
+  });
+
+  it("lee también los meses en inglés", () => {
+    expect(parseFechaImportada("3 March 2026", "DMY")).toBe("2026-03-03");
+    expect(parseFechaImportada("25 Dec 2026", "DMY")).toBe("2026-12-25");
+  });
+
+  // Con el mes en letra el orden de los campos es inequívoco, así que el formato elegido
+  // en el desplegable no debe cambiar el resultado.
+  it("ignora el formato seleccionado, que no aplica a estas fechas", () => {
+    expect(parseFechaImportada("1 sept 2026", "MDY")).toBe("2026-09-01");
+    expect(parseFechaImportada("1 sept 2026", "YMD")).toBe("2026-09-01");
+  });
+
+  it("rechaza un texto que no es una fecha", () => {
+    expect(parseFechaImportada("1 xxx 2026", "DMY")).toBeNull();
+    expect(parseFechaImportada("sept 2026", "DMY")).toBeNull();
+  });
+
+  it("no rompe los formatos numéricos de siempre", () => {
+    expect(parseFechaImportada("16/09/2026", "DMY")).toBe("2026-09-16");
+    expect(parseFechaImportada("2026-09-16", "YMD")).toBe("2026-09-16");
+  });
+});

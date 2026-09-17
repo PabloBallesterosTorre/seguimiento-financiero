@@ -1,10 +1,59 @@
 export type FormatoFecha = "DMY" | "YMD" | "MDY";
 
+// Meses en español e inglés, por su prefijo de tres letras, que es lo único que comparten
+// todas las variantes que emiten los bancos ("sep", "sept", "septiembre", "September").
+// Enero/January y junio/July no colisionan entre idiomas salvo "jun"/"jul", que significan
+// lo mismo en ambos, así que un único mapa sirve para los dos.
+const MESES_POR_PREFIJO: Record<string, number> = {
+  ene: 1, jan: 1,
+  feb: 2,
+  mar: 3,
+  abr: 4, apr: 4,
+  may: 5,
+  jun: 6,
+  jul: 7,
+  ago: 8, aug: 8,
+  sep: 9,
+  oct: 10,
+  nov: 11,
+  dic: 12, dec: 12,
+};
+
+// Fecha con el mes escrito en letra: "1 sept 2026", "17 de septiembre de 2026",
+// "3 March 2026". Devuelve ISO o null si no tiene esa forma.
+function parseFechaConMesEnTexto(valor: string): string | null {
+  const limpio = valor
+    .trim()
+    .toLowerCase()
+    .replace(/\bde\b/g, " ")
+    .replace(/[.,]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const partes = limpio.match(/^(\d{1,2}) ([a-záéíóúñ]+) (\d{4})$/);
+  if (!partes) return null;
+
+  const mes = MESES_POR_PREFIJO[partes[2].slice(0, 3)];
+  if (!mes) return null;
+
+  const dia = Number(partes[1]);
+  if (dia < 1 || dia > 31) return null;
+
+  return `${partes[3]}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+}
+
 // Convierte una fecha en el formato indicado a texto ISO (AAAA-MM-DD), o null si no es válida.
 // Admite también una fecha-hora completa (ej. "2024-02-16T11:00:36.142Z" o
 // "2026-07-16 15:22:37"): se queda solo con la parte de fecha, antes de la "T" o
 // del primer espacio.
 export function parseFechaImportada(valor: string, formato: FormatoFecha): string | null {
+  // Fecha con el mes escrito ("1 sept 2026", "17 September 2026"). La usan los extractos
+  // de cuenta remunerada de Revolut, y no encaja en ningún formato numérico porque no
+  // lleva separadores. Se resuelve antes que nada y sin mirar `formato`: con el mes en
+  // letra el orden de los campos es inequívoco, así que no hay nada que elegir.
+  const conMesEnTexto = parseFechaConMesEnTexto(valor);
+  if (conMesEnTexto) return conMesEnTexto;
+
   const soloFecha = valor.trim().split(/[T ]/)[0];
   const limpio = soloFecha.trim();
   if (!limpio) return null;

@@ -162,8 +162,8 @@ export function ImportarCSV({
   function aplicarGuesses(cab: string[], datos: string[][]) {
     const colFechaDetectada = adivinarColumna(cab, ["fecha", "date"]);
     const colImporteDetectada = adivinarColumna(cab, ["importe", "cantidad", "amount"]);
-    const colCargoDetectada = adivinarColumna(cab, ["cargo", "debe", "debit"]);
-    const colAbonoDetectada = adivinarColumna(cab, ["abono", "haber", "credit"]);
+    const colCargoDetectada = adivinarColumna(cab, ["cargo", "debe", "debit", "saliente"]);
+    const colAbonoDetectada = adivinarColumna(cab, ["abono", "haber", "credit", "entrante"]);
     const colComisionDetectada = adivinarColumna(cab, ["fee", "comision", "comisión"]);
     const colRetencionDetectada = adivinarColumna(cab, ["tax", "retencion", "retención"]);
     const colIbanDetectada = adivinarColumna(cab, [
