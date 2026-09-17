@@ -137,17 +137,35 @@ calculado en UTC, con tests de regresión.
 
 ## Pendiente
 
-### La importación sigue sin ser atómica (causa raíz no resuelta)
+### ~~La importación no es atómica~~ — RESUELTO (migración 0020)
 
-`importarMovimientos` inserta los movimientos y **después** actualiza el saldo, sin
-transacción. Si falla a mitad —especialmente en el bucle fila a fila de las conciliaciones—
-quedan movimientos insertados y el saldo sin actualizar: exactamente la clase de descuadre
-que ha ocurrido. La detección y el botón de recalcular son una red de seguridad, no el
-arreglo de fondo.
+`importarMovimientos` insertaba los movimientos y **después** actualizaba el saldo, sin
+transacción. Si fallaba a mitad —especialmente en el bucle fila a fila de las
+conciliaciones— quedaban movimientos insertados y el saldo sin actualizar: la causa raíz
+del descuadre.
 
-El arreglo real es mover la importación a una función RPC de Postgres (`create function
-importar_movimientos(...) language plpgsql`) para que inserciones y saldo entren en una
-única transacción. No se ha hecho en esta tanda.
+Resuelto moviendo la importación entera a dos funciones de Postgres (`importar_movimientos`
+e `importar_traspasos`, migración 0020). Cada llamada corre en una única transacción.
+
+Dos decisiones de diseño:
+
+- Son **`security invoker`**, así que RLS sigue aplicando dentro de la función. Una función
+  `security definer` habría saltado RLS — justo el agujero por el que 101 movimientos
+  acabaron en una cuenta que no les correspondía.
+- El saldo se **reconstruye** (`saldo_inicial` + suma de movimientos) en vez de sumarle el
+  neto del lote al valor anterior, así que la importación es autocorrectiva: deja la cuenta
+  cuadrada incluso si venía descuadrada. El mismo criterio se aplicó al resto de escrituras
+  (alta y borrado de movimiento, alta y borrado de traspaso) vía el helper
+  `reconstruirSaldo`, que no les da atomicidad pero hace que la siguiente operación repare
+  cualquier deriva anterior.
+
+Verificado contra el proyecto de desarrollo, simulando la sesión de un usuario autenticado:
+
+| Prueba | Resultado |
+|---|---|
+| Importar 2 movimientos sobre una cuenta con el saldo deliberadamente mal (999 €) | Saldo reconstruido a 114,50 € = saldo inicial + movimientos |
+| Importar un lote cuya segunda fila viola una restricción | 0 filas insertadas, saldo intacto |
+| Importar un traspaso entre dos cuentas | Ambos lados creados, ambos saldos cuadrados |
 
 ### Verificar el resto de cuentas
 

@@ -34,6 +34,15 @@ npx supabase db push --project-ref ctyqpyznqhcauufoiqam   # producción
 
 (usa `--linked` en vez de `--project-ref` si tienes el CLI enlazado al proyecto correspondiente).
 
+> **Ojo con el historial de migraciones.** Las migraciones `0001`–`0017` están registradas en
+> la base de datos con esas mismas versiones, pero `0018`, `0019` y `0020` se aplicaron desde
+> el panel de Supabase y quedaron registradas con una versión con marca de tiempo
+> (`20260910105350`, `20260917110817`, …). El CLI compara por versión, así que `db push` las
+> verá como pendientes e intentará reaplicarlas. Las tres son idempotentes (`add column if not
+> exists`, `create or replace function`), así que hoy no rompe nada, pero conviene reconciliar
+> el historial —renombrando esas versiones a `0018`/`0019`/`0020` en
+> `supabase_migrations.schema_migrations`— antes de añadir una migración que no lo sea.
+
 ## Puesta en marcha en local
 
 1. Instala las dependencias:
