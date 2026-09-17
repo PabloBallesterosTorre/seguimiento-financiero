@@ -11,6 +11,14 @@ export type FilaImportar = {
   tipo: "ingreso" | "gasto";
   categoria_id: string | null;
   previstoId?: string | null;
+  // Datos de inversión, cuando el extracto es el de un bróker y los trae (tanda 10).
+  // Si vienen los dos primeros, la importación registra además la operación en el libro
+  // de la posición con ese ISIN, y la da de alta si no existía.
+  isin?: string | null;
+  participaciones?: number | null;
+  precio?: number | null;
+  nombreActivo?: string | null;
+  tipoActivo?: string | null;
 };
 
 export type FilaTraspasoImportar = {
@@ -44,6 +52,11 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
       tipo: fila.tipo,
       categoria_id: fila.categoria_id,
       previsto_id: fila.previstoId ?? null,
+      isin: fila.isin ?? null,
+      participaciones: fila.participaciones ?? null,
+      precio: fila.precio ?? null,
+      nombre_activo: fila.nombreActivo ?? null,
+      tipo_activo: fila.tipoActivo ?? null,
     })),
   });
 
@@ -52,7 +65,13 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
     return { ok: false as const, error: error.message };
   }
 
-  const resultado = data as { importados: number; conciliados: number; saldo: number };
+  const resultado = data as {
+    importados: number;
+    conciliados: number;
+    operaciones: number;
+    inversiones_nuevas: number;
+    saldo: number;
+  };
 
   // El aprendizaje de reglas es una mejora, no parte del contrato de la importación: los
   // movimientos ya se han guardado de forma atómica arriba, así que un fallo aquí se
@@ -75,8 +94,19 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
     revalidatePath("/prevision");
     revalidatePath("/prevision/previstos");
   }
+  if (resultado.operaciones > 0) {
+    revalidatePath("/inversiones");
+    revalidatePath("/informes");
+    revalidatePath("/planificador");
+  }
 
-  return { ok: true as const, importados: resultado.importados, conciliados: resultado.conciliados };
+  return {
+    ok: true as const,
+    importados: resultado.importados,
+    conciliados: resultado.conciliados,
+    operaciones: resultado.operaciones,
+    inversionesNuevas: resultado.inversiones_nuevas,
+  };
 }
 
 export async function importarTraspasos(cuentaId: string, filas: FilaTraspasoImportar[]) {

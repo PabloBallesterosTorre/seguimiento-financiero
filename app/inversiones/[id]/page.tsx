@@ -2,10 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
-import { registrarValoracionInversion } from "../actions";
+import { registrarValoracionInversion, registrarOperacion, eliminarOperacion } from "../actions";
 import { RegistrarValoracion } from "./RegistrarValoracion";
 import { EvolucionInversionChart } from "./EvolucionInversionChart";
-import { construirEvolucionInversion } from "@/lib/inversiones";
+import { OperacionesInversion, type OperacionEnTabla } from "./OperacionesInversion";
+import {
+  construirEvolucionInversion,
+  calcularPosicion,
+  flujosParaTIR,
+  tirAnualizada,
+  type OperacionInversion,
+} from "@/lib/inversiones";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { formatMoneda } from "@/lib/formato";
 import { cardClass, tableWrapClass } from "@/components/formStyles";
@@ -14,11 +21,12 @@ function formatFecha(value: string) {
   return new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(new Date(value));
 }
 
-function InfoCard({ label, value }: { label: string; value: string }) {
+function InfoCard({ label, value, clase, nota }: { label: string; value: string; clase?: string; nota?: string }) {
   return (
     <div className="rounded-card border border-border bg-surface p-5 shadow-card">
       <p className="text-xs text-ink-secondary">{label}</p>
-      <p className="mt-1.5 font-sora text-lg font-semibold text-ink">{value}</p>
+      <p className={`mt-1.5 font-sora text-lg font-semibold ${clase ?? "text-ink"}`}>{value}</p>
+      {nota && <p className="mt-1 text-[11px] text-ink-tertiary">{nota}</p>}
     </div>
   );
 }
@@ -34,20 +42,58 @@ export default async function InversionDetallePage({ params }: { params: Promise
   const { data: inversion } = await supabase.from("inversiones").select("*").eq("id", id).single();
   if (!inversion) notFound();
 
-  const [{ data: valoraciones }, { data: previsto }, config] = await Promise.all([
-    supabase
-      .from("inversion_valoraciones")
-      .select("fecha, valor, origen")
-      .eq("inversion_id", id)
-      .order("fecha", { ascending: false }),
-    inversion.movimiento_previsto_id
-      ? supabase.from("movimientos_previstos").select("descripcion, importe_estimado").eq("id", inversion.movimiento_previsto_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    user ? obtenerConfiguracion(supabase, user.id) : null,
-  ]);
+  const [{ data: valoraciones }, { data: operacionesRaw }, { data: previsto }, { data: cuenta }, config] =
+    await Promise.all([
+      supabase
+        .from("inversion_valoraciones")
+        .select("fecha, valor, origen")
+        .eq("inversion_id", id)
+        .order("fecha", { ascending: false }),
+      supabase
+        .from("inversion_operaciones")
+        .select("id, fecha, tipo, importe, participaciones, precio, comision, nota, origen, movimiento_id")
+        .eq("inversion_id", id)
+        .order("fecha", { ascending: false }),
+      inversion.movimiento_previsto_id
+        ? supabase
+            .from("movimientos_previstos")
+            .select("descripcion, importe_estimado")
+            .eq("id", inversion.movimiento_previsto_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      inversion.cuenta_id
+        ? supabase.from("cuentas").select("nombre, banco_nombre").eq("id", inversion.cuenta_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      user ? obtenerConfiguracion(supabase, user.id) : null,
+    ]);
 
-  const formatEUR = (v: number) => formatMoneda(v, config?.moneda_base ?? "EUR");
+  const moneda = config?.moneda_base ?? "EUR";
+  const formatEUR = (v: number) => formatMoneda(v, moneda);
   const hoy = new Date().toISOString().slice(0, 10);
+
+  const operaciones: OperacionEnTabla[] = (operacionesRaw ?? []).map((o) => ({
+    id: o.id,
+    fecha: o.fecha,
+    tipo: o.tipo,
+    importe: Number(o.importe),
+    participaciones: o.participaciones !== null ? Number(o.participaciones) : null,
+    precio: o.precio !== null ? Number(o.precio) : null,
+    comision: Number(o.comision ?? 0),
+    nota: o.nota,
+    origen: o.origen,
+    movimiento_id: o.movimiento_id,
+  }));
+
+  // calcularPosicion no depende del orden, pero la TIR sí necesita las fechas en orden
+  // ascendente para tomar la primera como origen del plazo.
+  const paraCalculo: OperacionInversion[] = [...operaciones]
+    .reverse()
+    .map((o) => ({ fecha: o.fecha, tipo: o.tipo as OperacionInversion["tipo"], importe: o.importe, participaciones: o.participaciones, precio: o.precio }));
+
+  const valorMercado = Number(inversion.valor_actual);
+  const posicion = calcularPosicion(paraCalculo, valorMercado);
+  const tir = tirAnualizada(flujosParaTIR(paraCalculo, valorMercado, hoy));
+  const hayLibro = operaciones.length > 0;
 
   const rentabilidad = inversion.rentabilidad_anual_asumida !== null ? Number(inversion.rentabilidad_anual_asumida) : null;
   const evolucion = construirEvolucionInversion(
@@ -59,19 +105,73 @@ export default async function InversionDetallePage({ params }: { params: Promise
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-4xl space-y-6 px-5 py-8 sm:px-10">
+      <main className="mx-auto max-w-5xl space-y-6 px-5 py-8 sm:px-10">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="font-sora text-[26px] font-bold text-ink">{inversion.nombre}</h1>
+          <div>
+            <h1 className="font-sora text-[26px] font-bold text-ink">{inversion.nombre}</h1>
+            <p className="mt-1 text-[13px] capitalize text-ink-tertiary">
+              {inversion.tipo_activo.replace(/_/g, " ")}
+              {inversion.isin && <span className="ml-2 font-mono uppercase">{inversion.isin}</span>}
+              {cuenta && (
+                <span className="ml-2 normal-case">
+                  · custodiada en {cuenta.banco_nombre} — {cuenta.nombre}
+                </span>
+              )}
+            </p>
+          </div>
           <Link href="/inversiones" className="text-sm font-semibold text-ink-tertiary hover:text-ink">
             ← Volver a inversión
           </Link>
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <InfoCard label="Valor actual" value={formatEUR(Number(inversion.valor_actual))} />
-          <InfoCard label="Tipo de activo" value={inversion.tipo_activo.replace(/_/g, " ")} />
-          <InfoCard label="Rentabilidad anual asumida" value={rentabilidad !== null ? `${rentabilidad}%` : "Sin definir"} />
-          <InfoCard label="Actualizado" value={formatFecha(inversion.fecha_actualizacion)} />
+          <InfoCard
+            label="Valor de mercado"
+            value={formatEUR(valorMercado)}
+            nota={`Actualizado el ${formatFecha(inversion.fecha_actualizacion)}`}
+          />
+          <InfoCard
+            label="Aportado neto"
+            value={hayLibro ? formatEUR(posicion.aportadoNeto) : "—"}
+            nota={hayLibro ? undefined : "Sin operaciones registradas"}
+          />
+          <InfoCard
+            label="Ganancia"
+            value={hayLibro ? `${posicion.ganancia >= 0 ? "+" : ""}${formatEUR(posicion.ganancia)}` : "—"}
+            clase={hayLibro ? (posicion.ganancia >= 0 ? "text-success" : "text-danger") : undefined}
+            nota={
+              posicion.rentabilidadSimple !== null
+                ? `${posicion.rentabilidadSimple >= 0 ? "+" : ""}${posicion.rentabilidadSimple.toFixed(2)}% sobre lo aportado`
+                : undefined
+            }
+          />
+          <InfoCard
+            label="TIR anual"
+            value={tir !== null ? `${tir >= 0 ? "+" : ""}${tir.toFixed(2)}%` : "—"}
+            clase={tir !== null ? (tir >= 0 ? "text-success" : "text-danger") : undefined}
+            nota="Rentabilidad anualizada real"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <InfoCard
+            label="Participaciones"
+            value={
+              posicion.participaciones !== 0
+                ? posicion.participaciones.toLocaleString("es-ES", { maximumFractionDigits: 6 })
+                : "—"
+            }
+          />
+          <InfoCard
+            label="Precio medio de compra"
+            value={posicion.precioMedioCompra !== null ? formatEUR(posicion.precioMedioCompra) : "—"}
+            nota="Media ponderada de lo comprado"
+          />
+          <InfoCard
+            label="Rentabilidad anual asumida"
+            value={rentabilidad !== null ? `${rentabilidad}%` : "Sin definir"}
+            nota="Supuesto, solo para proyectar"
+          />
         </div>
 
         {inversion.es_recurrente && (
@@ -93,8 +193,17 @@ export default async function InversionDetallePage({ params }: { params: Promise
             <h2 className="font-sora text-base font-semibold text-ink">Evolución</h2>
             <RegistrarValoracion action={registrarValoracionInversion} inversionId={inversion.id} hoy={hoy} />
           </div>
-          <EvolucionInversionChart puntos={evolucion} moneda={config?.moneda_base ?? "EUR"} />
+          <EvolucionInversionChart puntos={evolucion} moneda={moneda} />
         </div>
+
+        <OperacionesInversion
+          inversionId={inversion.id}
+          operaciones={operaciones}
+          moneda={moneda}
+          hoy={hoy}
+          registrarOperacion={registrarOperacion}
+          eliminarOperacion={eliminarOperacion}
+        />
 
         <div className={`overflow-hidden ${tableWrapClass}`}>
           <div className="border-b border-border px-5 py-3.5">
@@ -114,7 +223,9 @@ export default async function InversionDetallePage({ params }: { params: Promise
                   <tr key={v.fecha} className="border-t border-border">
                     <td className="px-4 py-3 text-ink-secondary">{formatFecha(v.fecha)}</td>
                     <td className="px-4 py-3 text-right font-semibold text-ink">{formatEUR(Number(v.valor))}</td>
-                    <td className="px-4 py-3 capitalize text-ink-tertiary">{v.origen}</td>
+                    <td className="px-4 py-3 text-ink-tertiary">
+                      {v.origen === "automatico" ? "Precio del extracto" : "Manual"}
+                    </td>
                   </tr>
                 ))}
                 {(valoraciones ?? []).length === 0 && (

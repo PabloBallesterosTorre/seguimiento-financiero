@@ -300,6 +300,56 @@ describe("construirHistoricoPatrimonio", () => {
     expect(puntos.every((p) => p.esReal)).toBe(true);
   });
 
+  it("valora a mercado las aportaciones vinculadas a una posición, y a coste las que no", () => {
+    const movimientos = [
+      // Vinculada: la representa el valor de mercado de la posición "a".
+      { id: "m1", fecha: "2026-01-10", importe: -100, categoria_id: "inversion", tipo: "gasto" as const },
+      // Suelta: no hay posición detrás, así que sigue contando a coste.
+      { id: "m2", fecha: "2026-02-10", importe: -30, categoria_id: "inversion", tipo: "gasto" as const },
+    ];
+
+    const puntos = construirHistoricoPatrimonio({
+      meses: mesesPasados,
+      movimientos,
+      saldoLiquidoActual: 0,
+      deudas: [],
+      amortizacionesAplicadasPorDeuda: new Map(),
+      esCategoriaInversion: (id) => id === "inversion",
+      hoy: "2026-03-15",
+      valoracionesInversion: [
+        { inversionId: "a", fecha: "2026-01-10", valor: 100 },
+        { inversionId: "a", fecha: "2026-03-10", valor: 130 },
+      ],
+      movimientosVinculadosAInversion: new Set(["m1"]),
+    });
+
+    // Enero: solo la posición, a su valor de compra.
+    expect(puntos[0].valorInversion).toBeCloseTo(100, 2);
+    // Febrero: la posición arrastra su última valoración (no se ha revalorizado) más los
+    // 30 € sueltos, que solo se saben a coste.
+    expect(puntos[1].valorInversion).toBeCloseTo(130, 2);
+    // Marzo: la posición se revaloriza a 130 y siguen los 30 sueltos.
+    expect(puntos[2].valorInversion).toBeCloseTo(160, 2);
+  });
+
+  it("sin valoraciones se comporta como antes: todo a coste acumulado", () => {
+    const movimientos = [
+      { id: "m1", fecha: "2026-01-10", importe: -100, categoria_id: "inversion", tipo: "gasto" as const },
+    ];
+
+    const puntos = construirHistoricoPatrimonio({
+      meses: mesesPasados,
+      movimientos,
+      saldoLiquidoActual: 0,
+      deudas: [],
+      amortizacionesAplicadasPorDeuda: new Map(),
+      esCategoriaInversion: (id) => id === "inversion",
+      hoy: "2026-03-15",
+    });
+
+    expect(puntos[2].valorInversion).toBeCloseTo(100, 2);
+  });
+
   it("acumula el coste aportado a inversión mes a mes", () => {
     const movimientos = [
       { fecha: "2026-01-10", importe: -50, categoria_id: "inversion", tipo: "gasto" as const },

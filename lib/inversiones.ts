@@ -110,3 +110,200 @@ export function rentabilidadPonderada(inversiones: { valor_actual: number; renta
   const sumaPonderada = inversiones.reduce((s, i) => s + i.valor_actual * (i.rentabilidad_anual_asumida ?? 0), 0);
   return sumaPonderada / totalValor;
 }
+
+// ============================================================================
+// Tanda 10: rentabilidad real a partir del libro de operaciones.
+//
+// Hasta aquí este módulo solo sabía proyectar con la rentabilidad ASUMIDA. Con las
+// operaciones registradas (lib: inversion_operaciones) ya se puede calcular la real.
+// ============================================================================
+
+export type OperacionInversion = {
+  fecha: string;
+  tipo: "compra" | "venta" | "aportacion" | "retirada" | "dividendo" | "ajuste";
+  // Efectivo visto desde la inversión: positivo si entra en ella, negativo si sale.
+  importe: number;
+  participaciones: number | null;
+  precio: number | null;
+};
+
+export type PosicionInversion = {
+  participaciones: number;
+  // Flujo de caja neto: lo aportado menos lo retirado. No es el coste fiscal de lo que
+  // queda en cartera (ver el comentario de coste_neto en la migración 0022).
+  aportadoNeto: number;
+  // Media ponderada del precio pagado en las COMPRAS, que es lo que el usuario entiende
+  // por "a cuánto me salió". Null si la inversión no se mide en participaciones.
+  precioMedioCompra: number | null;
+  valorMercado: number;
+  // Ganancia total: realizada (lo ya vendido) + latente (lo que sigue en cartera).
+  ganancia: number;
+  // Ganancia sobre lo aportado, sin tener en cuenta cuánto tiempo llevaba dentro cada
+  // euro. Es la cifra intuitiva, pero engaña con aportaciones periódicas: para eso está
+  // la TIR. Null si no se ha aportado nada (no hay sobre qué calcular un porcentaje).
+  rentabilidadSimple: number | null;
+};
+
+export function calcularPosicion(operaciones: OperacionInversion[], valorMercado: number): PosicionInversion {
+  let participaciones = 0;
+  let aportadoNeto = 0;
+  let costeCompras = 0;
+  let participacionesCompradas = 0;
+
+  for (const op of operaciones) {
+    participaciones += op.participaciones ?? 0;
+    aportadoNeto += op.importe;
+    if (op.importe > 0 && (op.participaciones ?? 0) > 0) {
+      costeCompras += op.importe;
+      participacionesCompradas += op.participaciones!;
+    }
+  }
+
+  const ganancia = valorMercado - aportadoNeto;
+
+  return {
+    participaciones,
+    aportadoNeto,
+    precioMedioCompra: participacionesCompradas > 0 ? costeCompras / participacionesCompradas : null,
+    valorMercado,
+    ganancia,
+    rentabilidadSimple: aportadoNeto > 0 ? (ganancia / aportadoNeto) * 100 : null,
+  };
+}
+
+export type FlujoTIR = { fecha: string; importe: number };
+
+// TIR anualizada (XIRR): la tasa anual a la que habría que descontar todos los flujos —
+// cada aportación, cada retirada y el valor de mercado de hoy como flujo final — para
+// que su valor presente sea cero.
+//
+// Por qué hace falta, y no basta con "ganancia / aportado": con un plan de ahorro, cada
+// euro lleva dentro un tiempo distinto. 20 €/semana durante un año en un fondo que sube
+// un 10% da una rentabilidad simple de ~5%, porque la mitad del dinero entró en los
+// últimos meses. Ese 5% no es la rentabilidad del fondo ni la del ahorrador: es un
+// artefacto de mezclar importes con antigüedades distintas. La TIR sí es comparable con
+// el "X% anual" de cualquier otro producto.
+//
+// Se resuelve por Newton-Raphson, con bisección de respaldo cuando la derivada se acerca
+// a cero o la iteración se va de rango (pasa con series cortas y muy volátiles). Devuelve
+// null si el problema no tiene solución con sentido: sin flujos de los dos signos no hay
+// ninguna tasa que anule el valor presente.
+export function tirAnualizada(flujos: FlujoTIR[]): number | null {
+  const relevantes = flujos.filter((f) => f.importe !== 0);
+  if (relevantes.length < 2) return null;
+
+  const hayPositivos = relevantes.some((f) => f.importe > 0);
+  const hayNegativos = relevantes.some((f) => f.importe < 0);
+  if (!hayPositivos || !hayNegativos) return null;
+
+  const ordenados = [...relevantes].sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0));
+  const inicio = ordenados[0].fecha;
+  const años = ordenados.map((f) => diasEntre(inicio, f.fecha) / 365);
+
+  // Todos los flujos el mismo día: no hay plazo sobre el que anualizar nada.
+  if (años[años.length - 1] === 0) return null;
+
+  const van = (tasa: number): number =>
+    ordenados.reduce((suma, f, i) => suma + f.importe / Math.pow(1 + tasa, años[i]), 0);
+
+  const derivada = (tasa: number): number =>
+    ordenados.reduce((suma, f, i) => suma - (años[i] * f.importe) / Math.pow(1 + tasa, años[i] + 1), 0);
+
+  let tasa = 0.1;
+  for (let i = 0; i < 50; i++) {
+    const valor = van(tasa);
+    if (Math.abs(valor) < 1e-7) return tasa * 100;
+    const d = derivada(tasa);
+    if (!Number.isFinite(d) || Math.abs(d) < 1e-10) break;
+    const siguiente = tasa - valor / d;
+    if (!Number.isFinite(siguiente) || siguiente <= -0.999999) break;
+    if (Math.abs(siguiente - tasa) < 1e-10) return siguiente * 100;
+    tasa = siguiente;
+  }
+
+  // Respaldo: bisección sobre un rango amplio (de −99,9% a +1000% anual). Es más lenta
+  // pero no se escapa, siempre que el VAN cambie de signo dentro del intervalo.
+  let bajo = -0.999;
+  let alto = 10;
+  let vanBajo = van(bajo);
+  if (!Number.isFinite(vanBajo)) return null;
+  if (vanBajo * van(alto) > 0) return null;
+
+  for (let i = 0; i < 200; i++) {
+    const medio = (bajo + alto) / 2;
+    const vanMedio = van(medio);
+    if (Math.abs(vanMedio) < 1e-9 || alto - bajo < 1e-12) return medio * 100;
+    if (vanBajo * vanMedio < 0) {
+      alto = medio;
+    } else {
+      bajo = medio;
+      vanBajo = vanMedio;
+    }
+  }
+
+  return ((bajo + alto) / 2) * 100;
+}
+
+// Prepara los flujos de una inversión para la TIR: cada operación con el signo que tiene
+// para el bolsillo del inversor (una compra es dinero que SALE, así que entra como
+// negativa) más el valor de mercado de hoy como si se liquidara la posición entera.
+export function flujosParaTIR(operaciones: OperacionInversion[], valorMercado: number, hoy: string): FlujoTIR[] {
+  const flujos: FlujoTIR[] = operaciones.map((op) => ({ fecha: op.fecha, importe: -op.importe }));
+  if (valorMercado !== 0) flujos.push({ fecha: hoy, importe: valorMercado });
+  return flujos;
+}
+
+// Serie mensual de valor de mercado frente a aportado acumulado, que es el gráfico que
+// de verdad responde a "¿estoy ganando dinero?": la distancia entre las dos líneas es la
+// ganancia. El valor se toma de la última valoración conocida en cada mes (sin inventar
+// nada por delante del primer dato real) y lo aportado, de las operaciones.
+export type PuntoCartera = { mes: string; valor: number; aportado: number };
+
+export function construirSerieCartera(
+  valoracionesPorInversion: { inversionId: string; fecha: string; valor: number }[],
+  operaciones: { fecha: string; importe: number }[],
+  meses: string[]
+): PuntoCartera[] {
+  const ordenadas = [...valoracionesPorInversion].sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
+
+  return meses.map((mes) => {
+    // "-31" no es una fecha real en todos los meses, pero aquí solo se usa para comparar
+    // cadenas ISO: cualquier día de ese mes es <= "AAAA-MM-31" y cualquier día posterior
+    // es mayor. Evita tener que calcular el último día real de cada mes.
+    const finDeMes = `${mes}-31`;
+
+    // Última valoración conocida de cada inversión hasta el final de ese mes. Una
+    // inversión que todavía no existía en ese mes simplemente no suma.
+    const ultimaPorInversion = new Map<string, number>();
+    for (const v of ordenadas) {
+      if (v.fecha <= finDeMes) ultimaPorInversion.set(v.inversionId, v.valor);
+    }
+
+    const valor = [...ultimaPorInversion.values()].reduce((s, v) => s + v, 0);
+    const aportado = operaciones.filter((o) => o.fecha <= finDeMes).reduce((s, o) => s + o.importe, 0);
+
+    return { mes, valor, aportado };
+  });
+}
+
+// Lista de meses "AAAA-MM" entre dos fechas, ambas incluidas. La usa el cuadro de mando
+// para cubrir desde la primera operación de la cartera hasta hoy.
+export function mesesEntre(desde: string, hasta: string): string[] {
+  const meses: string[] = [];
+  let year = Number(desde.slice(0, 4));
+  let month = Number(desde.slice(5, 7));
+  const fin = hasta.slice(0, 7);
+
+  while (meses.length < 600) {
+    const mes = `${year}-${String(month).padStart(2, "0")}`;
+    if (mes > fin) break;
+    meses.push(mes);
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+
+  return meses;
+}

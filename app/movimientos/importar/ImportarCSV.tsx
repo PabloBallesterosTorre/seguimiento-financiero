@@ -20,6 +20,7 @@ import { importarMovimientos, importarTraspasos, type FilaImportar } from "./act
 import { formatMoneda } from "@/lib/formato";
 
 type Cuenta = { id: string; nombre: string; banco_nombre: string; iban: string | null };
+type InversionConocida = { id: string; nombre: string; isin: string | null };
 type MovimientoExistente = { cuenta_id: string; fecha: string; importe: number; descripcion: string };
 type FilaPrevia = FilaImportar & {
   original: string;
@@ -31,6 +32,17 @@ type FilaPrevia = FilaImportar & {
   incluirDuplicado: boolean;
   omitidaPorFechaCorte: boolean;
 };
+
+// Tipo de activo propuesto para una posición que todavía no existe. Se adivina por el
+// nombre porque el extracto no trae una clasificación que sirva tal cual (Trade Republic
+// distingue FUND de MUTUAL_FUND, que para esta app son lo mismo), y en cualquier caso el
+// usuario lo puede corregir en la vista previa antes de confirmar.
+function adivinarTipoActivo(nombre: string): string {
+  const n = nombre.toLowerCase();
+  if (/etf|fund|index|índice|indice|ucits|vanguard|ishares|amundi/.test(n)) return "Fondo indexado";
+  if (/bitcoin|ethereum|cripto|crypto|btc|eth/.test(n)) return "Cripto";
+  return "Acciones";
+}
 
 function claveMovimiento(cuentaId: string, fecha: string, importe: number, descripcion: string): string {
   return `${cuentaId}|${fecha}|${importe.toFixed(2)}|${descripcion.trim().toLowerCase()}`;
@@ -66,6 +78,7 @@ export function ImportarCSV({
   reglas,
   existentes,
   previstos,
+  inversiones,
   moneda,
 }: {
   cuentas: Cuenta[];
@@ -73,6 +86,7 @@ export function ImportarCSV({
   reglas: ReglaCategorizacion[];
   existentes: MovimientoExistente[];
   previstos: MovimientoPrevisto[];
+  inversiones: InversionConocida[];
   moneda: string;
 }) {
   const router = useRouter();
@@ -120,6 +134,15 @@ export function ImportarCSV({
   const [colComision, setColComision] = useState("");
   const [colRetencion, setColRetencion] = useState("");
   const [colIbanContraparte, setColIbanContraparte] = useState("");
+  const [colIsin, setColIsin] = useState("");
+  const [colParticipaciones, setColParticipaciones] = useState("");
+  const [colPrecio, setColPrecio] = useState("");
+  const [colNombreActivo, setColNombreActivo] = useState("");
+  // Posiciones nuevas que la importación daría de alta, indexadas por ISIN: el usuario
+  // puede desmarcarlas o corregirles el nombre y el tipo antes de confirmar.
+  const [nuevasInversiones, setNuevasInversiones] = useState<
+    { isin: string; nombre: string; tipoActivo: string; incluir: boolean }[]
+  >([]);
   const [formatoFecha, setFormatoFecha] = useState<FormatoFecha>("DMY");
   const [separadorDecimal, setSeparadorDecimal] = useState<"," | ".">(",");
   const [colFiltro, setColFiltro] = useState("");
@@ -181,6 +204,13 @@ export function ImportarCSV({
     setColComision(colComisionDetectada);
     setColRetencion(colRetencionDetectada);
     setColIbanContraparte(colIbanDetectada);
+    // Columnas de inversión. Las trae el extracto de un bróker (Trade Republic las llama
+    // symbol / shares / price / name); un extracto bancario normal no las tiene y estos
+    // selectores se quedan vacíos sin estorbar.
+    setColIsin(adivinarColumna(cab, ["isin", "symbol", "simbolo", "símbolo", "ticker"]));
+    setColParticipaciones(adivinarColumna(cab, ["shares", "participaciones", "titulos", "títulos", "quantity"]));
+    setColPrecio(adivinarColumna(cab, ["price", "precio"]));
+    setColNombreActivo(adivinarColumna(cab, ["name", "activo", "instrumento"]));
 
     const idxFecha = cab.indexOf(colFechaDetectada);
     if (idxFecha >= 0) {
@@ -296,6 +326,10 @@ export function ImportarCSV({
     const idxComision = cabeceras.indexOf(colComision);
     const idxRetencion = cabeceras.indexOf(colRetencion);
     const idxIban = cabeceras.indexOf(colIbanContraparte);
+    const idxIsin = cabeceras.indexOf(colIsin);
+    const idxParticipaciones = cabeceras.indexOf(colParticipaciones);
+    const idxPrecio = cabeceras.indexOf(colPrecio);
+    const idxNombreActivo = cabeceras.indexOf(colNombreActivo);
 
     const ibansPropios = new Map(
       cuentasContraparte.filter((c) => c.iban).map((c) => [normalizarIban(c.iban!), c.id])
@@ -351,6 +385,17 @@ export function ImportarCSV({
         }
       }
 
+      // Datos de inversión. Solo cuentan juntos: sin ISIN no se sabe a qué posición va, y
+      // sin participaciones no hay compra ni venta que registrar (un "saveback" de Trade
+      // Republic viene asociado a un fondo pero es dinero que entra en la cuenta, todavía
+      // no ha comprado nada — se queda como movimiento normal, que es lo que es).
+      const isinCrudo = idxIsin >= 0 ? (fila[idxIsin] ?? "").replace(/\s+/g, "").toUpperCase() : "";
+      const participaciones =
+        idxParticipaciones >= 0 ? parseImporteImportado(fila[idxParticipaciones] ?? "", separadorDecimal) : null;
+      const precio = idxPrecio >= 0 ? parseImporteImportado(fila[idxPrecio] ?? "", separadorDecimal) : null;
+      const nombreActivo = idxNombreActivo >= 0 ? (fila[idxNombreActivo] ?? "").trim() : "";
+      const esOperacionInversion = valida && isinCrudo !== "" && participaciones !== null && participaciones !== 0;
+
       const esDuplicado =
         valida && firmasExistentes.has(claveMovimiento(cuentaId, fecha ?? "", importe ?? 0, descripcion));
       const omitidaPorFechaCorte = valida && fechaCorte !== "" && (fecha ?? "") < fechaCorte;
@@ -370,9 +415,25 @@ export function ImportarCSV({
         esDuplicado,
         incluirDuplicado: false,
         omitidaPorFechaCorte,
+        isin: esOperacionInversion ? isinCrudo : null,
+        participaciones: esOperacionInversion ? participaciones : null,
+        precio: esOperacionInversion ? precio : null,
+        nombreActivo: esOperacionInversion ? nombreActivo || isinCrudo : null,
       };
     });
 
+    // Posiciones que habría que dar de alta: los ISIN que aparecen en el archivo y que no
+    // tiene todavía ninguna inversión. Se proponen marcadas, con el nombre y el tipo ya
+    // rellenados, para que dar de alta una posición nueva no obligue a salir de aquí.
+    const isinesConocidos = new Set(inversiones.map((i) => i.isin).filter((v): v is string => Boolean(v)));
+    const nuevas = new Map<string, { isin: string; nombre: string; tipoActivo: string; incluir: boolean }>();
+    for (const f of filas) {
+      if (!f.isin || f.omitidaPorFechaCorte || f.esDuplicado || isinesConocidos.has(f.isin) || nuevas.has(f.isin)) continue;
+      const nombre = f.nombreActivo ?? f.isin;
+      nuevas.set(f.isin, { isin: f.isin, nombre, tipoActivo: adivinarTipoActivo(nombre), incluir: true });
+    }
+
+    setNuevasInversiones([...nuevas.values()]);
     setFilasPreview(filas);
     setPaso("previsualizar");
   }
@@ -425,14 +486,26 @@ export function ImportarCSV({
       filasNormales.length > 0
         ? importarMovimientos(
             cuentaId,
-            filasNormales.map(({ fecha, descripcion, importe, tipo, categoria_id, previstoId }) => ({
-              fecha,
-              descripcion,
-              importe,
-              tipo,
-              categoria_id,
-              previstoId,
-            }))
+            filasNormales.map((f) => {
+              // Una posición desmarcada en la vista previa no se crea: la fila entra como
+              // movimiento normal y su operación se puede registrar más tarde a mano.
+              const nueva = f.isin ? nuevasInversiones.find((n) => n.isin === f.isin) : undefined;
+              const descartada = nueva !== undefined && !nueva.incluir;
+
+              return {
+                fecha: f.fecha,
+                descripcion: f.descripcion,
+                importe: f.importe,
+                tipo: f.tipo,
+                categoria_id: f.categoria_id,
+                previstoId: f.previstoId,
+                isin: descartada ? null : f.isin,
+                participaciones: descartada ? null : f.participaciones,
+                precio: descartada ? null : f.precio,
+                nombreActivo: nueva?.nombre ?? f.nombreActivo,
+                tipoActivo: nueva?.tipoActivo ?? null,
+              };
+            })
           )
         : Promise.resolve({ ok: true as const, importados: 0, conciliados: 0 }),
       filasTraspaso.length > 0
@@ -456,13 +529,23 @@ export function ImportarCSV({
       if (respuestaMovimientos.importados > 0) partes.push(`${respuestaMovimientos.importados} movimientos`);
       if (respuestaTraspasos.importados > 0) partes.push(`${respuestaTraspasos.importados} traspasos`);
       const conciliados = "conciliados" in respuestaMovimientos ? respuestaMovimientos.conciliados : 0;
-      const sufijo = conciliados > 0 ? ` (${conciliados} conciliados con su previsión)` : "";
+      const operaciones = "operaciones" in respuestaMovimientos ? respuestaMovimientos.operaciones : 0;
+      const inversionesNuevas =
+        "inversionesNuevas" in respuestaMovimientos ? respuestaMovimientos.inversionesNuevas : 0;
+
+      const detalles: string[] = [];
+      if (conciliados > 0) detalles.push(`${conciliados} conciliados con su previsión`);
+      if (operaciones > 0) detalles.push(`${operaciones} operaciones de inversión registradas`);
+      if (inversionesNuevas > 0) detalles.push(`${inversionesNuevas} posiciones nuevas`);
+      const sufijo = detalles.length > 0 ? ` (${detalles.join(", ")})` : "";
+
       setResultado(`Se han importado ${partes.join(" y ")} correctamente${sufijo}.`);
       setPaso("subir");
       setNombreArchivo("");
       setTextoOriginal("");
       setFilasCrudas([]);
       setFilasPreview([]);
+      setNuevasInversiones([]);
       router.refresh();
     } else {
       const error = !respuestaMovimientos.ok ? respuestaMovimientos.error : (respuestaTraspasos as { error: string }).error;
@@ -478,6 +561,7 @@ export function ImportarCSV({
   const filasDuplicadasSinConfirmar = filasDentroDeRango.filter((f) => f.esDuplicado && !f.incluirDuplicado);
   const filasAImportar = filasDentroDeRango.filter((f) => !f.esDuplicado || f.incluirDuplicado);
   const totalImporte = filasAImportar.reduce((suma, f) => suma + f.importe, 0);
+  const operacionesDetectadas = filasAImportar.filter((f) => Boolean(f.isin)).length;
   const previewFilasCrudas = filasCSV.slice(0, 8);
 
   return (
@@ -824,6 +908,84 @@ export function ImportarCSV({
             </div>
           </div>
 
+          <div className="space-y-4 rounded-md border border-slate-200 bg-white p-4">
+            <div>
+              <p className="text-sm font-semibold text-slate-700">Inversión (opcional)</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Si el extracto es el de un bróker y trae estas columnas, cada compra y cada venta se registran
+                también en el libro de la posición correspondiente, con sus participaciones y su precio. Un
+                extracto bancario normal no las tiene: déjalas sin usar.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs text-slate-500">Columna ISIN o símbolo</label>
+                <select
+                  value={colIsin}
+                  onChange={(e) => setColIsin(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Sin usar</option>
+                  {cabeceras.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500">Columna participaciones</label>
+                <select
+                  value={colParticipaciones}
+                  onChange={(e) => setColParticipaciones(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Sin usar</option>
+                  {cabeceras.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">En negativo si es una venta, como lo exporta el bróker.</p>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500">Columna precio por participación</label>
+                <select
+                  value={colPrecio}
+                  onChange={(e) => setColPrecio(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Sin usar</option>
+                  {cabeceras.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">
+                  Con él, cada operación revaloriza la posición entera a esa fecha.
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500">Columna nombre del activo</label>
+                <select
+                  value={colNombreActivo}
+                  onChange={(e) => setColNombreActivo(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Sin usar</option>
+                  {cabeceras.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">Solo se usa para nombrar posiciones nuevas.</p>
+              </div>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={calcularPreview}
@@ -885,6 +1047,65 @@ export function ImportarCSV({
               {filasOmitidasPorFecha.length} filas son anteriores a la fecha de corte ({formatFecha(fechaCorte)})
               y se omiten.
             </p>
+          )}
+
+          {operacionesDetectadas > 0 && (
+            <p className="text-xs text-slate-500">
+              {operacionesDetectadas} filas traen ISIN y participaciones: además del movimiento se registrará su
+              operación en el libro de la posición correspondiente.
+            </p>
+          )}
+
+          {nuevasInversiones.length > 0 && (
+            <div className="space-y-3 rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm">
+              <p className="font-medium text-sky-800">
+                Se darán de alta {nuevasInversiones.length}{" "}
+                {nuevasInversiones.length === 1 ? "inversión nueva" : "inversiones nuevas"}
+              </p>
+              <p className="text-xs text-sky-700">
+                Son ISIN que aparecen en el archivo y que todavía no tienes como posición. Corrige el nombre o el
+                tipo si hace falta, o desmárcala para que sus filas entren solo como movimientos.
+              </p>
+              {nuevasInversiones.map((nueva, i) => (
+                <div key={nueva.isin} className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={nueva.incluir}
+                    onChange={(e) =>
+                      setNuevasInversiones((prev) =>
+                        prev.map((n, j) => (i === j ? { ...n, incluir: e.target.checked } : n))
+                      )
+                    }
+                    className="h-4 w-4"
+                  />
+                  <span className="font-mono text-xs uppercase text-sky-700">{nueva.isin}</span>
+                  <input
+                    value={nueva.nombre}
+                    onChange={(e) =>
+                      setNuevasInversiones((prev) => prev.map((n, j) => (i === j ? { ...n, nombre: e.target.value } : n)))
+                    }
+                    disabled={!nueva.incluir}
+                    className="min-w-0 flex-1 rounded-md border border-sky-200 px-2 py-1 text-sm disabled:opacity-40"
+                  />
+                  <select
+                    value={nueva.tipoActivo}
+                    onChange={(e) =>
+                      setNuevasInversiones((prev) =>
+                        prev.map((n, j) => (i === j ? { ...n, tipoActivo: e.target.value } : n))
+                      )
+                    }
+                    disabled={!nueva.incluir}
+                    className="rounded-md border border-sky-200 px-2 py-1 text-sm disabled:opacity-40"
+                  >
+                    {["Fondo indexado", "Acciones", "Cripto", "Cuenta", "Otro"].map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
           )}
 
           {filasDuplicadasSinConfirmar.length > 0 && (

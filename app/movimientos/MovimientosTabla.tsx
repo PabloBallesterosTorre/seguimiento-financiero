@@ -3,6 +3,7 @@
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { CategoriaCelda } from "./CategoriaCelda";
 import { MarcarComoTraspaso } from "./MarcarComoTraspaso";
+import { AsignarAInversion, type InversionOption } from "./AsignarAInversion";
 import { formatMoneda } from "@/lib/formato";
 import { ordenarFilas, type OrdenTabla } from "@/lib/ordenTabla";
 import { useOrdenTabla, ThOrdenable } from "@/components/OrdenTabla";
@@ -27,6 +28,10 @@ export type MovimientoFila = {
   categorias: { nombre: string } | null;
   sugeridaId?: string | null;
   candidatosTraspaso: CandidatoTraspaso[];
+  // Solo para los movimientos de categoría inversión: nombre de la posición a la que ya
+  // están vinculados, o null si todavía no lo están.
+  esAporteInversion?: boolean;
+  inversionAsignada?: string | null;
 };
 
 export function MovimientosTabla({
@@ -36,10 +41,12 @@ export function MovimientosTabla({
   moneda,
   ordenInicial = null,
   mensajeVacio,
+  inversiones,
   actualizarCategoriaMovimiento,
   vincularComoTraspaso,
   eliminarTraspaso,
   eliminarMovimiento,
+  asignarMovimientoAInversion,
 }: {
   tablaKey: string;
   movimientos: MovimientoFila[];
@@ -47,10 +54,12 @@ export function MovimientosTabla({
   moneda: string;
   ordenInicial?: OrdenTabla;
   mensajeVacio?: string;
+  inversiones: InversionOption[];
   actualizarCategoriaMovimiento: (formData: FormData) => void;
   vincularComoTraspaso: (formData: FormData) => void;
   eliminarTraspaso: (formData: FormData) => void;
   eliminarMovimiento: (formData: FormData) => void;
+  asignarMovimientoAInversion: (formData: FormData) => void;
 }) {
   const formatEUR = (v: number) => formatMoneda(v, moneda);
   const { orden, toggle } = useOrdenTabla(tablaKey, ordenInicial);
@@ -83,10 +92,12 @@ export function MovimientosTabla({
             mov={mov}
             categoriasOrdenadas={categoriasOrdenadas}
             formatEUR={formatEUR}
+            inversiones={inversiones}
             actualizarCategoriaMovimiento={actualizarCategoriaMovimiento}
             vincularComoTraspaso={vincularComoTraspaso}
             eliminarTraspaso={eliminarTraspaso}
             eliminarMovimiento={eliminarMovimiento}
+            asignarMovimientoAInversion={asignarMovimientoAInversion}
           />
         ))}
         {filasOrdenadas.length === 0 && mensajeVacio && (
@@ -106,18 +117,22 @@ function FilaMovimiento({
   mov,
   categoriasOrdenadas,
   formatEUR,
+  inversiones,
   actualizarCategoriaMovimiento,
   vincularComoTraspaso,
   eliminarTraspaso,
   eliminarMovimiento,
+  asignarMovimientoAInversion,
 }: {
   mov: MovimientoFila;
   categoriasOrdenadas: CategoriaJerarquica[];
   formatEUR: (v: number) => string;
+  inversiones: InversionOption[];
   actualizarCategoriaMovimiento: (formData: FormData) => void;
   vincularComoTraspaso: (formData: FormData) => void;
   eliminarTraspaso: (formData: FormData) => void;
   eliminarMovimiento: (formData: FormData) => void;
+  asignarMovimientoAInversion: (formData: FormData) => void;
 }) {
   const esTraspaso = mov.tipo === "traspaso";
 
@@ -154,6 +169,14 @@ function FilaMovimiento({
               label: `${c.cuenta ? `${c.cuenta.banco_nombre} — ${c.cuenta.nombre}` : "?"} · ${c.fecha} · ${formatEUR(c.importe)}`,
             }))}
             action={vincularComoTraspaso}
+          />
+        )}
+        {mov.esAporteInversion && (
+          <AsignarAInversion
+            movimientoId={mov.id}
+            inversiones={inversiones}
+            asignada={mov.inversionAsignada ?? null}
+            action={asignarMovimientoAInversion}
           />
         )}
       </td>

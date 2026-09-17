@@ -62,6 +62,8 @@ export default async function HomePage({
     { data: previstosRaw },
     { data: categoriasRaw },
     { data: historicoCompletoRaw },
+    { data: valoracionesInversionRaw },
+    { data: operacionesInversionRaw },
     config,
     { data: conciliacionesRaw },
   ] = await Promise.all([
@@ -81,7 +83,11 @@ export default async function HomePage({
     supabase.from("amortizaciones_extra").select("deuda_id, fecha, importe, tipo_reduccion").eq("aplicado", true),
     supabase.from("movimientos_previstos").select("*"),
     supabase.from("categorias").select("id, nombre, categoria_padre_id, es_categoria_inversion"),
-    supabase.from("movimientos").select("cuenta_id, categoria_id, tipo, importe, fecha, descripcion, traspaso_grupo_id"),
+    supabase
+      .from("movimientos")
+      .select("id, cuenta_id, categoria_id, tipo, importe, fecha, descripcion, traspaso_grupo_id"),
+    supabase.from("inversion_valoraciones").select("inversion_id, fecha, valor"),
+    supabase.from("inversion_operaciones").select("movimiento_id").not("movimiento_id", "is", null),
     user ? obtenerConfiguracion(supabase, user.id) : null,
     supabase.from("previsto_conciliaciones").select("previsto_id, periodo"),
   ]);
@@ -182,6 +188,18 @@ export default async function HomePage({
   const saldoLiquidoInicial = totalCuentas;
   const valorInversionInicial = totalInversion;
 
+  // Inversión histórica: las aportaciones vinculadas a una posición se valoran a mercado
+  // con su última valoración conocida de cada mes; las que no lo están siguen contando a
+  // coste. Ver el comentario de construirHistoricoPatrimonio.
+  const valoracionesInversion = (valoracionesInversionRaw ?? []).map((v) => ({
+    inversionId: v.inversion_id as string,
+    fecha: v.fecha as string,
+    valor: Number(v.valor),
+  }));
+  const movimientosVinculadosAInversion = new Set(
+    (operacionesInversionRaw ?? []).map((o) => o.movimiento_id as string)
+  );
+
   const puntosHistoricos: PuntoProyeccion[] =
     mesesPasadosDisponibles.length > 0
       ? construirHistoricoPatrimonio({
@@ -192,6 +210,8 @@ export default async function HomePage({
           amortizacionesAplicadasPorDeuda,
           esCategoriaInversion,
           hoy,
+          valoracionesInversion,
+          movimientosVinculadosAInversion,
         })
       : [];
 

@@ -6,6 +6,7 @@ import { inputClass, labelClass, btnPrimaryClass, cardClass } from "@/components
 const TIPOS_ACTIVO = ["Fondo indexado", "Acciones", "Cripto", "Cuenta", "Otro"];
 
 export type PrevistoInversionOption = { id: string; descripcion: string; importe_estimado: number };
+export type CuentaOption = { id: string; nombre: string; banco_nombre: string };
 
 export type InversionParaEditar = {
   id: string;
@@ -14,16 +15,20 @@ export type InversionParaEditar = {
   es_recurrente: boolean;
   movimiento_previsto_id: string | null;
   rentabilidad_anual_asumida: number | null;
+  isin: string | null;
+  cuenta_id: string | null;
 };
 
 export function InversionForm({
   action,
   previstosInversion,
+  cuentas,
   inversion,
   onGuardado,
 }: {
   action: (formData: FormData) => void;
   previstosInversion: PrevistoInversionOption[];
+  cuentas: CuentaOption[];
   inversion?: InversionParaEditar;
   onGuardado?: () => void;
 }) {
@@ -83,6 +88,7 @@ export function InversionForm({
           <div>
             <label className={labelClass}>Valor actual</label>
             <input name="valor_actual" type="number" step="0.01" min="0" defaultValue={0} className={inputClass} />
+            <p className="mt-1.5 text-xs text-ink-tertiary">Déjalo a 0 si vas a registrar las operaciones: el valor se calcula solo.</p>
           </div>
         )}
         <div>
@@ -96,6 +102,34 @@ export function InversionForm({
             className={inputClass}
           />
           <p className="mt-1.5 text-xs text-ink-tertiary">Para proyectar su evolución — es un supuesto, no un dato real.</p>
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className={labelClass}>ISIN o símbolo</label>
+          <input
+            name="isin"
+            defaultValue={inversion?.isin ?? ""}
+            placeholder="IE00B3YLTY66"
+            className={inputClass}
+          />
+          <p className="mt-1.5 text-xs text-ink-tertiary">
+            Es la clave con la que la importación reconoce esta posición en el extracto: si coincide, cada
+            compra y cada venta se registran solas, con sus participaciones y su precio.
+          </p>
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Cuenta donde está custodiada</label>
+          <select name="cuenta_id" defaultValue={inversion?.cuenta_id ?? ""} className={inputClass}>
+            <option value="">Sin especificar</option>
+            {cuentas.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.banco_nombre} — {c.nombre}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1.5 text-xs text-ink-tertiary">
+            Informativo: el valor de la inversión no suma al saldo de la cuenta, suma aparte al patrimonio.
+          </p>
         </div>
 
         <div className="sm:col-span-4">

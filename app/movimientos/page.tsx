@@ -9,6 +9,7 @@ import {
   eliminarTraspaso,
   vincularComoTraspaso,
 } from "./actions";
+import { asignarMovimientoAInversion } from "../inversiones/actions";
 import { NuevoMovimiento } from "./NuevoMovimiento";
 import { NuevoTraspaso } from "./NuevoTraspaso";
 import { MovimientosTabla, type MovimientoFila } from "./MovimientosTabla";
@@ -44,6 +45,8 @@ export default async function MovimientosPage() {
     { data: cuentas },
     { data: categorias },
     { data: reglas },
+    { data: inversiones },
+    { data: operacionesInversion },
     config,
     ordenSinCategorizar,
     ordenCategorizados,
@@ -55,8 +58,13 @@ export default async function MovimientosPage() {
       .order("created_at", { ascending: false })
       .limit(200),
     supabase.from("cuentas").select("id, nombre, banco_nombre").eq("activa", true).order("nombre"),
-    supabase.from("categorias").select("id, nombre, categoria_padre_id").order("nombre"),
+    supabase
+      .from("categorias")
+      .select("id, nombre, categoria_padre_id, es_categoria_inversion")
+      .order("nombre"),
     supabase.from("reglas_categorizacion").select("patron_descripcion, categoria_id, veces_usada"),
+    supabase.from("inversiones").select("id, nombre").order("nombre"),
+    supabase.from("inversion_operaciones").select("movimiento_id, inversion_id").not("movimiento_id", "is", null),
     user ? obtenerConfiguracion(supabase, user.id) : null,
     user ? obtenerOrdenTabla(supabase, user.id, "movimientos_sin_categorizar") : null,
     user ? obtenerOrdenTabla(supabase, user.id, "movimientos") : null,
@@ -72,6 +80,28 @@ export default async function MovimientosPage() {
   const sinCategorizar = todos.filter((m) => m.tipo !== "traspaso" && !m.categoria_id);
   const categorizados = todos.filter((m) => m.tipo === "traspaso" || m.categoria_id);
 
+  // Vínculo movimiento -> inversión, para ofrecer "¿es una aportación?" solo donde tiene
+  // sentido: movimientos de una categoría marcada como inversión que todavía no tienen
+  // operación. La categoría efectiva es la del padre cuando es una subcategoría.
+  const nombreInversion = new Map((inversiones ?? []).map((i) => [i.id, i.nombre]));
+  const inversionPorMovimiento = new Map(
+    (operacionesInversion ?? []).map((o) => [o.movimiento_id as string, nombreInversion.get(o.inversion_id) ?? null])
+  );
+  const categoriaPadreId = new Map((categorias ?? []).map((c) => [c.id, c.categoria_padre_id as string | null]));
+  const categoriaEsInversion = new Map(
+    (categorias ?? []).map((c) => [c.id, (c as { es_categoria_inversion?: boolean }).es_categoria_inversion === true])
+  );
+  const esCategoriaInversion = (categoriaId: string | null) => {
+    if (!categoriaId) return false;
+    const efectiva = categoriaPadreId.get(categoriaId) ?? categoriaId;
+    return categoriaEsInversion.get(efectiva) === true || categoriaEsInversion.get(categoriaId) === true;
+  };
+
+  const datosInversion = (m: Movimiento) => ({
+    esAporteInversion: m.tipo !== "traspaso" && esCategoriaInversion(m.categoria_id),
+    inversionAsignada: inversionPorMovimiento.get(m.id) ?? null,
+  });
+
   const candidatosPorMovimiento = new Map<string, CandidatoTraspaso[]>(
     todos.filter((m) => m.tipo !== "traspaso").map((m) => [m.id, encontrarCandidatosTraspaso(m, todos)])
   );
@@ -80,11 +110,13 @@ export default async function MovimientosPage() {
     ...m,
     sugeridaId: sugerirCategoria(m.descripcion, reglasCategorizacion),
     candidatosTraspaso: candidatosPorMovimiento.get(m.id) ?? [],
+    ...datosInversion(m),
   }));
 
   const filasCategorizados: MovimientoFila[] = categorizados.map((m) => ({
     ...m,
     candidatosTraspaso: candidatosPorMovimiento.get(m.id) ?? [],
+    ...datosInversion(m),
   }));
 
   return (
@@ -131,10 +163,12 @@ export default async function MovimientosPage() {
               categoriasOrdenadas={categoriasOrdenadas}
               moneda={moneda}
               ordenInicial={ordenSinCategorizar}
+              inversiones={inversiones ?? []}
               actualizarCategoriaMovimiento={actualizarCategoriaMovimiento}
               vincularComoTraspaso={vincularComoTraspaso}
               eliminarTraspaso={eliminarTraspaso}
               eliminarMovimiento={eliminarMovimiento}
+              asignarMovimientoAInversion={asignarMovimientoAInversion}
             />
           </div>
         )}
@@ -152,10 +186,12 @@ export default async function MovimientosPage() {
             moneda={moneda}
             ordenInicial={ordenCategorizados}
             mensajeVacio="Todavía no hay movimientos categorizados."
+            inversiones={inversiones ?? []}
             actualizarCategoriaMovimiento={actualizarCategoriaMovimiento}
             vincularComoTraspaso={vincularComoTraspaso}
             eliminarTraspaso={eliminarTraspaso}
             eliminarMovimiento={eliminarMovimiento}
+            asignarMovimientoAInversion={asignarMovimientoAInversion}
           />
         </div>
       </main>

@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import { btnPrimaryClass } from "@/components/formStyles";
-import { InversionForm, type PrevistoInversionOption } from "./InversionForm";
+import { InversionForm, type PrevistoInversionOption, type CuentaOption } from "./InversionForm";
 
 export function NuevaInversion({
   action,
   previstosInversion,
+  cuentas,
 }: {
   action: (formData: FormData) => void;
   previstosInversion: PrevistoInversionOption[];
+  cuentas: CuentaOption[];
 }) {
   const [abierto, setAbierto] = useState(false);
 
@@ -28,7 +30,7 @@ export function NuevaInversion({
           Cancelar
         </button>
       </div>
-      <InversionForm action={action} previstosInversion={previstosInversion} onGuardado={() => setAbierto(false)} />
+      <InversionForm action={action} previstosInversion={previstosInversion} cuentas={cuentas} onGuardado={() => setAbierto(false)} />
     </div>
   );
 }

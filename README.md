@@ -1,9 +1,9 @@
 # Seguimiento Financiero
 
 App personal de seguimiento financiero: cuentas multi-banco, movimientos con categorización por
-aprendizaje de patrones, inversión (aportaciones recurrentes, evolución diaria estimada,
-rentabilidad asumida), deuda con calculadora de amortización, previsión de flujo de caja,
-planificador de patrimonio (histórico + proyección) e informes. Ver el análisis funcional completo
+aprendizaje de patrones, inversión (cartera de posiciones con libro de operaciones, alimentada
+desde el extracto del bróker, con ganancia y TIR reales), deuda con calculadora de amortización,
+previsión de flujo de caja, planificador de patrimonio (histórico + proyección) e informes. Ver el análisis funcional completo
 en el proyecto de Claude "Seguimiento Financiero".
 
 Stack: Next.js 16 (App Router) + TypeScript + Tailwind + Supabase (Postgres + Auth con RLS),
@@ -35,13 +35,14 @@ npx supabase db push --project-ref ctyqpyznqhcauufoiqam   # producción
 (usa `--linked` en vez de `--project-ref` si tienes el CLI enlazado al proyecto correspondiente).
 
 > **Ojo con el historial de migraciones.** Las migraciones `0001`–`0017` están registradas en
-> la base de datos con esas mismas versiones, pero `0018`, `0019` y `0020` se aplicaron desde
-> el panel de Supabase y quedaron registradas con una versión con marca de tiempo
+> la base de datos con esas mismas versiones, pero de `0018` en adelante se aplicaron desde el
+> panel de Supabase y quedaron registradas con una versión con marca de tiempo
 > (`20260910105350`, `20260917110817`, …). El CLI compara por versión, así que `db push` las
-> verá como pendientes e intentará reaplicarlas. Las tres son idempotentes (`add column if not
-> exists`, `create or replace function`), así que hoy no rompe nada, pero conviene reconciliar
-> el historial —renombrando esas versiones a `0018`/`0019`/`0020` en
-> `supabase_migrations.schema_migrations`— antes de añadir una migración que no lo sea.
+> verá como pendientes e intentará reaplicarlas. Casi todas son idempotentes (`add column if
+> not exists`, `create or replace function`), así que hoy no rompe nada, con **una excepción
+> importante**: `0022` crea políticas RLS con `create policy`, que no admite `if not exists` y
+> falla si se reaplica. Conviene reconciliar el historial —renombrando esas versiones a
+> `0018`…`0023` en `supabase_migrations.schema_migrations`— antes del próximo `db push`.
 
 ## Puesta en marcha en local
 

@@ -199,7 +199,14 @@ export type MovimientoParaHistorico = {
   importe: number;
   categoria_id: string | null;
   tipo: "ingreso" | "gasto" | "traspaso";
+  // Opcional: solo hace falta para saber si esta aportación ya está representada por el
+  // valor de mercado de una posición (tanda 10) y no debe contarse además a coste.
+  id?: string;
 };
+
+// Valoración de una inversión en una fecha concreta, para reconstruir el valor de
+// mercado histórico de la cartera.
+export type ValoracionParaHistorico = { inversionId: string; fecha: string; valor: number };
 
 export type DeudaParaHistorico = {
   id: string;
@@ -221,9 +228,20 @@ export type DeudaParaHistorico = {
 // primer punto de la proyección futura, que sí parte del dato real. Sin este ajuste,
 // cualquier diferencia entre la amortización teórica y la cuota/capital realmente
 // vigente hoy (o una cuota que cambió y de la que no se guarda historial) se traduce en
-// un salto discontinuo justo en el mes de hoy) e inversión aportada (suma acumulada de
-// aportaciones categorizadas como inversión — coste, NO el valor de mercado histórico,
-// que no se registra en ningún sitio).
+// un salto discontinuo justo en el mes de hoy) e inversión.
+//
+// La inversión se valora de forma híbrida (tanda 10), y el motivo es que conviven dos
+// clases de aportación:
+//
+//  - Las que están vinculadas a una posición (porque el extracto traía ISIN y
+//    participaciones, o porque se asignaron a mano) se representan por el VALOR DE
+//    MERCADO de esa posición: su última valoración conocida a cada cierre de mes. Es el
+//    dato bueno, e incluye la revalorización.
+//  - Las que no están vinculadas a nada (un gasto categorizado como inversión y poco
+//    más) se siguen contando A COSTE, acumulando su importe. Es lo único que se sabe de
+//    ellas, y dejarlas fuera haría caer el patrimonio histórico sin motivo.
+//
+// Sumar las dos cosas no duplica nada: cada aportación cae exactamente en un lado.
 export function construirHistoricoPatrimonio(params: {
   meses: MesProyeccion[];
   movimientos: MovimientoParaHistorico[];
@@ -232,6 +250,8 @@ export function construirHistoricoPatrimonio(params: {
   amortizacionesAplicadasPorDeuda: Map<string, AmortizacionProgramadaDeuda[]>;
   esCategoriaInversion: (categoriaId: string | null) => boolean;
   hoy: string;
+  valoracionesInversion?: ValoracionParaHistorico[];
+  movimientosVinculadosAInversion?: Set<string>;
 }): PuntoProyeccion[] {
   const {
     meses,
@@ -241,6 +261,8 @@ export function construirHistoricoPatrimonio(params: {
     amortizacionesAplicadasPorDeuda,
     esCategoriaInversion,
     hoy,
+    valoracionesInversion = [],
+    movimientosVinculadosAInversion = new Set<string>(),
   } = params;
   const [hoyYear, hoyMonth] = hoy.split("-").map(Number);
 
@@ -251,11 +273,31 @@ export function construirHistoricoPatrimonio(params: {
     return saldoLiquidoActual - sumaPosterior;
   });
 
-  const inversionPorMes = finesDeMes.map((fin) =>
-    movimientos
-      .filter((m) => m.tipo === "gasto" && esCategoriaInversion(m.categoria_id) && m.fecha <= fin)
-      .reduce((s, m) => s + Math.abs(Number(m.importe)), 0)
-  );
+  const valoracionesOrdenadas = [...valoracionesInversion].sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
+
+  const inversionPorMes = finesDeMes.map((fin) => {
+    // Valor de mercado: última valoración conocida de cada posición a ese cierre de mes.
+    // Una posición sin ninguna valoración anterior a esa fecha todavía no existía y
+    // simplemente no suma.
+    const ultimaPorInversion = new Map<string, number>();
+    for (const v of valoracionesOrdenadas) {
+      if (v.fecha <= fin) ultimaPorInversion.set(v.inversionId, v.valor);
+    }
+    const valorMercado = [...ultimaPorInversion.values()].reduce((s, v) => s + v, 0);
+
+    // Coste de las aportaciones que no están representadas por ninguna posición.
+    const costeSuelto = movimientos
+      .filter(
+        (m) =>
+          m.tipo === "gasto" &&
+          esCategoriaInversion(m.categoria_id) &&
+          m.fecha <= fin &&
+          !(m.id !== undefined && movimientosVinculadosAInversion.has(m.id))
+      )
+      .reduce((s, m) => s + Math.abs(Number(m.importe)), 0);
+
+    return valorMercado + costeSuelto;
+  });
 
   const ultimoMes = meses[meses.length - 1];
   const simulacionesPorDeuda = deudas.map((deuda) => {

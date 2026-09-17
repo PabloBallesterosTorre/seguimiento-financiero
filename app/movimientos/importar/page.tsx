@@ -13,13 +13,21 @@ export default async function ImportarPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: cuentas }, { data: categorias }, { data: reglas }, { data: existentes }, { data: previstos }, config] =
-    await Promise.all([
+  const [
+    { data: cuentas },
+    { data: categorias },
+    { data: reglas },
+    { data: existentes },
+    { data: previstos },
+    { data: inversiones },
+    config,
+  ] = await Promise.all([
       supabase.from("cuentas").select("id, nombre, banco_nombre, iban").eq("activa", true).order("nombre"),
       supabase.from("categorias").select("id, nombre, categoria_padre_id").order("nombre"),
       supabase.from("reglas_categorizacion").select("patron_descripcion, categoria_id, veces_usada"),
       supabase.from("movimientos").select("cuenta_id, fecha, importe, descripcion"),
       supabase.from("movimientos_previstos").select("*").eq("estado", "activo").in("tipo", ["ingreso", "gasto"]),
+      supabase.from("inversiones").select("id, nombre, isin"),
       user ? obtenerConfiguracion(supabase, user.id) : null,
     ]);
 
@@ -47,6 +55,7 @@ export default async function ImportarPage() {
             reglas={reglas ?? []}
             existentes={existentes ?? []}
             previstos={(previstos ?? []) as unknown as MovimientoPrevisto[]}
+            inversiones={inversiones ?? []}
             moneda={config?.moneda_base ?? "EUR"}
           />
         )}
