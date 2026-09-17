@@ -37,7 +37,7 @@ export default async function InversionesPage() {
     supabase.from("inversiones").select("*").order("created_at", { ascending: true }),
     supabase
       .from("inversion_operaciones")
-      .select("inversion_id, fecha, tipo, importe, participaciones, precio")
+      .select("inversion_id, fecha, tipo, importe, participaciones, precio, comision")
       .order("fecha", { ascending: true }),
     supabase.from("inversion_valoraciones").select("inversion_id, fecha, valor").order("fecha", { ascending: true }),
     supabase.from("categorias").select("id, categoria_padre_id, es_categoria_inversion"),
@@ -54,13 +54,14 @@ export default async function InversionesPage() {
   const hoy = new Date().toISOString().slice(0, 10);
 
   // ---- Operaciones agrupadas por inversión ----
-  const operaciones: (OperacionInversion & { inversionId: string })[] = (operacionesRaw ?? []).map((o) => ({
+  const operaciones: (OperacionInversion & { inversionId: string; comision: number })[] = (operacionesRaw ?? []).map((o) => ({
     inversionId: o.inversion_id,
     fecha: o.fecha,
     tipo: o.tipo,
     importe: Number(o.importe),
     participaciones: o.participaciones !== null ? Number(o.participaciones) : null,
     precio: o.precio !== null ? Number(o.precio) : null,
+    comision: Number(o.comision ?? 0),
   }));
 
   const operacionesPorInversion = new Map<string, OperacionInversion[]>();
@@ -105,6 +106,9 @@ export default async function InversionesPage() {
   const gananciaTotal = valorTotal - aportadoTotal;
   const rentabilidadSimpleTotal = aportadoTotal > 0 ? (gananciaTotal / aportadoTotal) * 100 : null;
   const tirTotal = tirAnualizada(flujosParaTIR(operaciones, valorTotal, hoy));
+  // Las comisiones ya están dentro del aportado (son dinero que sale y no vuelve), pero se
+  // suman aparte para poder decir cuánto de lo aportado se ha ido en comisiones.
+  const comisionesTotales = operaciones.reduce((suma, o) => suma + o.comision, 0);
 
   const primeraOperacion = operaciones[0]?.fecha ?? null;
   const serieCartera = primeraOperacion
@@ -161,6 +165,7 @@ export default async function InversionesPage() {
           ganancia={gananciaTotal}
           rentabilidadSimple={rentabilidadSimpleTotal}
           tir={tirTotal}
+          comisiones={comisionesTotales}
           moneda={moneda}
         />
 

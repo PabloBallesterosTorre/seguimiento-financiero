@@ -9,6 +9,7 @@ export function ResumenCartera({
   ganancia,
   rentabilidadSimple,
   tir,
+  comisiones,
   moneda,
 }: {
   valor: number;
@@ -16,6 +17,7 @@ export function ResumenCartera({
   ganancia: number;
   rentabilidadSimple: number | null;
   tir: number | null;
+  comisiones: number;
   moneda: string;
 }) {
   const formatEUR = (v: number) => formatMoneda(v, moneda);
@@ -26,7 +28,15 @@ export function ResumenCartera({
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
       <Tarjeta label="Valor de mercado" valor={formatEUR(valor)} />
-      <Tarjeta label="Aportado neto" valor={formatEUR(aportado)} nota="Lo metido menos lo retirado" />
+      <Tarjeta
+        label="Aportado neto"
+        valor={formatEUR(aportado)}
+        nota={
+          comisiones > 0
+            ? `Incluye ${formatEUR(comisiones)} de comisiones`
+            : "Lo metido menos lo retirado"
+        }
+      />
       <Tarjeta
         label="Ganancia"
         valor={`${signo}${formatEUR(ganancia)}`}

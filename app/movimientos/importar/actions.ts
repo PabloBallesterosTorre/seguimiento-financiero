@@ -17,6 +17,7 @@ export type FilaImportar = {
   isin?: string | null;
   participaciones?: number | null;
   precio?: number | null;
+  comision?: number | null;
   nombreActivo?: string | null;
   tipoActivo?: string | null;
 };
@@ -55,6 +56,7 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
       isin: fila.isin ?? null,
       participaciones: fila.participaciones ?? null,
       precio: fila.precio ?? null,
+      comision: fila.comision ?? null,
       nombre_activo: fila.nombreActivo ?? null,
       tipo_activo: fila.tipoActivo ?? null,
     })),

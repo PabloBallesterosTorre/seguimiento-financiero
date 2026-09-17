@@ -84,11 +84,12 @@ movimiento normal, que es lo que es. La compra posterior sí genera su operació
   la **total**: realizada + latente.
 - **TIR anualizada (XIRR)**, por Newton-Raphson con bisección de respaldo.
 
-La TIR no es un adorno. Con planes de ahorro semanales el porcentaje simple engaña: en la cartera
-real de hoy la ganancia es del **0,305% simple** pero la **TIR es del 1,55% anual**, cinco veces
-más, porque la mayor parte del dinero lleva dentro pocos meses. El simple mezcla importes con
-antigüedades distintas; la TIR es lo que sí se puede comparar con el "X% anual" de cualquier otro
-producto.
+La TIR no es un adorno. Con planes de ahorro semanales el porcentaje simple engaña, porque mezcla
+importes con antigüedades muy distintas: la mayor parte del dinero de esta cartera lleva dentro
+pocos meses, así que la TIR sale unas cinco veces por encima del porcentaje simple (0,075% anual
+frente a 0,015% simple con las cifras corregidas de hoy; 1,55% frente a 0,305% con las de antes
+de la migración `0024`). El simple no se puede comparar con nada; la TIR sí, con el "X% anual" de
+cualquier otro producto.
 
 `rentabilidad_anual_asumida` sigue existiendo, pero ya solo para **proyectar** en el Planificador.
 
@@ -130,11 +131,13 @@ lo es, esté bien categorizado el movimiento o no. De hecho solo 23 de los 52 mo
 categorizados como inversión.
 
 Resultado en producción: **7 posiciones, 52 operaciones**, aportado neto 2.164,06 €, valor
-2.170,65 €, ganancia +6,59 € (TIR 1,55%).
+2.164,38 €, ganancia +0,32 €, con 15,00 € pagados en comisiones. (Las cifras que dio el backfill
+antes de la corrección de la migración `0024` eran 2.170,65 € de valor y +6,59 € de ganancia —
+ver más abajo.)
 
 | Posición | Participaciones | Aportado | Valor | Ganancia |
 |---|---:|---:|---:|---:|
-| Ezentis (ES0172708234) | 13.224,37 | 990,00 € | 1.010,00 € | +20,00 € |
+| Ezentis (ES0172708234) | 13.224,37 | 990,00 € | 1.003,73 € | +13,73 € |
 | Vanguard U.S. 500 (IE0032126645) | 9,520897 | 765,07 € | 761,23 € | −3,84 € |
 | Emerging Markets (IE0031786696) | 0,636702 | 197,85 € | 200,90 € | +3,05 € |
 | FTSE All-World ex-US (IE0009A5ADV9) | 46,269268 | 201,00 € | 198,52 € | −2,48 € |
@@ -167,6 +170,55 @@ inversión. Tres de las siete posiciones están cerradas, así que habría salid
 —pero no es así como se quiere encontrar un error—. Ahora participaciones netas a cero significa
 valor cero, tanto en `revalorizar_inversion` como en el backfill.
 
+## La comisión, separada del precio — migración `0024`
+
+Al explicar de dónde sale el valor de mercado apareció un fallo del backfill que no había saltado
+en las pruebas.
+
+El precio se dedujo dividiendo el importe entre las participaciones, y el importe **ya lleva la
+comisión dentro** desde la tanda 9. Para un plan de ahorro da igual, porque Trade Republic no
+cobra comisión; pero una compra o venta suelta lleva 1 €, y ese euro se coló en el precio. En una
+compra el precio salía alto, así que la posición parecía valer más de lo que vale.
+
+No era cosmético. La compra de Ezentis del 17/09 era la última operación de esa posición, así que
+su precio inflado revalorizaba las 13.224 participaciones enteras:
+
+| | Antes | Después |
+|---|---:|---:|
+| Valor de Ezentis | 1.010,00 € | 1.003,73 € |
+| Ganancia de la cartera | +6,59 € | **+0,32 €** |
+| TIR anual | +1,55% | **+0,075%** |
+
+Es decir: **casi toda la "ganancia" era el artefacto**. La cartera está plana.
+
+Lo taimado es que el error se compensaba solo — la comisión encarece el coste (bien, es dinero
+que sale) y a la vez inflaba el valor (mal), así que el total parecía razonable. Por eso pasó el
+primer repaso.
+
+La corrección recalcula el precio sobre el importe bruto, sacando la comisión antes de dividir, y
+con el signo que toca: en una compra la comisión encarece lo pagado (se resta), en una venta
+reduce lo cobrado (se suma). La comisión de 1 € está verificada fila a fila contra la columna
+`fee` del extracto — 8 compras y 5 ventas con −1,00 €, con una sola excepción documentada (la
+venta del 26/06 del resto residual de 0,278158 participaciones, que salió sin comisión).
+
+## Las comisiones, visibles — migración `0025`
+
+La columna `comision` existía pero nadie la rellenaba: la comisión se fundía en el coste y no se
+podía consultar. Ahora la importación la guarda aparte, tomándola de la misma columna del extracto
+que ya se mapea para sumarla al importe.
+
+Sigue contando dentro del aportado neto, que es lo correcto — es dinero que sale y no vuelve, y si
+no contara, la rentabilidad saldría mejor de lo que es. Pero ahora se ve: en la portada, bajo
+"Aportado neto" ("Incluye 15,00 € de comisiones"); en el detalle de cada posición, como tarjeta
+propia; y operación a operación, bajo su importe.
+
+**La retención fiscal no entra ahí**: no es un coste de operar sino un impuesto adelantado. Sigue
+contando dentro del importe, como hasta ahora.
+
+Verificado en desarrollo con una compra de 51 € (50 € + 1 € de comisión) de 11,502185
+participaciones a 4,347 €: coste 51,00 €, comisión 1,00 €, precio limpio 4,347 y la posición
+valorada en 50,00 €. Que es la realidad — el euro de comisión se pierde en el momento de comprar.
+
 ## Verificación
 
 | Prueba | Resultado |
@@ -176,8 +228,9 @@ valor cero, tanto en `revalorizar_inversion` como en el backfill.
 | Valoración manual del mismo día que una operación importada | Se conserva la manual, no la pisa la automática |
 | Lote cuya segunda fila viola una restricción | 0 movimientos, 0 operaciones, 0 posiciones, saldo intacto |
 | Backfill ejecutado dos veces | La segunda pasada no crea nada |
-| TIR sobre el libro real de 52 operaciones | Converge: 1,552% anual frente a 0,305% simple |
-| `npm run build`, `tsc --noEmit`, 223 tests | Todo en verde |
+| TIR sobre el libro real de 52 operaciones | Converge, muy por encima de la rentabilidad simple |
+| Importar una compra con comisión (dev) | Coste con comisión, precio limpio, valoración correcta |
+| `npm run build`, `tsc --noEmit`, 225 tests | Todo en verde |
 
 Queda pendiente el **repaso visual** de las cuatro pantallas tocadas (Inversión, detalle,
 Movimientos e Importar) y de las gráficas de patrimonio con sus números nuevos.
@@ -190,8 +243,4 @@ Movimientos e Importar) y de las gráficas de patrimonio con sus números nuevos
   llamar a `revalorizar_inversion` con el precio del día.
 - **Detección automática del traspaso a inversión** en el extracto de un banco que no sea bróker
   (seguía en la lista de fase 2 y sigue).
-- **Comisiones en las operaciones importadas.** La columna `comision` existe y se rellena a mano,
-  pero la importación todavía no la separa del importe: el coste que se registra ya la incluye
-  (que es lo correcto para la rentabilidad), pero no se puede ver cuánto se ha pagado en
-  comisiones.
 - **Nombres y tipos de activo** de las posiciones reconstruidas, por revisar a mano.

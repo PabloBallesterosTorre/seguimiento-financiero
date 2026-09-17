@@ -8,6 +8,7 @@ import {
   parseFechaImportada,
   parseImporteImportado,
   combinarImporteConComisionYRetencion,
+  comisionDeLaFila,
   detectarFormatoFecha,
   detectarSeparadorDecimal,
   diaSiguienteISO,
@@ -418,6 +419,9 @@ export function ImportarCSV({
         isin: esOperacionInversion ? isinCrudo : null,
         participaciones: esOperacionInversion ? participaciones : null,
         precio: esOperacionInversion ? precio : null,
+        comision: esOperacionInversion
+          ? comisionDeLaFila(idxComision >= 0 ? fila[idxComision] : undefined, separadorDecimal)
+          : null,
         nombreActivo: esOperacionInversion ? nombreActivo || isinCrudo : null,
       };
     });
@@ -502,6 +506,7 @@ export function ImportarCSV({
                 isin: descartada ? null : f.isin,
                 participaciones: descartada ? null : f.participaciones,
                 precio: descartada ? null : f.precio,
+                comision: descartada ? null : f.comision,
                 nombreActivo: nueva?.nombre ?? f.nombreActivo,
                 tipoActivo: nueva?.tipoActivo ?? null,
               };

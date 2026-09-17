@@ -6,6 +6,7 @@ import {
   detectarSeparadorDecimal,
   parseFechaImportada,
   parseImporteImportado,
+  comisionDeLaFila,
 } from "./importarCsv";
 
 describe("parseFechaImportada", () => {
@@ -183,5 +184,18 @@ describe("parseFechaImportada con el mes escrito en letra", () => {
   it("no rompe los formatos numéricos de siempre", () => {
     expect(parseFechaImportada("16/09/2026", "DMY")).toBe("2026-09-16");
     expect(parseFechaImportada("2026-09-16", "YMD")).toBe("2026-09-16");
+  });
+});
+
+describe("comisionDeLaFila", () => {
+  it("devuelve la comisión como coste positivo, venga con el signo que venga", () => {
+    expect(comisionDeLaFila("-1,00", ",")).toBe(1);
+    expect(comisionDeLaFila("1.00", ".")).toBe(1);
+  });
+
+  it("sin columna, vacía o no numérica, es cero", () => {
+    expect(comisionDeLaFila(undefined, ",")).toBe(0);
+    expect(comisionDeLaFila("", ",")).toBe(0);
+    expect(comisionDeLaFila("n/a", ",")).toBe(0);
   });
 });

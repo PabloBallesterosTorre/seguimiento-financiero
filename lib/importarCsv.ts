@@ -130,6 +130,19 @@ export function combinarImporteConComisionYRetencion(
   return total;
 }
 
+// La comisión de la fila como un coste positivo, para guardarla aparte en la operación de
+// inversión. Es el mismo dato que `combinarImporteConComisionYRetencion` mete dentro del
+// importe — ahí porque el coste real de una compra incluye lo que cobra el bróker, y aquí
+// además por separado, para poder responder a "¿cuánto llevo pagado en comisiones?".
+//
+// Solo la comisión, no la retención fiscal: una retención no es un coste de operar, es un
+// impuesto adelantado. Sigue contando dentro del importe, pero no suma aquí.
+export function comisionDeLaFila(comisionTexto: string | undefined, separadorDecimal: "," | "."): number {
+  if (!comisionTexto) return 0;
+  const comision = parseImporteImportado(comisionTexto, separadorDecimal);
+  return comision === null ? 0 : Math.abs(comision);
+}
+
 // Día siguiente a una fecha ISO (AAAA-MM-DD). Se calcula en UTC a propósito: la
 // versión anterior hacía `new Date("2026-09-09T00:00:00")`, que se interpreta en hora
 // LOCAL, y devolvía el resultado con `toISOString()`, que convierte a UTC. En

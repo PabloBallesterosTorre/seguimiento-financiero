@@ -94,6 +94,7 @@ export default async function InversionDetallePage({ params }: { params: Promise
   const posicion = calcularPosicion(paraCalculo, valorMercado);
   const tir = tirAnualizada(flujosParaTIR(paraCalculo, valorMercado, hoy));
   const hayLibro = operaciones.length > 0;
+  const comisiones = operaciones.reduce((suma, o) => suma + o.comision, 0);
 
   const rentabilidad = inversion.rentabilidad_anual_asumida !== null ? Number(inversion.rentabilidad_anual_asumida) : null;
   const evolucion = construirEvolucionInversion(
@@ -153,7 +154,7 @@ export default async function InversionDetallePage({ params }: { params: Promise
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <InfoCard
             label="Participaciones"
             value={
@@ -166,6 +167,11 @@ export default async function InversionDetallePage({ params }: { params: Promise
             label="Precio medio de compra"
             value={posicion.precioMedioCompra !== null ? formatEUR(posicion.precioMedioCompra) : "—"}
             nota="Media ponderada de lo comprado"
+          />
+          <InfoCard
+            label="Comisiones pagadas"
+            value={hayLibro ? formatEUR(comisiones) : "—"}
+            nota="Ya contadas dentro del aportado"
           />
           <InfoCard
             label="Rentabilidad anual asumida"

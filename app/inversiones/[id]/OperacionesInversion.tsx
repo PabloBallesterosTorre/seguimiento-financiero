@@ -169,6 +169,11 @@ export function OperacionesInversion({
                 >
                   {op.importe >= 0 ? "" : "+"}
                   {formatEUR(Math.abs(op.importe))}
+                  {op.comision > 0 && (
+                    <p className="text-[11px] font-normal text-ink-tertiary">
+                      incl. {formatEUR(op.comision)} de comisión
+                    </p>
+                  )}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-[11px] text-ink-tertiary">
                   {op.movimiento_id ? (
