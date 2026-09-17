@@ -17,6 +17,7 @@ export async function registrarTraspaso(
     descripcionOrigen: string;
     descripcionDestino: string;
     origenMovimiento: "manual" | "importado";
+    categoriaId?: string | null;
   }
 ) {
   const {
@@ -27,6 +28,7 @@ export async function registrarTraspaso(
     descripcionOrigen,
     descripcionDestino,
     origenMovimiento,
+    categoriaId = null,
   } = params;
 
   const traspaso_grupo_id = crypto.randomUUID();
@@ -41,6 +43,7 @@ export async function registrarTraspaso(
         descripcion: descripcionOrigen,
         importe: -importe,
         tipo: "traspaso",
+        categoria_id: categoriaId,
         origen: origenMovimiento,
         moneda: "EUR",
         traspaso_grupo_id,
@@ -52,6 +55,7 @@ export async function registrarTraspaso(
         descripcion: descripcionDestino,
         importe,
         tipo: "traspaso",
+        categoria_id: categoriaId,
         origen: origenMovimiento,
         moneda: "EUR",
         traspaso_grupo_id,

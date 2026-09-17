@@ -94,7 +94,7 @@ export default async function MovimientosPage() {
         <div className="flex items-center justify-between">
           <h1 className="font-sora text-[26px] font-bold text-ink">Movimientos</h1>
           <div className="flex items-center gap-2.5">
-            <NuevoTraspaso cuentas={cuentas ?? []} action={crearTraspaso} hoy={hoy} />
+            <NuevoTraspaso cuentas={cuentas ?? []} categorias={categoriasOrdenadas} action={crearTraspaso} hoy={hoy} />
             <Link
               href="/movimientos/importar"
               className="rounded-btn border border-border-strong bg-surface px-[18px] py-2.5 text-sm font-semibold text-ink-secondary hover:bg-chip"

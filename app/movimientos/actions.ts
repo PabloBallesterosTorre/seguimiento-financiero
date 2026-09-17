@@ -114,6 +114,7 @@ export async function crearTraspaso(formData: FormData) {
   const fecha = formData.get("fecha") as string;
   const importe = Math.abs(Number(formData.get("importe") ?? 0));
   const descripcionInput = (formData.get("descripcion") as string) || "";
+  const categoriaId = (formData.get("categoria_id") as string) || null;
 
   if (!cuenta_origen_id || !cuenta_destino_id || cuenta_origen_id === cuenta_destino_id || importe <= 0) {
     return;
@@ -132,6 +133,7 @@ export async function crearTraspaso(formData: FormData) {
     descripcionOrigen: descripcionInput || `Traspaso a ${destino.nombre}`,
     descripcionDestino: descripcionInput || `Traspaso desde ${origen.nombre}`,
     origenMovimiento: "manual",
+    categoriaId,
   });
 
   revalidatePath("/movimientos");
@@ -163,14 +165,19 @@ export async function vincularComoTraspaso(formData: FormData) {
   if (filas[0].cuenta_id === filas[1].cuenta_id) return;
 
   // Ambos movimientos ya existían y ya estaban sumados a sus saldos respectivos:
-  // vincularlos como traspaso solo cambia su tipo/categoría, nunca los saldos.
+  // vincularlos como traspaso solo cambia su tipo, nunca los saldos.
+  //
+  // La categoría se CONSERVA (antes se ponía a null). Un gasto conjunto que se paga desde
+  // una cuenta personal y se repone desde la común necesita las dos cosas: que el traspaso
+  // se anule al mirar todas las cuentas juntas, y que siga contando en su categoría al
+  // mirar solo la cuenta que puso el dinero.
   const traspaso_grupo_id = crypto.randomUUID();
 
   await Promise.all(
     filas.map((f) =>
       supabase
         .from("movimientos")
-        .update({ tipo: "traspaso", categoria_id: null, traspaso_grupo_id, tipo_original: f.tipo })
+        .update({ tipo: "traspaso", traspaso_grupo_id, tipo_original: f.tipo })
         .eq("id", f.id)
         .throwOnError()
     )

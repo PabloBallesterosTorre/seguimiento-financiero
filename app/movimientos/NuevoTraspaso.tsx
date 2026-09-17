@@ -3,14 +3,18 @@
 import { useState } from "react";
 import { inputClass, labelClass, btnPrimaryClass, btnSecondaryClass, cardClass } from "@/components/formStyles";
 
+import type { CategoriaJerarquica } from "@/lib/categorias";
+
 type Cuenta = { id: string; nombre: string; banco_nombre: string };
 
 export function NuevoTraspaso({
   cuentas,
+  categorias,
   action,
   hoy,
 }: {
   cuentas: Cuenta[];
+  categorias: CategoriaJerarquica[];
   action: (formData: FormData) => void;
   hoy: string;
 }) {
@@ -70,6 +74,22 @@ export function NuevoTraspaso({
         <div>
           <label className={labelClass}>Descripción (opcional)</label>
           <input name="descripcion" placeholder="Se autogenera si se deja vacío" className={inputClass} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Categoría (opcional)</label>
+          <select name="categoria_id" defaultValue="" className={inputClass}>
+            <option value="">Sin categoría</option>
+            {categorias.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1.5 text-xs text-ink-tertiary">
+            Solo cuenta si miras los informes de una de las dos cuentas por separado: entonces esta
+            pata del traspaso se trata como gasto o ingreso real y aparece en esta categoría. Mirando
+            las dos cuentas a la vez, el traspaso se anula y la categoría no se usa.
+          </p>
         </div>
         <div className="flex gap-2.5 sm:col-span-5">
           <button type="submit" className={btnPrimaryClass}>

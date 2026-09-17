@@ -136,27 +136,25 @@ function FilaMovimiento({
         )}
       </td>
       <td className="px-4 py-3.5">
-        {esTraspaso ? (
-          <span className="text-ink-tertiary">—</span>
-        ) : (
-          <>
-            <CategoriaCelda
-              movimientoId={mov.id}
-              descripcion={mov.descripcion}
-              categoriaId={mov.categoria_id}
-              categorias={categoriasOrdenadas}
-              action={actualizarCategoriaMovimiento}
-              sugeridaId={mov.sugeridaId}
-            />
-            <MarcarComoTraspaso
-              movimientoId={mov.id}
-              candidatos={mov.candidatosTraspaso.map((c) => ({
-                id: c.id,
-                label: `${c.cuenta ? `${c.cuenta.banco_nombre} — ${c.cuenta.nombre}` : "?"} · ${c.fecha} · ${formatEUR(c.importe)}`,
-              }))}
-              action={vincularComoTraspaso}
-            />
-          </>
+        {/* Un traspaso también lleva categoría: cuando se miran los informes de una sola de
+            las dos cuentas, esa pata cuenta como gasto o ingreso real y aparece en ella. */}
+        <CategoriaCelda
+          movimientoId={mov.id}
+          descripcion={mov.descripcion}
+          categoriaId={mov.categoria_id}
+          categorias={categoriasOrdenadas}
+          action={actualizarCategoriaMovimiento}
+          sugeridaId={mov.sugeridaId}
+        />
+        {!esTraspaso && (
+          <MarcarComoTraspaso
+            movimientoId={mov.id}
+            candidatos={mov.candidatosTraspaso.map((c) => ({
+              id: c.id,
+              label: `${c.cuenta ? `${c.cuenta.banco_nombre} — ${c.cuenta.nombre}` : "?"} · ${c.fecha} · ${formatEUR(c.importe)}`,
+            }))}
+            action={vincularComoTraspaso}
+          />
         )}
       </td>
       <td
@@ -172,7 +170,7 @@ function FilaMovimiento({
             action={eliminarTraspaso}
             mensaje={
               mov.tipo_original
-                ? "¿Seguro que quieres desvincular este traspaso? Los dos movimientos volverán a su tipo original (ingreso/gasto) sin categoría; los saldos no cambian."
+                ? "¿Seguro que quieres desvincular este traspaso? Los dos movimientos volverán a su tipo original (ingreso/gasto), conservando su categoría; los saldos no cambian."
                 : "¿Seguro que quieres eliminar este traspaso? Se eliminarán los dos movimientos enlazados (origen y destino) y se revertirán ambos saldos."
             }
           >

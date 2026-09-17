@@ -17,6 +17,7 @@ export type FilaTraspasoImportar = {
   fecha: string;
   descripcion: string;
   importe: number;
+  categoria_id: string | null;
   cuentaContraparteId: string;
 };
 
@@ -96,6 +97,7 @@ export async function importarTraspasos(cuentaId: string, filas: FilaTraspasoImp
       fecha: fila.fecha,
       descripcion: fila.descripcion,
       importe: fila.importe,
+      categoria_id: fila.categoria_id,
       cuenta_contraparte_id: fila.cuentaContraparteId,
     })),
   });

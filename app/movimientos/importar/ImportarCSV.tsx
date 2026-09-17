@@ -442,6 +442,7 @@ export function ImportarCSV({
               fecha: f.fecha,
               descripcion: f.descripcion,
               importe: f.importe,
+              categoria_id: f.categoria_id,
               cuentaContraparteId: f.cuentaContraparteId as string,
             }))
           )
@@ -959,7 +960,7 @@ export function ImportarCSV({
                             />
                             Es traspaso entre mis cuentas
                           </label>
-                          {fila.esTraspaso ? (
+                          {fila.esTraspaso && (
                             <select
                               value={fila.cuentaContraparteId ?? ""}
                               onChange={(e) => actualizarContraparte(index, e.target.value)}
@@ -971,20 +972,24 @@ export function ImportarCSV({
                                 </option>
                               ))}
                             </select>
-                          ) : (
+                          )}
+                          {/* La categoría se pide también en los traspasos: al mirar los
+                              informes de una sola de las dos cuentas, esa pata cuenta como
+                              gasto o ingreso real y aparece en su categoría. */}
+                          <select
+                            value={fila.categoria_id ?? ""}
+                            onChange={(e) => actualizarCategoria(index, e.target.value)}
+                            className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                          >
+                            <option value="">Sin categoría</option>
+                            {categorias.map((cat) => (
+                              <option key={cat.id} value={cat.id}>
+                                {cat.label}
+                              </option>
+                            ))}
+                          </select>
+                          {!fila.esTraspaso && (
                             <>
-                              <select
-                                value={fila.categoria_id ?? ""}
-                                onChange={(e) => actualizarCategoria(index, e.target.value)}
-                                className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
-                              >
-                                <option value="">Sin categoría</option>
-                                {categorias.map((cat) => (
-                                  <option key={cat.id} value={cat.id}>
-                                    {cat.label}
-                                  </option>
-                                ))}
-                              </select>
                               {(() => {
                                 const candidatos = previstosCoincidentes(
                                   {
