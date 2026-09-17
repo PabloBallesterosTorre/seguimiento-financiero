@@ -442,11 +442,21 @@ export function ocurrenciasPendientesEnMes(
   month: number,
   opciones: {
     conciliacionesPorMes?: Map<string, number>;
-    // Claves "categoriaId:YYYY-MM" de las categorías que ya tienen movimiento real en ese mes.
+    // Claves "categoriaId:YYYY-MM" de las categorías que ya tienen movimiento real en ese
+    // mes, con la categoría ya resuelta a su padre.
     categoriasConMovimiento?: ReadonlySet<string>;
+    // Resuelve una subcategoría a su categoría padre. Hace falta porque un presupuesto se
+    // pone sobre la categoría padre ("Ocio") mientras el gasto real cae en sus hijas
+    // ("Restaurantes", 63 movimientos). Comparando ids en crudo, el presupuesto de Ocio no
+    // se apagaba nunca en un mes en el que solo se hubiera gastado en Restaurantes.
+    categoriaEfectiva?: (categoriaId: string) => string;
   } = {}
 ): number {
-  const { conciliacionesPorMes = new Map(), categoriasConMovimiento = new Set<string>() } = opciones;
+  const {
+    conciliacionesPorMes = new Map(),
+    categoriasConMovimiento = new Set<string>(),
+    categoriaEfectiva = (id: string) => id,
+  } = opciones;
 
   const total = ocurrenciasEnMes(p, year, month);
   if (total === 0) return 0;
@@ -454,7 +464,7 @@ export function ocurrenciasPendientesEnMes(
   const mesClave = `${year}-${String(month).padStart(2, "0")}`;
 
   if (p.es_presupuesto) {
-    if (p.categoria_id && categoriasConMovimiento.has(`${p.categoria_id}:${mesClave}`)) return 0;
+    if (p.categoria_id && categoriasConMovimiento.has(`${categoriaEfectiva(p.categoria_id)}:${mesClave}`)) return 0;
     return total;
   }
 

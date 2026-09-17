@@ -127,7 +127,8 @@ export default async function PrevisionPage({
   const categoriasConMovimiento = new Set(
     historico
       .filter((m) => m.categoria_id)
-      .map((m) => `${m.categoria_id}:${mesDeFecha(m.fecha)}`)
+      // Resuelta al padre: el presupuesto vive en "Ocio" y el gasto cae en "Restaurantes".
+      .map((m) => `${categoriaEfectiva(m.categoria_id!)}:${mesDeFecha(m.fecha)}`)
   );
 
   const mesesHorizonte = generarMeses(horizonte, mesEnCurso);
@@ -148,6 +149,7 @@ export default async function PrevisionPage({
       const n = ocurrenciasPendientesEnMes(p, mes.year, mes.month, {
         conciliacionesPorMes,
         categoriasConMovimiento,
+        categoriaEfectiva,
       });
       if (n > 0) pendientes.set(p.id, n);
     }

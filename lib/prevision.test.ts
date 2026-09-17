@@ -580,3 +580,43 @@ describe("previstosCoincidentes y el mes financiero", () => {
     ).toHaveLength(1);
   });
 });
+
+describe("ocurrenciasPendientesEnMes y las subcategorías", () => {
+  // El caso real: el presupuesto está en "Ocio" y el gasto cae en "Restaurantes", que es
+  // hija suya y tiene 63 movimientos. Comparando ids en crudo, el presupuesto de Ocio no se
+  // apagaba nunca en un mes en el que solo se hubiera gastado en Restaurantes.
+  const presupuestoOcio = {
+    id: "ocio",
+    tipo: "gasto" as const,
+    estado: "activo" as const,
+    origen_calculo: "fijo" as const,
+    categoria_id: "ocio",
+    importe_estimado: 400,
+    importe_min: null,
+    importe_max: null,
+    tipo_recurrencia: "recurrente" as const,
+    periodicidad: "mensual" as const,
+    fecha: null,
+    fecha_inicio: "2026-01-01",
+    fecha_fin: null,
+    es_presupuesto: true,
+  };
+  const alPadre = (id: string) => (id === "restaurantes" ? "ocio" : id);
+
+  it("sin resolver el padre, el gasto en la subcategoría no apaga el presupuesto", () => {
+    expect(
+      ocurrenciasPendientesEnMes(presupuestoOcio as never, 2026, 9, {
+        categoriasConMovimiento: new Set(["restaurantes:2026-09"]),
+      })
+    ).toBe(1);
+  });
+
+  it("resolviendo al padre, sí lo apaga", () => {
+    expect(
+      ocurrenciasPendientesEnMes(presupuestoOcio as never, 2026, 9, {
+        categoriasConMovimiento: new Set(["ocio:2026-09"]),
+        categoriaEfectiva: alPadre,
+      })
+    ).toBe(0);
+  });
+});

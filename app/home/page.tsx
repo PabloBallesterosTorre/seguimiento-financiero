@@ -211,7 +211,8 @@ export default async function HomePage({
   const categoriasConMovimiento = new Set(
     historicoCompleto
       .filter((m) => m.categoria_id)
-      .map((m) => `${m.categoria_id}:${mesDeFecha(m.fecha)}`)
+      // Resuelta al padre: el presupuesto vive en "Ocio" y el gasto cae en "Restaurantes".
+      .map((m) => `${categoriaEfectiva(m.categoria_id!)}:${mesDeFecha(m.fecha)}`)
   );
 
   const primeraFecha = historicoCompleto.reduce(
@@ -281,6 +282,7 @@ export default async function HomePage({
     mediaPorCategoria,
     conciliacionesPorMes,
     categoriasConMovimiento,
+    categoriaEfectiva,
   });
 
   const puntos = [...puntosHistoricos, ...puntosFuturos];
@@ -338,6 +340,7 @@ export default async function HomePage({
       const ocurrencias = ocurrenciasPendientesEnMes(p, year, month, {
         conciliacionesPorMes,
         categoriasConMovimiento,
+        categoriaEfectiva,
       });
       suma += importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrencias;
     }
