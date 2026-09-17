@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerConfiguracion, obtenerOpcionesMesFinanciero } from "@/lib/configuracion";
-import { mesDe, finMesFinanciero } from "@/lib/mesFinanciero";
+import { mesDe, finMesFinanciero, inicioMesFinanciero } from "@/lib/mesFinanciero";
 import { formatMoneda, formatMonedaTabla } from "@/lib/formato";
 import {
   construirPeriodosConciliados,
@@ -28,6 +28,7 @@ import {
 } from "@/lib/planificador";
 import {
   ahorroDelMes,
+  comoVaElMes,
   filtrarMovimientosPorCuentasSeleccionadas,
   resolverCuentasSeleccionadas,
   type MovimientoParaInforme,
@@ -36,6 +37,7 @@ import { KpiDineroDisponible } from "@/app/informes/KpiDineroDisponible";
 import { SelectorCuentas } from "@/components/SelectorCuentas";
 import { SelectorAmbito, type Ambito } from "@/components/SelectorAmbito";
 import { FlujoMensualDisponible, type MesAhorroHome } from "./FlujoMensualDisponible";
+import { ComoVaElMes } from "./ComoVaElMes";
 
 const MESES_PASADOS = 6;
 const MESES_FUTUROS = 6;
@@ -283,6 +285,21 @@ export default async function HomePage({
   const ultimoMesCerrado = puntosHistoricos.at(-1) ?? null;
   const fechaCierreAnterior = ultimoMesCerrado ? finDeMes(ultimoMesCerrado.year, ultimoMesCerrado.month) : undefined;
   const liquidoMesAnterior = ultimoMesCerrado?.saldoLiquido ?? null;
+
+  // ---- "Cómo va el mes": lo acumulado desde el cierre anterior, con las dos referencias
+  // del mes pasado (mismo punto y cierre). Los movimientos ya vienen filtrados por ámbito
+  // y con los traspasos internos anulados.
+  const inicioMesActual = inicioMesFinanciero(mesEnCurso.year, mesEnCurso.month, opcionesMes);
+  const finMesActual = finDeMes(mesEnCurso.year, mesEnCurso.month);
+  const datosDelMes = comoVaElMes({
+    movimientos: historicoCompleto,
+    inicioMesActual,
+    hoy,
+    inicioMesAnterior: ultimoMesCerrado
+      ? inicioMesFinanciero(ultimoMesCerrado.year, ultimoMesCerrado.month, opcionesMes)
+      : null,
+    finMesAnterior: ultimoMesCerrado ? finDeMes(ultimoMesCerrado.year, ultimoMesCerrado.month) : null,
+  });
   const variacionLiquidez =
     liquidoMesAnterior === null
       ? null
@@ -383,6 +400,16 @@ export default async function HomePage({
               : `Líquido más inversión. No descuenta ${formatMoneda(totalDeuda, moneda)} de deuda pendiente.`}
           </p>
         </div>
+
+        <ComoVaElMes
+          datos={datosDelMes}
+          moneda={moneda}
+          inicioMes={inicioMesActual}
+          finMes={finMesActual}
+          hoy={hoy}
+          etiquetaMesAnterior={ultimoMesCerrado?.label ?? null}
+          ambito={ambito}
+        />
 
         {/* Mismo ancho (`grid-cols-3`, sin el 1.3fr de antes) y mismo alto: sin
             `items-start` las tres se estiran a la altura de la más alta. */}

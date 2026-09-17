@@ -241,3 +241,77 @@ export function separarGastosEIngresos(filas: NetoCategoria[]): {
       .sort((a, b) => b.neto - a.neto),
   };
 }
+
+// ============================================================================
+// Tanda 12: cómo va el mes en curso
+// ============================================================================
+
+export type ComoVaElMes = {
+  // Lo acumulado desde el cierre del mes anterior hasta hoy: exactamente "cuánto más (o
+  // menos) tengo ahora que en el último movimiento antes de cobrar la nómina".
+  acumulado: number;
+  diasTranscurridos: number;
+  // El mismo número en el mes anterior, contando los MISMOS días desde su arranque. Es la
+  // única comparación justa a mitad de mes: comparar 21 días contra un mes entero diría
+  // que siempre vas mejor.
+  mismoPuntoMesAnterior: number | null;
+  // Con cuánto cerró el mes anterior. Va aparte del anterior a propósito: en agosto de
+  // 2026 este usuario iba en +40,44 € a día 21 y cerró en −1.370,48 €, porque todo el
+  // gasto se concentró en los últimos ocho días. Enseñar solo uno de los dos números
+  // engaña.
+  cierreMesAnterior: number | null;
+};
+
+function diasEntre(desde: string, hasta: string): number {
+  return Math.round(
+    (new Date(`${hasta}T00:00:00Z`).getTime() - new Date(`${desde}T00:00:00Z`).getTime()) / 86400000
+  );
+}
+
+function sumarDias(fecha: string, dias: number): string {
+  const d = new Date(`${fecha}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+function sumaEntre(movimientos: { fecha: string; importe: number }[], desde: string, hasta: string): number {
+  return movimientos
+    .filter((m) => m.fecha >= desde && m.fecha <= hasta)
+    .reduce((s, m) => s + Number(m.importe), 0);
+}
+
+// Responde a "¿cuánto me sobra este mes y voy mejor o peor que el anterior?".
+//
+// Los movimientos deben venir ya filtrados por ámbito (ver
+// filtrarMovimientosPorCuentasSeleccionadas), que además anula los traspasos internos: así
+// el dinero que pasa de lo personal a lo común sale como gasto de un lado e ingreso del
+// otro, y al mirarlo todo junto se cancela.
+export function comoVaElMes(params: {
+  movimientos: { fecha: string; importe: number }[];
+  inicioMesActual: string;
+  hoy: string;
+  inicioMesAnterior: string | null;
+  finMesAnterior: string | null;
+}): ComoVaElMes {
+  const { movimientos, inicioMesActual, hoy, inicioMesAnterior, finMesAnterior } = params;
+
+  const acumulado = sumaEntre(movimientos, inicioMesActual, hoy);
+  const diasTranscurridos = Math.max(diasEntre(inicioMesActual, hoy), 0);
+
+  if (!inicioMesAnterior || !finMesAnterior) {
+    return { acumulado, diasTranscurridos, mismoPuntoMesAnterior: null, cierreMesAnterior: null };
+  }
+
+  // El mismo punto del mes anterior nunca se pasa de su cierre: si el mes anterior fue más
+  // corto que los días que ya llevamos, se compara contra su cierre y no contra días que
+  // pertenecían ya al mes siguiente.
+  const mismoPuntoBruto = sumarDias(inicioMesAnterior, diasTranscurridos);
+  const mismoPunto = mismoPuntoBruto > finMesAnterior ? finMesAnterior : mismoPuntoBruto;
+
+  return {
+    acumulado,
+    diasTranscurridos,
+    mismoPuntoMesAnterior: sumaEntre(movimientos, inicioMesAnterior, mismoPunto),
+    cierreMesAnterior: sumaEntre(movimientos, inicioMesAnterior, finMesAnterior),
+  };
+}

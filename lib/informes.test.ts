@@ -9,6 +9,7 @@ import {
   ahorroDelMes,
   filtrarMovimientosPorCuentasSeleccionadas,
   resolverCuentasSeleccionadas,
+  comoVaElMes,
   type MovimientoParaInforme,
 } from "./informes";
 import { mesDe } from "./mesFinanciero";
@@ -263,5 +264,72 @@ describe("agruparPorCategoriaPadreYMes con mes financiero", () => {
 
     expect(porMes.get("2026-09")).toBeCloseTo(2139.89, 2);
     expect(porMes.get("2026-08")).toBeCloseTo(2175.27, 2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tanda 12: cómo va el mes en curso
+// ---------------------------------------------------------------------------
+
+describe("comoVaElMes", () => {
+  // Calcado del caso real: agosto arrancó el 30 de julio y cerró el 27 de agosto;
+  // septiembre arrancó el 28 de agosto y hoy es 17 de septiembre (día 20).
+  const params = {
+    inicioMesActual: "2026-08-28",
+    hoy: "2026-09-17",
+    inicioMesAnterior: "2026-07-30",
+    finMesAnterior: "2026-08-27",
+  };
+
+  it("acumula desde el cierre del mes anterior, no desde el día 1", () => {
+    const r = comoVaElMes({
+      ...params,
+      movimientos: [
+        { fecha: "2026-08-27", importe: -999 }, // el día del cierre anterior: fuera
+        { fecha: "2026-08-28", importe: 2139.89 }, // la nómina: dentro
+        { fecha: "2026-09-10", importe: -500 },
+      ],
+    });
+    expect(r.acumulado).toBeCloseTo(1639.89, 2);
+    expect(r.diasTranscurridos).toBe(20);
+  });
+
+  it("compara contra el mismo número de días del mes anterior", () => {
+    const r = comoVaElMes({
+      ...params,
+      movimientos: [
+        { fecha: "2026-07-30", importe: 2175.27 },
+        { fecha: "2026-08-18", importe: -2134.83 }, // dentro de los 20 primeros días
+        { fecha: "2026-08-25", importe: -1410.92 }, // después: solo cuenta en el cierre
+        { fecha: "2026-08-28", importe: 2139.89 },
+      ],
+    });
+    expect(r.mismoPuntoMesAnterior).toBeCloseTo(40.44, 2);
+    expect(r.cierreMesAnterior).toBeCloseTo(-1370.48, 2);
+  });
+
+  it("no se pasa del cierre si el mes anterior fue más corto", () => {
+    const r = comoVaElMes({
+      movimientos: [{ fecha: "2026-08-28", importe: 100 }],
+      inicioMesActual: "2026-08-28",
+      hoy: "2026-09-25",
+      inicioMesAnterior: "2026-07-30",
+      finMesAnterior: "2026-08-27",
+    });
+    // 28 días desde el 30 de julio sería el 27 de agosto justo; nunca más allá.
+    expect(r.mismoPuntoMesAnterior).toBe(r.cierreMesAnterior);
+  });
+
+  it("sin mes anterior no se inventa comparación", () => {
+    const r = comoVaElMes({
+      movimientos: [{ fecha: "2026-08-28", importe: 100 }],
+      inicioMesActual: "2026-08-28",
+      hoy: "2026-09-17",
+      inicioMesAnterior: null,
+      finMesAnterior: null,
+    });
+    expect(r.acumulado).toBe(100);
+    expect(r.mismoPuntoMesAnterior).toBeNull();
+    expect(r.cierreMesAnterior).toBeNull();
   });
 });
