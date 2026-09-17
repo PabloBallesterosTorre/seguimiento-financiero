@@ -1,5 +1,7 @@
 import type { createClient } from "@/lib/supabase/server";
 
+import { reconstruirSaldo } from "@/lib/saldos";
+
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 // Registra un traspaso entre dos cuentas propias como dos movimientos enlazados
@@ -57,24 +59,11 @@ export async function registrarTraspaso(
     ])
     .throwOnError();
 
-  // .throwOnError() aquí es importante: los dos movimientos ya se han insertado
-  // arriba, así que un fallo silencioso en esta lectura dejaría uno o los dos saldos
-  // desincronizados de sus movimientos reales.
-  const [{ data: origen }, { data: destino }] = await Promise.all([
-    supabase.from("cuentas").select("saldo_actual").eq("id", cuentaOrigenId).single().throwOnError(),
-    supabase.from("cuentas").select("saldo_actual").eq("id", cuentaDestinoId).single().throwOnError(),
-  ]);
-
-  await supabase
-    .from("cuentas")
-    .update({ saldo_actual: Number(origen.saldo_actual) - importe })
-    .eq("id", cuentaOrigenId)
-    .throwOnError();
-  await supabase
-    .from("cuentas")
-    .update({ saldo_actual: Number(destino.saldo_actual) + importe })
-    .eq("id", cuentaDestinoId)
-    .throwOnError();
+  // Los saldos se reconstruyen desde saldo_inicial + movimientos en vez de sumar y restar
+  // sobre el valor anterior: si alguna operación previa dejó una de las dos cuentas
+  // descuadrada, este traspaso la repara de paso.
+  await reconstruirSaldo(supabase, cuentaOrigenId);
+  await reconstruirSaldo(supabase, cuentaDestinoId);
 }
 
 export type MovimientoParaEmparejar = {

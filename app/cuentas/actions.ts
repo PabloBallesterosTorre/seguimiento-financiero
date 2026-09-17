@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { saldoEsperado } from "@/lib/saldos";
+import { reconstruirSaldo } from "@/lib/saldos";
 
 // Datos descriptivos de la cuenta. Deliberadamente NO incluye el saldo: editar una
 // cuenta (para corregir el nombre, añadir el IBAN o marcarla como remunerada) no debe
@@ -71,22 +71,16 @@ export async function actualizarCuenta(formData: FormData) {
 
 // Reconstruye el saldo de una cuenta a partir de su saldo inicial más todos sus
 // movimientos, que es la única fuente de verdad verificable. Repara el desfase que
-// deja cualquier operación que se quedó a medias (la importación no es atómica: si
-// falla después de insertar los movimientos, el saldo no llega a actualizarse) sin
-// tener que tocar la base de datos a mano.
+// deja cualquier operación que se quedó a medias sin tener que tocar la base de datos a
+// mano. La importación ya no puede provocarlo (es atómica desde la migración 0020), pero
+// sigue siendo la reparación para un descuadre heredado o para cualquier escritura suelta
+// que falle a mitad.
 export async function recalcularSaldoCuenta(formData: FormData) {
   const supabase = await createClient();
   const id = formData.get("id") as string;
   if (!id) return;
 
-  const [{ data: cuenta }, { data: movimientos }] = await Promise.all([
-    supabase.from("cuentas").select("saldo_inicial").eq("id", id).single().throwOnError(),
-    supabase.from("movimientos").select("importe").eq("cuenta_id", id).throwOnError(),
-  ]);
-
-  const saldo = saldoEsperado(Number(cuenta.saldo_inicial), movimientos ?? []);
-
-  await supabase.from("cuentas").update({ saldo_actual: saldo }).eq("id", id).throwOnError();
+  await reconstruirSaldo(supabase, id);
 
   revalidatePath("/cuentas");
   revalidatePath("/home");

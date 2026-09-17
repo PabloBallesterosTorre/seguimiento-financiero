@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { sugerirCategoria } from "@/lib/categorizacion";
 import { reforzarRegla } from "@/lib/reglas";
 import { registrarTraspaso } from "@/lib/traspasos";
+import { reconstruirSaldo } from "@/lib/saldos";
 
 export async function actualizarCategoriaMovimiento(formData: FormData) {
   const supabase = await createClient();
@@ -78,21 +79,9 @@ export async function crearMovimiento(formData: FormData) {
     })
     .throwOnError();
 
-  // .throwOnError() aquí es importante: el movimiento de arriba ya se ha insertado,
-  // así que si esta lectura fallara y se dejara pasar en silencio, el saldo de la
-  // cuenta se quedaría desincronizado de sus movimientos sin ningún aviso.
-  const { data: cuenta } = await supabase
-    .from("cuentas")
-    .select("saldo_actual")
-    .eq("id", cuenta_id)
-    .single()
-    .throwOnError();
-
-  await supabase
-    .from("cuentas")
-    .update({ saldo_actual: Number(cuenta.saldo_actual) + importe })
-    .eq("id", cuenta_id)
-    .throwOnError();
+  // El saldo se reconstruye desde saldo_inicial + movimientos en vez de sumarle el importe
+  // al valor anterior: si una operación previa dejó la cuenta descuadrada, esta la repara.
+  await reconstruirSaldo(supabase, cuenta_id);
 
   // El aprendizaje de la regla es una mejora, no parte del contrato de esta alta: el
   // movimiento y el saldo ya se han guardado arriba, así que un fallo aquí se
@@ -221,22 +210,8 @@ export async function eliminarTraspaso(formData: FormData) {
   } else {
     await supabase.from("movimientos").delete().eq("traspaso_grupo_id", traspaso_grupo_id).throwOnError();
 
-    for (const fila of filas) {
-      // .throwOnError() aquí es importante: los movimientos ya se han borrado arriba,
-      // así que un fallo silencioso en esta lectura dejaría el saldo de la cuenta sin
-      // revertir, desincronizado de sus movimientos reales.
-      const { data: cuenta } = await supabase
-        .from("cuentas")
-        .select("saldo_actual")
-        .eq("id", fila.cuenta_id)
-        .single()
-        .throwOnError();
-
-      await supabase
-        .from("cuentas")
-        .update({ saldo_actual: Number(cuenta.saldo_actual) - Number(fila.importe) })
-        .eq("id", fila.cuenta_id)
-        .throwOnError();
+    for (const cuentaId of new Set(filas.map((f) => f.cuenta_id))) {
+      await reconstruirSaldo(supabase, cuentaId);
     }
   }
 
@@ -261,18 +236,7 @@ export async function eliminarMovimiento(formData: FormData) {
 
   await supabase.from("movimientos").delete().eq("id", id).throwOnError();
 
-  const { data: cuenta } = await supabase
-    .from("cuentas")
-    .select("saldo_actual")
-    .eq("id", movimiento.cuenta_id)
-    .single()
-    .throwOnError();
-
-  await supabase
-    .from("cuentas")
-    .update({ saldo_actual: Number(cuenta.saldo_actual) - Number(movimiento.importe) })
-    .eq("id", movimiento.cuenta_id)
-    .throwOnError();
+  await reconstruirSaldo(supabase, movimiento.cuenta_id);
 
   revalidatePath("/movimientos");
   revalidatePath("/cuentas");

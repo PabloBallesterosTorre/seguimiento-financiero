@@ -7,6 +7,10 @@
 // Con `saldo_inicial` (el saldo anterior al primer movimiento registrado) el saldo
 // pasa a ser comprobable y, por tanto, reparable.
 
+import type { createClient } from "@/lib/supabase/server";
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
 // Tolerancia al comparar dos saldos. Los importes se guardan como numeric(14,2), así
 // que cualquier diferencia real es de al menos un céntimo; medio céntimo absorbe el
 // error de coma flotante de sumar muchos importes en JavaScript sin llegar a ocultar
@@ -35,6 +39,30 @@ export function hayDesfase(
   movimientos: { importe: number }[]
 ): boolean {
   return Math.abs(desfaseSaldo(saldoGuardado, saldoInicial, movimientos)) > TOLERANCIA;
+}
+
+// Reconstruye y guarda el saldo de una cuenta a partir de su saldo inicial más todos sus
+// movimientos. Se usa después de cualquier alta o borrado en vez de sumar o restar sobre el
+// saldo anterior: la aritmética incremental acumula deriva en cuanto una operación se
+// queda a medias, mientras que reconstruir es autocorrectivo — deja la cuenta cuadrada
+// incluso si venía descuadrada de antes.
+//
+// No sustituye a la atomicidad (la importación entera vive en una función de Postgres,
+// migración 0020): aquí siguen siendo dos escrituras separadas. Pero si la segunda falla,
+// la siguiente operación sobre esa cuenta repara el saldo sola, y mientras tanto la
+// pantalla de Cuentas lo señala.
+export async function reconstruirSaldo(
+  supabase: SupabaseServerClient,
+  cuentaId: string
+): Promise<number> {
+  const [{ data: cuenta }, { data: movimientos }] = await Promise.all([
+    supabase.from("cuentas").select("saldo_inicial").eq("id", cuentaId).single().throwOnError(),
+    supabase.from("movimientos").select("importe").eq("cuenta_id", cuentaId).throwOnError(),
+  ]);
+
+  const saldo = saldoEsperado(Number(cuenta.saldo_inicial), movimientos ?? []);
+  await supabase.from("cuentas").update({ saldo_actual: saldo }).eq("id", cuentaId).throwOnError();
+  return saldo;
 }
 
 export type CuentaConSaldo = { id: string; saldo_actual: number; saldo_inicial: number };
