@@ -202,13 +202,21 @@ export function previstoYaMaterializadoEnMes(
 // elige uno automáticamente aquí.
 export function previstosCoincidentes(
   movimiento: { fecha: string; tipo: "ingreso" | "gasto"; categoria_id: string | null; importe: number },
-  previstos: MovimientoPrevisto[]
+  previstos: MovimientoPrevisto[],
+  // A qué mes pertenece la fecha. Tiene que ser el mes FINANCIERO, no el natural.
+  //
+  // El caso que lo obliga es la nómina: el previsto "Nómina" empieza el 1 de septiembre y
+  // la nómina de septiembre se cobra el 28 de agosto. Evaluado contra agosto natural, el
+  // previsto todavía no había empezado y el movimiento no encontraba con qué emparejarse:
+  // no se conciliaba y septiembre lo contaba dos veces, una en el saldo real y otra como
+  // previsión pendiente. Con el mes financiero, el 28 de agosto ya es septiembre y encaja.
+  mesDe: (fecha: string) => string = (fecha) => fecha.slice(0, 7)
 ): MovimientoPrevisto[] {
   if (movimiento.categoria_id === null) return [];
 
-  const f = new Date(`${movimiento.fecha}T00:00:00`);
-  const year = f.getFullYear();
-  const month = f.getMonth() + 1;
+  const mes = mesDe(movimiento.fecha);
+  const year = Number(mes.slice(0, 4));
+  const month = Number(mes.slice(5, 7));
   const importeAbs = Math.abs(movimiento.importe);
 
   return previstos.filter((p) => {

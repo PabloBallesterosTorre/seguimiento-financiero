@@ -3,7 +3,7 @@ import { Nav } from "@/components/Nav";
 import { createClient } from "@/lib/supabase/server";
 import { ImportarCSV } from "./ImportarCSV";
 import { ordenarCategoriasJerarquia } from "@/lib/categorias";
-import { obtenerConfiguracion } from "@/lib/configuracion";
+import { obtenerConfiguracion, obtenerOpcionesMesFinanciero } from "@/lib/configuracion";
 import type { MovimientoPrevisto } from "@/lib/prevision";
 
 export default async function ImportarPage() {
@@ -31,6 +31,13 @@ export default async function ImportarPage() {
       user ? obtenerConfiguracion(supabase, user.id) : null,
     ]);
 
+  // Se pasan al cliente para poder emparejar cada movimiento con sus previsiones usando el
+  // mes financiero: la nómina cobrada el 28 de agosto es la de septiembre, y contra agosto
+  // natural no encontraba su previsión.
+  const opcionesMes = config
+    ? await obtenerOpcionesMesFinanciero(supabase, config)
+    : { activo: false, diaCorte: 25, anclas: [] };
+
   const categoriasOrdenadas = ordenarCategoriasJerarquia(categorias ?? []);
 
   return (
@@ -57,6 +64,7 @@ export default async function ImportarPage() {
             previstos={(previstos ?? []) as unknown as MovimientoPrevisto[]}
             inversiones={inversiones ?? []}
             moneda={config?.moneda_base ?? "EUR"}
+            opcionesMes={{ ...opcionesMes, anclas: [...opcionesMes.anclas] }}
           />
         )}
       </main>

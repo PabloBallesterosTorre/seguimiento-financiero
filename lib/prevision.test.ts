@@ -17,6 +17,7 @@ import {
   type CategoriaInfo,
   type MovimientoPrevisto,
 } from "./prevision";
+import { mesDe } from "./mesFinanciero";
 
 function previsto(overrides: Partial<MovimientoPrevisto> = {}): MovimientoPrevisto {
   return {
@@ -543,5 +544,39 @@ describe("previstosCoincidentes y los presupuestos", () => {
     // Un presupuesto no es un recibo que vaya a llegar: se apaga porque su categoría tiene
     // gasto real, no vinculándolo a una transacción concreta.
     expect(previstosCoincidentes(movimiento, [{ ...comun, es_presupuesto: true } as never])).toHaveLength(0);
+  });
+});
+
+describe("previstosCoincidentes y el mes financiero", () => {
+  // El caso real: el previsto "Nómina" arranca el 1 de septiembre y la nómina con la que se
+  // vive septiembre se cobra el 28 de agosto.
+  const nomina = {
+    id: "nomina",
+    tipo: "ingreso" as const,
+    estado: "activo" as const,
+    origen_calculo: "fijo" as const,
+    categoria_id: "nomina",
+    importe_estimado: 0,
+    importe_min: 2100,
+    importe_max: 2300,
+    tipo_recurrencia: "recurrente" as const,
+    periodicidad: "mensual" as const,
+    fecha: null,
+    fecha_inicio: "2026-09-01",
+    fecha_fin: null,
+  };
+  const movimiento = { fecha: "2026-08-28", tipo: "ingreso" as const, categoria_id: "nomina", importe: 2139.89 };
+  const opciones = { activo: true, diaCorte: 25, anclas: ["2026-07-30", "2026-08-28"] };
+
+  it("por mes natural no encuentra su previsión", () => {
+    // Agosto es anterior al inicio del previsto, así que no hay candidato: el movimiento no
+    // se concilia y septiembre cuenta la nómina dos veces.
+    expect(previstosCoincidentes(movimiento, [nomina as never])).toHaveLength(0);
+  });
+
+  it("por mes financiero sí la encuentra", () => {
+    expect(
+      previstosCoincidentes(movimiento, [nomina as never], (f) => mesDe(f, opciones))
+    ).toHaveLength(1);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ChangeEvent } from "react";
+import { useCallback, useMemo, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { parseCSV, detectarDelimitador, detectarFilaCabecera } from "@/lib/csv";
 import { parseXLSX } from "@/lib/xlsx";
@@ -17,6 +17,7 @@ import {
 import { sugerirCategoria, type ReglaCategorizacion } from "@/lib/categorizacion";
 import type { CategoriaJerarquica } from "@/lib/categorias";
 import { importeEstimado, previstosCoincidentes, type MovimientoPrevisto } from "@/lib/prevision";
+import { mesDe, type OpcionesMesFinanciero } from "@/lib/mesFinanciero";
 import { importarMovimientos, importarTraspasos, type FilaImportar } from "./actions";
 import { formatMoneda } from "@/lib/formato";
 
@@ -81,6 +82,7 @@ export function ImportarCSV({
   previstos,
   inversiones,
   moneda,
+  opcionesMes,
 }: {
   cuentas: Cuenta[];
   categorias: CategoriaJerarquica[];
@@ -89,9 +91,13 @@ export function ImportarCSV({
   previstos: MovimientoPrevisto[];
   inversiones: InversionConocida[];
   moneda: string;
+  // Cómo se traducen las fechas a meses (de nómina a nómina si está activado). Sin esto,
+  // la nómina del 28 de agosto se evaluaba contra agosto y no encontraba su previsión.
+  opcionesMes: OpcionesMesFinanciero;
 }) {
   const router = useRouter();
   const formatEUR = (v: number) => formatMoneda(v, moneda);
+  const mesDeFecha = useCallback((fecha: string) => mesDe(fecha, opcionesMes), [opcionesMes]);
 
   const firmasExistentes = useMemo(
     () => new Set(existentes.map((m) => claveMovimiento(m.cuenta_id, m.fecha, Number(m.importe), m.descripcion))),
@@ -454,7 +460,7 @@ export function ImportarCSV({
   // los previstos fijos ya pagados se seguían sumando a un saldo que ya los tenía
   // descontados. En septiembre de 2026 eran unos 1.600 € contados dos veces.
   function previstoAutomatico(fila: { fecha: string; tipo: "ingreso" | "gasto"; categoria_id: string | null; importe: number }) {
-    const candidatos = previstosCoincidentes(fila, previstos);
+    const candidatos = previstosCoincidentes(fila, previstos, mesDeFecha);
     return candidatos.length === 1 ? candidatos[0].id : null;
   }
 
@@ -1253,7 +1259,8 @@ export function ImportarCSV({
                                     categoria_id: fila.categoria_id,
                                     importe: fila.importe,
                                   },
-                                  previstos
+                                  previstos,
+                                  mesDeFecha
                                 );
                                 if (candidatos.length === 0) return null;
                                 return (

@@ -201,7 +201,10 @@ desestabilizar las que ya existen.
   Se arregla separando "Alquiler" (ingreso) de los gastos de vivienda, que es una decisión de
   categorización, no de código.
 - Las preguntas 3 y 4, en los términos en que las hizo.
-- `previstosCoincidentes` empareja un movimiento con una previsión usando su mes **natural**,
-  no el financiero. Se dejó así a propósito: los previstos recurrentes aplican igual en los
-  dos meses candidatos, así que cambiarlo arriesgaría el emparejamiento al importar sin
-  ganancia clara. Si algún día aparece un desajuste al importar a final de mes, mirar aquí.
+- ~~`previstosCoincidentes` empareja por mes natural~~ — **corregido**. Se había dejado así
+  dando por hecho que los recurrentes aplican igual en los dos meses candidatos, y no es
+  cierto justo en el caso que más importa: el previsto "Nómina" arranca el 1 de septiembre y
+  la nómina de septiembre se cobra el 28 de agosto. Evaluado contra agosto natural, el
+  previsto aún no había empezado y el movimiento no encontraba con qué emparejarse, así que
+  no se conciliaba y septiembre lo contaba dos veces. Ahora se empareja por mes financiero,
+  con un test para cada uno de los dos comportamientos.
