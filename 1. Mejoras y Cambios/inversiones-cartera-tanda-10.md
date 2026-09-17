@@ -219,6 +219,54 @@ Verificado en desarrollo con una compra de 51 € (50 € + 1 € de comisión) 
 participaciones a 4,347 €: coste 51,00 €, comisión 1,00 €, precio limpio 4,347 y la posición
 valorada en 50,00 €. Que es la realidad — el euro de comisión se pierde en el momento de comprar.
 
+## Contraste contra la app de Trade Republic (17/09/2026)
+
+Pablo pasó capturas de su cartera en el banco. El contraste valida el modelo y deja claro dónde
+está el límite.
+
+**El coste cuadra.** Es lo importante, porque es lo que calcula la app:
+
+| Posición | Coste según TR | Coste en la app |
+|---|---:|---:|
+| Vanguard U.S. 500 | 765,07 € | 765,07 € |
+| Emerging Markets | 197,85 € | 197,85 € |
+| FTSE All-World ex-US | 200,99 € | 201,00 € |
+| Ezentis | 990,28 € | 990,00 € |
+
+Tres al céntimo y el cuarto a 0,01 € de redondeo. Y de paso confirma una decisión de diseño:
+**Trade Republic también mete la comisión en el coste**. El Vanguard U.S. 500 lleva 2,00 € de
+comisiones dentro de sus 765,07 €; si TR las excluyera, su coste sería 763,07 € y la ganancia
+−2,16 € en vez de los −3,84 € que muestra.
+
+**El valor no cuadraba, y es exactamente el límite conocido.** Cada posición estaba valorada al
+precio de su última operación, así que la desviación crecía con la antigüedad del precio: el
+Vanguard U.S. 500 (precio del 16/09) coincidía al céntimo, el FTSE All-World se quedaba 1,73 €
+corto, y el Emerging Markets (precio del 10/09, siete días) sobraba 5,02 €.
+
+Se registraron los valores reales de TR como valoración manual del 17/09 en las tres posiciones
+que diferían. La cartera queda en **2.165,06 €**, idéntica a la "Cuenta de valores" del banco:
+
+| | |
+|---|---:|
+| Valor de mercado | 2.165,06 € |
+| Aportado neto | 2.164,06 € |
+| Ganancia | +1,00 € |
+| TIR anual | +0,234% |
+| Comisiones pagadas | 15,00 € |
+
+Dos cosas que conviene no confundir al comparar pantallas:
+
+- **La ganancia de la app incluye las posiciones cerradas y la de TR no.** TR enseña +10,87 €
+  sumando sus cuatro posiciones abiertas; la app enseña +1,00 € porque le resta los 10,14 € que se
+  perdieron en Europe Defence, All-World IMI y el S&P 500, ya vendidas. La cifra de la app es la
+  rentabilidad de verdad: cuenta lo que salió mal, no solo lo que sigue abierto.
+- **Queda un descuadre de 0,28 € en Ezentis**, y no se ha querido maquillar. Las cinco compras
+  suman 990,00 € contrastadas contra el extracto una a una, así que el coste de la app es sólido;
+  el 990,28 € de TR sale de restar dos cifras redondeadas que la app del banco refresca en
+  momentos distintos, y 0,28 € sobre 990 € es un 0,03% — un tick entre dos refrescos. Si en la
+  próxima comparación el desajuste sigue ahí con el mismo valor, hay algo en el coste de TR que no
+  se ve desde el extracto y habrá que mirarlo.
+
 ## Verificación
 
 | Prueba | Resultado |
