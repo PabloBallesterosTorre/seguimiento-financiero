@@ -112,6 +112,12 @@ export default async function InformesPage({
   const mesDeFecha = (fecha: string) => mesDe(fecha, opcionesMes);
   const finDeMes = (year: number, month: number) => finMesFinanciero(year, month, opcionesMes);
   const mesActualLabel = mesDeFecha(hoy);
+  // El mes financiero en curso puede ir por delante del natural: a partir del día en que
+  // entra la nómina ya se está viviendo el mes siguiente. Ancla tanto el histórico como la
+  // previsión, para que el último mes cerrado sea de verdad el último cerrado.
+  const mesActualYear = Number(mesActualLabel.slice(0, 4));
+  const mesActualMonth = Number(mesActualLabel.slice(5, 7));
+  const mesEnCurso = { year: mesActualYear, month: mesActualMonth };
 
   const idsCuentasActivas = (cuentas ?? []).map((c) => c.id);
 
@@ -234,12 +240,12 @@ export default async function InformesPage({
     null as string | null
   );
 
-  const mesesPasadosSolicitados = generarMesesHaciaAtras(rangoMesesPasados);
+  const mesesPasadosSolicitados = generarMesesHaciaAtras(rangoMesesPasados, mesEnCurso);
   const mesesPasadosDisponibles = primeraFecha
     ? mesesPasadosSolicitados.filter((m) => `${m.year}-${String(m.month).padStart(2, "0")}` >= mesDeFecha(primeraFecha))
     : [];
 
-  const mesesFuturos = generarMeses(futuroMeses);
+  const mesesFuturos = generarMeses(futuroMeses, mesEnCurso);
   const interesesPorMes = calcularInteresesPrevistos(
     cuentasRemuneradas,
     previstos,
@@ -298,7 +304,9 @@ export default async function InformesPage({
   // comparar, no se inventa una variación de 0% — se comunica explícitamente que no
   // hay periodo anterior disponible.
   const patrimonioHoy = saldoLiquidoInicial + valorInversionInicial;
-  const patrimonioMesAnterior = puntosHistoricos.at(-1)?.patrimonioSinDeuda ?? null;
+  const ultimoCerrado = puntosHistoricos.at(-1) ?? null;
+  const fechaCierreAnterior = ultimoCerrado ? finDeMes(ultimoCerrado.year, ultimoCerrado.month) : undefined;
+  const patrimonioMesAnterior = ultimoCerrado?.patrimonioSinDeuda ?? null;
   const variacion =
     patrimonioMesAnterior === null
       ? null
@@ -349,12 +357,9 @@ export default async function InformesPage({
   });
 
   // ---- 8.3 y 8.4: agregaciones por categoría, solo histórico real (incluye el mes en curso hasta hoy) ----
-  // El mes financiero en curso puede ir por delante del natural: a partir del día en que
-  // entra la nómina ya se está viviendo el mes siguiente. Se rellena hasta llegar a él en
-  // vez de añadirlo suelto, porque si no quedaría un mes sin contar entre medias y la
-  // media por categoría se dividiría entre menos meses de los que abarca el rango.
-  const mesActualYear = Number(mesActualLabel.slice(0, 4));
-  const mesActualMonth = Number(mesActualLabel.slice(5, 7));
+  // Se rellena hasta el mes en curso en vez de añadirlo suelto: si no, podría quedar un
+  // mes sin contar entre medias y la media por categoría se dividiría entre menos meses de
+  // los que abarca el rango.
   const mesesParaCategoria = [...mesesPasadosDisponibles];
   const ultimoPasado = mesesPasadosDisponibles.at(-1);
   let cursor = ultimoPasado
@@ -479,6 +484,7 @@ export default async function InformesPage({
           gastosNetos={gastosNetos.map(conNombre)}
           ingresosNetos={ingresosNetos.map(conNombre)}
           etiquetaPeriodo={rango === "todos" ? "Todo el histórico" : `Últimos ${rango} meses`}
+          fechaCierreAnterior={fechaCierreAnterior}
           notaMes={
             opcionesMes.activo
               ? `Los meses van de nómina a nómina: este ${descripcionMes(mesActualYear, mesActualMonth, opcionesMes)}.`

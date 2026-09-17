@@ -93,6 +93,8 @@ export default async function PlanificadorPage({
     : { activo: false, diaCorte: 25, anclas: [] };
   const mesDeFecha = (fecha: string) => mesDe(fecha, opcionesMes);
   const finDeMes = (year: number, month: number) => finMesFinanciero(year, month, opcionesMes);
+  const mesActualLabel = mesDeFecha(hoy);
+  const mesEnCurso = { year: Number(mesActualLabel.slice(0, 4)), month: Number(mesActualLabel.slice(5, 7)) };
 
   const idsCuentasActivas = (cuentas ?? []).map((c) => c.id);
   const cuentasSeleccionadas = resolverCuentasSeleccionadas(
@@ -176,7 +178,7 @@ export default async function PlanificadorPage({
 
   const periodosConciliados = construirPeriodosConciliados(conciliacionesRaw ?? []);
 
-  const meses = generarMeses(horizonteMeses);
+  const meses = generarMeses(horizonteMeses, mesEnCurso);
   const interesesPorMes = calcularInteresesPrevistos(
     cuentasRemuneradas,
     previstos,
@@ -216,7 +218,7 @@ export default async function PlanificadorPage({
     null as string | null
   );
 
-  const mesesPasadosSolicitados = generarMesesHaciaAtras(horizonteMeses);
+  const mesesPasadosSolicitados = generarMesesHaciaAtras(horizonteMeses, mesEnCurso);
   const mesesPasadosDisponibles = primeraFecha
     ? mesesPasadosSolicitados.filter(
         (m) => `${m.year}-${String(m.month).padStart(2, "0")}` >= mesDeFecha(primeraFecha)

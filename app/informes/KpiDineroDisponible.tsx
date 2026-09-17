@@ -10,12 +10,17 @@ export function KpiDineroDisponible({
   variacion,
   miniSerie,
   titulo = "Dinero disponible ahora (líquido + inversión, sin descontar deuda)",
+  fechaCierreAnterior,
 }: {
   moneda: string;
   valor: number;
   variacion: { abs: number; pct: number } | null;
   miniSerie: PuntoMini[];
   titulo?: string;
+  // Contra qué se compara exactamente: el saldo de hoy frente al del CIERRE del último mes
+  // cerrado. Con los meses de nómina a nómina ese cierre no cae el día 31, así que decir la
+  // fecha evita tener que adivinarla.
+  fechaCierreAnterior?: string;
 }) {
   const formatEUR = (v: number) => formatMonedaTabla(v, moneda);
   // Tres estados, no dos: sube, baja y no se ha movido. Sin el caso "igual", una variación
@@ -23,6 +28,13 @@ export function KpiDineroDisponible({
   // pasado (auditoría de diseño, tanda 11).
   const sinCambio = variacion !== null && Math.abs(variacion.abs) < 0.005;
   const subiendo = variacion !== null && variacion.abs > 0;
+  const referencia = fechaCierreAnterior
+    ? `frente al cierre del ${new Intl.DateTimeFormat("es-ES", {
+        day: "numeric",
+        month: "long",
+        timeZone: "UTC",
+      }).format(new Date(`${fechaCierreAnterior}T00:00:00Z`))}`
+    : "frente al mes anterior";
 
   return (
     <div className="rounded-card border border-border bg-surface p-6 shadow-card">
@@ -44,11 +56,11 @@ export function KpiDineroDisponible({
                 </svg>
               )}
               {sinCambio
-                ? "Sin cambios frente al mes anterior"
+                ? `Sin cambios ${referencia}`
                 : `${formatEUR(Math.abs(variacion.abs))} (${formatPorcentaje(variacion.pct, {
                     decimales: 1,
                     signo: "siempre",
-                  })}) frente al mes anterior`}
+                  })}) ${referencia}`}
             </p>
           )}
         </div>

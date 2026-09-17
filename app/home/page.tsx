@@ -109,6 +109,7 @@ export default async function HomePage({
     : { activo: false, diaCorte: 25, anclas: [] };
   const mesDeFecha = (fecha: string) => mesDe(fecha, opcionesMes);
   const finDeMes = (year: number, month: number) => finMesFinanciero(year, month, opcionesMes);
+  const mesActualLabel = mesDeFecha(hoy);
   const objetivoAhorroMensual = config?.objetivo_ahorro_mensual ?? null;
   const incluirInversionEnAhorro = config?.incluir_inversion_en_ahorro ?? true;
 
@@ -207,12 +208,16 @@ export default async function HomePage({
     null as string | null
   );
 
-  const mesesPasadosSolicitados = generarMesesHaciaAtras(MESES_PASADOS);
+  // El ancla es el mes financiero en curso, no el natural: así el último punto histórico
+  // es siempre el último mes CERRADO, que es la referencia contra la que se compara el
+  // saldo de hoy.
+  const mesEnCurso = { year: Number(mesActualLabel.slice(0, 4)), month: Number(mesActualLabel.slice(5, 7)) };
+  const mesesPasadosSolicitados = generarMesesHaciaAtras(MESES_PASADOS, mesEnCurso);
   const mesesPasadosDisponibles = primeraFecha
     ? mesesPasadosSolicitados.filter((m) => `${m.year}-${String(m.month).padStart(2, "0")}` >= mesDeFecha(primeraFecha))
     : [];
 
-  const mesesFuturos = generarMeses(MESES_FUTUROS);
+  const mesesFuturos = generarMeses(MESES_FUTUROS, mesEnCurso);
   const interesesPorMes = calcularInteresesPrevistos(
     cuentasRemuneradas,
     previstos,
@@ -273,7 +278,11 @@ export default async function HomePage({
   // había otra tarjeta de "Inversión": quien sumara las dos se equivocaba por el valor de
   // la cartera entera. Ahora enseña el líquido y solo el líquido, y la variación y la
   // mini-serie van con él en vez de con el patrimonio (auditoría de diseño, tanda 11).
-  const liquidoMesAnterior = puntosHistoricos.at(-1)?.saldoLiquido ?? null;
+  // La referencia es el CIERRE del último mes cerrado, no un día del mes en curso: con los
+  // meses de nómina a nómina, agosto cierra el 27 de agosto y no el 31.
+  const ultimoMesCerrado = puntosHistoricos.at(-1) ?? null;
+  const fechaCierreAnterior = ultimoMesCerrado ? finDeMes(ultimoMesCerrado.year, ultimoMesCerrado.month) : undefined;
+  const liquidoMesAnterior = ultimoMesCerrado?.saldoLiquido ?? null;
   const variacionLiquidez =
     liquidoMesAnterior === null
       ? null
@@ -384,6 +393,7 @@ export default async function HomePage({
             variacion={variacionLiquidez}
             miniSerie={miniSerieLiquidez}
             titulo="Liquidez"
+            fechaCierreAnterior={fechaCierreAnterior}
           />
           <div className="flex flex-col rounded-card border border-border bg-surface p-6 shadow-card">
             <p className="text-sm text-ink-secondary">Inversión</p>

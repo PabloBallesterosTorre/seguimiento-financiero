@@ -149,6 +149,25 @@ fuente de ingresos**, que es la respuesta más obvia a esa pregunta. Migración 
 con criterio estrecho: solo ingresos cuya descripción sea exactamente "NOMINA" y que no
 tuvieran ya una categoría puesta a mano.
 
+### La comparativa contra el mes anterior
+
+Es "el saldo de hoy frente al saldo al **cierre** del último mes cerrado". El saldo de cierre
+no se guarda: se reconstruye restando al saldo real de hoy todos los movimientos posteriores
+a esa fecha, el mismo criterio que `reconstruirSaldo`.
+
+Lo que estaba mal era **qué mes se consideraba el último cerrado**. La lista de meses se
+generaba a partir del mes natural de hoy, así que desde el día en que entra la nómina hasta
+fin de mes el "mes anterior" se quedaba uno atrás: el 29 de septiembre habría comparado
+contra el cierre del 27 de **agosto** en vez del de septiembre, seis semanas de diferencia.
+No se veía porque justo hoy los dos meses coinciden.
+
+`generarMeses` y `generarMesesHaciaAtras` aceptan ahora un ancla, y las tres pantallas le
+pasan el mes financiero en curso. Con eso el último punto histórico es siempre el último mes
+de verdad cerrado, y el primero de la previsión enlaza sin hueco ni solape.
+
+Además la tarjeta dice la fecha: "frente al cierre del 27 de agosto" en vez de "frente al mes
+anterior". Con meses que no acaban el 31 no se puede dar por supuesta.
+
 ### Dónde se aplica
 
 En todas las pantallas con cifras mensuales: Informes, Resumen, Planificador y el histórico

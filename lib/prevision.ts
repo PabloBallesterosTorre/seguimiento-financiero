@@ -321,12 +321,23 @@ export function construirDiagnosticoPrevision(
   });
 }
 
-export function generarMeses(n: number): { year: number; month: number; label: string }[] {
+// Mes desde el que se cuenta. Con el mes financiero activo NO es el mes natural de hoy:
+// a partir del día en que entra la nómina ya se está viviendo el mes siguiente, y tanto el
+// histórico como la previsión tienen que arrancar ahí. Ver lib/mesFinanciero.ts.
+export type MesAncla = { year: number; month: number };
+
+function anclaODeHoy(ancla?: MesAncla): Date {
+  if (ancla) return new Date(ancla.year, ancla.month - 1, 1);
   const hoy = new Date();
+  return new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+}
+
+export function generarMeses(n: number, ancla?: MesAncla): { year: number; month: number; label: string }[] {
+  const base = anclaODeHoy(ancla);
   const meses = [];
 
   for (let i = 0; i < n; i++) {
-    const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1);
+    const d = new Date(base.getFullYear(), base.getMonth() + i, 1);
     const raw = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(d);
     meses.push({
       year: d.getFullYear(),
@@ -341,12 +352,18 @@ export function generarMeses(n: number): { year: number; month: number; label: s
 // n meses anteriores al mes actual, en orden cronológico ascendente (el más antiguo
 // primero, terminando justo antes del mes actual) — para la vista histórica del
 // Planificador, complementaria a `generarMeses`.
-export function generarMesesHaciaAtras(n: number): { year: number; month: number; label: string }[] {
-  const hoy = new Date();
+//
+// El último de la lista es el ÚLTIMO MES CERRADO, y su cierre es la referencia contra la
+// que se compara el saldo de hoy. Por eso importa que el ancla sea el mes financiero en
+// curso y no el natural: a finales de mes, cuando ya ha entrado la nómina del siguiente,
+// anclar en el natural se saltaría un mes entero y compararía contra un cierre de hace
+// seis semanas.
+export function generarMesesHaciaAtras(n: number, ancla?: MesAncla): { year: number; month: number; label: string }[] {
+  const base = anclaODeHoy(ancla);
   const meses = [];
 
   for (let i = n; i >= 1; i--) {
-    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
     const raw = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(d);
     meses.push({
       year: d.getFullYear(),

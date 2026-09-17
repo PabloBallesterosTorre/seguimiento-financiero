@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  generarMeses,
+  generarMesesHaciaAtras,
   categoriaEfectivaId,
   construirDiagnosticoPrevision,
   construirPeriodosConciliados,
@@ -399,5 +401,38 @@ describe("construirDiagnosticoPrevision", () => {
 
     const sinCategoria = filas.find((f) => f.nombre === "Sin categoría");
     expect(sinCategoria?.importesPorMes[0]).toBeCloseTo(-50, 2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tanda 12: el ancla de los meses
+// ---------------------------------------------------------------------------
+
+describe("generarMeses y generarMesesHaciaAtras con ancla", () => {
+  // Con el mes financiero activo, a partir del día en que entra la nómina ya se está
+  // viviendo el mes siguiente. Si el histórico se anclara en el mes natural, el "último
+  // mes cerrado" se quedaría uno atrás y la comparativa del saldo de hoy se haría contra
+  // un cierre de hace seis semanas en vez de contra el del mes pasado.
+  it("el último mes hacia atrás es el inmediatamente anterior al ancla", () => {
+    const meses = generarMesesHaciaAtras(3, { year: 2026, month: 10 });
+    expect(meses.map((m) => `${m.year}-${m.month}`)).toEqual(["2026-7", "2026-8", "2026-9"]);
+  });
+
+  it("hacia adelante se empieza en el propio ancla", () => {
+    const meses = generarMeses(3, { year: 2026, month: 10 });
+    expect(meses.map((m) => `${m.year}-${m.month}`)).toEqual(["2026-10", "2026-11", "2026-12"]);
+  });
+
+  it("histórico y previsión encajan sin hueco ni solape", () => {
+    const ancla = { year: 2027, month: 1 };
+    const pasados = generarMesesHaciaAtras(2, ancla);
+    const futuros = generarMeses(2, ancla);
+    expect(pasados.at(-1)).toMatchObject({ year: 2026, month: 12 });
+    expect(futuros[0]).toMatchObject({ year: 2027, month: 1 });
+  });
+
+  it("sin ancla se sigue contando desde el mes natural de hoy", () => {
+    const hoy = new Date();
+    expect(generarMeses(1)[0]).toMatchObject({ year: hoy.getFullYear(), month: hoy.getMonth() + 1 });
   });
 });
