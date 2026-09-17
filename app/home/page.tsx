@@ -294,7 +294,7 @@ export default async function HomePage({
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-4xl space-y-5 px-5 py-8 sm:px-10">
+      <main className="mx-auto max-w-7xl space-y-5 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
           <h1 className="font-sora text-xl font-bold text-ink sm:text-[26px]">Resumen</h1>
           <div className="flex rounded-full bg-chip p-1">

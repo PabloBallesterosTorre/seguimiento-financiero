@@ -106,7 +106,7 @@ export default async function InversionDetallePage({ params }: { params: Promise
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-5xl space-y-6 px-5 py-8 sm:px-10">
+      <main className="mx-auto max-w-7xl space-y-6 px-5 py-8 sm:px-10">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="font-sora text-[26px] font-bold text-ink">{inversion.nombre}</h1>

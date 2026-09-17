@@ -57,7 +57,7 @@ export default async function DiagnosticoPrevisionPage({
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-5xl space-y-5 px-5 py-8 sm:px-10">
+      <main className="mx-auto max-w-7xl space-y-5 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
           <h1 className="font-sora text-[26px] font-bold text-ink">Diagnóstico de previsión</h1>
           <Link href="/prevision" className="text-[13px] font-semibold text-accent hover:underline">

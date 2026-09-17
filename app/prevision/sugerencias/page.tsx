@@ -99,7 +99,7 @@ export default async function SugerenciasPage() {
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-4xl space-y-5 px-5 py-8 sm:px-10">
+      <main className="mx-auto max-w-7xl space-y-5 px-5 py-8 sm:px-10">
         <div className="flex items-center justify-between">
           <h1 className="font-sora text-[26px] font-bold text-ink">Sugerencias de previsión</h1>
           <Link href="/prevision" className="text-[13px] font-semibold text-accent hover:underline">

@@ -165,7 +165,7 @@ export function Nav() {
 
   return (
     <header className="bg-page">
-      <div className="mx-auto flex h-16 max-w-5xl items-center gap-4 border-b border-border px-4">
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 border-b border-border px-4">
         <Logo />
 
         {/* `min-w-0` y sin `shrink-0`: con cinco secciones sobra sitio, pero si algún día
@@ -217,7 +217,7 @@ export function Nav() {
           lado importa más que ahorrar 40 px de alto. */}
       {hijos && (
         <div className="hidden border-b border-border bg-surface md:block">
-          <div className="mx-auto flex max-w-5xl items-center gap-5 px-4">
+          <div className="mx-auto flex max-w-7xl items-center gap-5 px-4">
             {hijos.map((hijo) => {
               const activo = pathname === hijo.href || pathname?.startsWith(`${hijo.href}/`);
               return (

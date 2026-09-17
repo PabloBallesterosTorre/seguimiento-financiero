@@ -266,6 +266,29 @@ su tarjeta. Estaba ahí desde siempre, pero con la tarjeta más ancha no llegaba
 Movido debajo del texto y a todo el ancho, que funciona a cualquier tamaño: ahora mide
 209 px y termina 25 px antes del borde.
 
+## Un ancho para toda la app
+
+Pablo señaló que en un monitor normal todo se veía estrecho. No era solo estrecho: eran
+**tres anchos distintos conviviendo**. La barra de navegación iba a `max-w-5xl` (1024 px) y
+la mayoría de pantallas a `max-w-4xl` (896 px), con unas pocas a `5xl`. Así que el contenido
+ni aprovechaba la pantalla ni cuadraba con la barra que tenía encima.
+
+Unificado en `contenedorClass` (`components/formStyles.ts`), a **1280 px**, aplicado a la
+barra y a las 17 pantallas. Los bloques de texto largo conservan su `max-w-2xl` / `max-w-3xl`
+propio: eso no es el contenedor, es longitud de línea legible, y ensancharla sería
+empeorarla.
+
+Medido a 1920 px de ventana:
+
+| | Antes | Ahora |
+|---|---:|---:|
+| Contenido / barra | 896 / 1024 px (desalineados) | **1280 / 1280 px, alineados** |
+| Tabla de movimientos | 939 px apretados en 814 | **1198 px sin apretar** |
+| Tabla del Planificador | se cortaba en "Patri…" | **cabe entera** |
+| Tarjetas del Resumen | — | 387 px, las tres iguales |
+
+Comprobado que el extremo estrecho sigue bien: a 961 px ninguna ruta desborda.
+
 ## Pendiente
 
 **El capital inicial real de la hipoteca.** La validación ya está, pero el dato de
