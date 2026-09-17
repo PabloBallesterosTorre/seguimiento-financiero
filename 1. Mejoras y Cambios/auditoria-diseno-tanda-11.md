@@ -289,8 +289,47 @@ Medido a 1920 px de ventana:
 
 Comprobado que el extremo estrecho sigue bien: a 961 px ninguna ruta desborda.
 
-## Pendiente
+## La hipoteca, cerrada (17/09/2026)
 
-**El capital inicial real de la hipoteca.** La validación ya está, pero el dato de
-producción sigue en 2.370.000 € y el Planificador seguirá deformando la curva histórica de
-deuda hasta que se corrija.
+Pablo pasó las capturas del detalle del préstamo en Ibercaja. El capital inicial real es
+**237.000 €**, no 2.370.000: era un dígito de más, como se sospechaba.
+
+Corregido en producción y en dev, junto con el saldo pendiente, que iba una cuota por
+detrás (143.831,58 € → **143.503,44 €**, el saldo del banco a día de hoy).
+
+### El efecto del dato erróneo era peor de lo que parecía
+
+Con 2.370.000 € al 2,2 %, los intereses del primer mes son 4.345 € y la cuota 591,83 €. La
+cuota no llegaba ni a cubrirlos, así que **la simulación divergía**: el saldo teórico crecía
+hasta 2,45 M a día de hoy. Al anclar esa curva al pendiente real, el desplazamiento era de
+−2,31 M y la gráfica salía **subiendo**, de 59.324 € en noviembre de 2024 a 143.503 € hoy.
+La app dibujaba una deuda que aumentaba.
+
+| Capital inicial | Saldo teórico hoy | Desplazamiento | Curva nov-24 → hoy |
+|---|---:|---:|---|
+| 2.370.000 € (erróneo) | 2.454.178,80 € | −2.310.675,36 € | 59.324 → 143.503 (subiendo) |
+| 237.000 € (real) | 233.471,29 € | −89.967,85 € | 147.032 → 143.503 |
+
+### Y destapó una amortización de 86.730 € que faltaba
+
+Con el capital corregido los números seguían sin cuadrar: 237.000 € amortizando a 591,83 €
+darían 233.471 € hoy, no 143.503 €. Y para 237.000 € con vencimiento en 2053 la cuota
+tendría que ser 933,40 €.
+
+Reconstruyendo hacia atrás desde el saldo real, en diciembre de 2024 quedaban **150.269,70 €**
+— o sea, una amortización anticipada de **86.730,30 €** justo al principio. La comprobación
+cruzada lo confirma: con ese saldo y la cuota actual quedaban 342 meses (28,5 años), el plazo
+completo hasta 2053. Se amortizó reduciendo **cuota**, no plazo.
+
+Pablo lo confirmó: compró la casa con su ex pareja, luego le compró su parte, y sus padres le
+dieron 90.000 € en octubre de 2024 para poder quedársela. Los 3.270 € de diferencia entre los
+90.000 € y los 86.730 € que salen de los números son los gastos de la operación (notaría,
+registro, ITP).
+
+Registrada como una amortización puntual de 86.730,30 € el 30/11/2024, tipo `reducir_cuota`.
+Ahora la simulación reproduce la realidad en vez de compensarla con un desplazamiento: el
+anclaje pasa de −89.967,85 € a prácticamente cero, y tanto el cuadro de amortización del
+detalle de la deuda como el simulador parten de datos ciertos.
+
+La validación nueva del formulario no salta con el dato corregido (interés del primer mes
+434,50 € frente a una cuota de 591,83 €), que es justo lo que se esperaba de ella.
