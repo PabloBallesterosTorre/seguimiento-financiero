@@ -34,6 +34,7 @@ import {
 } from "@/lib/informes";
 import { KpiDineroDisponible } from "@/app/informes/KpiDineroDisponible";
 import { SelectorCuentas } from "@/components/SelectorCuentas";
+import { SelectorAmbito, type Ambito } from "@/components/SelectorAmbito";
 import { FlujoMensualDisponible, type MesAhorroHome } from "./FlujoMensualDisponible";
 
 const MESES_PASADOS = 6;
@@ -42,9 +43,10 @@ const MESES_FUTUROS = 6;
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ conDeuda?: string; cuentas?: string }>;
+  searchParams: Promise<{ conDeuda?: string; cuentas?: string; ambito?: string }>;
 }) {
-  const { conDeuda: conDeudaParam, cuentas: cuentasParam } = await searchParams;
+  const { conDeuda: conDeudaParam, cuentas: cuentasParam, ambito: ambitoParam } = await searchParams;
+  const ambito: Ambito = ambitoParam === "personal" || ambitoParam === "conjunto" ? ambitoParam : "todo";
   const supabase = await createClient();
   // La portada abre SIN deuda a propósito (auditoría de diseño, tanda 11). El patrimonio
   // con una hipoteca a 30 años dentro es un número correcto, pero enorme, rojo y que no
@@ -74,12 +76,12 @@ export default async function HomePage({
   ] = await Promise.all([
     supabase
       .from("cuentas")
-      .select("id, nombre, banco_nombre, saldo_actual, es_remunerada, tipo_interes")
+      .select("id, nombre, banco_nombre, saldo_actual, es_remunerada, tipo_interes, ambito")
       .eq("activa", true),
-    supabase.from("inversiones").select("valor_actual, coste_neto"),
+    supabase.from("inversiones").select("valor_actual, coste_neto, cuenta_id"),
     supabase
       .from("deudas")
-      .select("id, capital_inicial, capital_pendiente, cuota, tipo_interes, valor_residual, fecha_inicio"),
+      .select("id, capital_inicial, capital_pendiente, cuota, tipo_interes, valor_residual, fecha_inicio, ambito"),
     supabase
       .from("amortizaciones_extra")
       .select("deuda_id, fecha, importe, tipo_reduccion")
@@ -111,24 +113,39 @@ export default async function HomePage({
   const incluirInversionEnAhorro = config?.incluir_inversion_en_ahorro ?? true;
 
   const idsCuentasActivas = (cuentas ?? []).map((c) => c.id);
-  const cuentasSeleccionadas = resolverCuentasSeleccionadas(
-    idsCuentasActivas,
-    cuentasParam,
-    config?.cuentas_excluidas_informes ?? []
-  );
+
+  // Mismo criterio que en Informes: al elegir un ámbito concreto manda el ámbito y se
+  // ignora la preferencia de cuentas excluidas. Si pides ver el conjunto, quieres el
+  // conjunto entero, no el conjunto menos lo que habías escondido del resumen global.
+  const idsDelAmbito = (cuentas ?? []).filter((c) => (c.ambito ?? "personal") === ambito).map((c) => c.id);
+  const cuentasSeleccionadas =
+    ambito === "todo"
+      ? resolverCuentasSeleccionadas(idsCuentasActivas, cuentasParam, config?.cuentas_excluidas_informes ?? [])
+      : new Set(idsDelAmbito);
   const cuentasFiltradas = (cuentas ?? []).filter((c) => cuentasSeleccionadas.has(c.id));
 
+  // La inversión hereda el ámbito de la cuenta donde está custodiada; sin cuenta asignada
+  // se considera personal. Sin esto, la vista de Conjunto sumaría la cartera entera —que
+  // es personal— al patrimonio compartido.
+  const ambitoDeCuenta = new Map((cuentas ?? []).map((c) => [c.id, (c.ambito ?? "personal") as Ambito]));
+  const inversionesDelAmbito = (inversiones ?? []).filter((i) => {
+    if (ambito === "todo") return true;
+    const suyo = i.cuenta_id ? ambitoDeCuenta.get(i.cuenta_id) ?? "personal" : "personal";
+    return suyo === ambito;
+  });
+  const deudasDelAmbito = (deudasRaw ?? []).filter((d) => ambito === "todo" || (d.ambito ?? "personal") === ambito);
+
   const totalCuentas = cuentasFiltradas.reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
-  const totalInversion = (inversiones ?? []).reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
-  const totalDeuda = (deudasRaw ?? []).reduce((sum, d) => sum + Number(d.capital_pendiente ?? 0), 0);
+  const totalInversion = inversionesDelAmbito.reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
+  const totalDeuda = deudasDelAmbito.reduce((sum, d) => sum + Number(d.capital_pendiente ?? 0), 0);
   // Segunda línea de las tarjetas de Inversión y Deuda: sin ella quedaban con un título y
   // un número sueltos, mucho más bajas que la de Liquidez, que lleva variación y gráfico.
-  const aportadoInversion = (inversiones ?? []).reduce((sum, i) => sum + Number(i.coste_neto ?? 0), 0);
+  const aportadoInversion = inversionesDelAmbito.reduce((sum, i) => sum + Number(i.coste_neto ?? 0), 0);
   const gananciaInversion = totalInversion - aportadoInversion;
-  const cuotaMensualDeuda = (deudasRaw ?? []).reduce((sum, d) => sum + Number(d.cuota ?? 0), 0);
+  const cuotaMensualDeuda = deudasDelAmbito.reduce((sum, d) => sum + Number(d.cuota ?? 0), 0);
   const patrimonio = totalCuentas + totalInversion - (conDeuda ? totalDeuda : 0);
 
-  const deudasHistorico: DeudaParaHistorico[] = (deudasRaw ?? []).map((d) => ({
+  const deudasHistorico: DeudaParaHistorico[] = deudasDelAmbito.map((d) => ({
     id: d.id,
     capital_inicial: Number(d.capital_inicial),
     capital_pendiente: Number(d.capital_pendiente),
@@ -137,7 +154,7 @@ export default async function HomePage({
     tipo_interes: d.tipo_interes === null ? null : Number(d.tipo_interes),
     valor_residual: Number(d.valor_residual ?? 0),
   }));
-  const deudasFuturo: DeudaParaProyeccion[] = (deudasRaw ?? []).map((d) => ({
+  const deudasFuturo: DeudaParaProyeccion[] = deudasDelAmbito.map((d) => ({
     id: d.id,
     capital_pendiente: Number(d.capital_pendiente),
     cuota: Number(d.cuota),
@@ -298,9 +315,16 @@ export default async function HomePage({
     return { label: p.label, esReal: p.esReal, ahorro };
   });
 
+  // Dentro de un ámbito concreto la selección de cuentas no se arrastra: la decide el
+  // ámbito, así que meterla en la URL solo serviría para que al volver a "Todo" apareciera
+  // filtrado por las cuentas del ámbito anterior.
   const cuentasQS =
-    cuentasSeleccionadas.size === idsCuentasActivas.length ? "" : `&cuentas=${Array.from(cuentasSeleccionadas).join(",")}`;
-  const hrefSinDeuda = cuentasQS ? `/home?${cuentasQS.slice(1)}` : "/home";
+    ambito !== "todo" || cuentasSeleccionadas.size === idsCuentasActivas.length
+      ? ""
+      : `&cuentas=${Array.from(cuentasSeleccionadas).join(",")}`;
+  const ambitoQS = ambito === "todo" ? "" : `&ambito=${ambito}`;
+  const restoQS = `${ambitoQS}${cuentasQS}`;
+  const hrefSinDeuda = restoQS ? `/home?${restoQS.slice(1)}` : "/home";
 
   return (
     <>
@@ -318,7 +342,7 @@ export default async function HomePage({
               Sin deuda
             </Link>
             <Link
-              href={`/home?conDeuda=1${cuentasQS}`}
+              href={`/home?conDeuda=1${restoQS}`}
               className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
                 conDeuda ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
               }`}
@@ -328,10 +352,16 @@ export default async function HomePage({
           </div>
         </div>
 
-        <SelectorCuentas
-          cuentas={(cuentas ?? []).map((c) => ({ id: c.id, nombre: c.nombre, banco_nombre: c.banco_nombre }))}
-          seleccionadas={Array.from(cuentasSeleccionadas)}
-        />
+        <SelectorAmbito actual={ambito} queryBase={conDeuda ? "&conDeuda=1" : ""} ruta="/home" />
+
+        {/* Dentro de Personal o Conjunto el ámbito ya decide las cuentas, así que el
+            selector no pintaría nada: solo se ofrece en "Todo", igual que en Informes. */}
+        {ambito === "todo" && (
+          <SelectorCuentas
+            cuentas={(cuentas ?? []).map((c) => ({ id: c.id, nombre: c.nombre, banco_nombre: c.banco_nombre }))}
+            seleccionadas={Array.from(cuentasSeleccionadas)}
+          />
+        )}
 
         <div className="rounded-card border border-border bg-surface p-[22px] shadow-card sm:p-9">
           <p className="text-sm text-ink-secondary">Patrimonio</p>

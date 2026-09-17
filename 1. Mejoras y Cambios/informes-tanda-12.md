@@ -51,11 +51,26 @@ su campo en el formulario, y `tipo` deja de ofrecer "conjunta".
 Las siete cuentas quedaron clasificadas en los dos ejes a la vez: "Ahorro Conjunto" vuelve a
 ser de **ahorro** y además **conjunta**, que era el caso que no se podía expresar.
 
-### Selector de ámbito en Informes
+### Selector de ámbito en Informes y en el Resumen
 
 `Personal · Conjunto · Todo` arriba del todo, porque cambia las cuatro preguntas a la vez.
 Al elegir un ámbito concreto se ignora la preferencia de cuentas excluidas: si pides ver el
 conjunto, quieres el conjunto entero.
+
+El mismo control está en el **Resumen**, con las mismas tres reglas: las cuentas las decide
+el ámbito, la inversión hereda el ámbito de su cuenta de custodia y la deuda el suyo propio.
+El componente vive en `components/SelectorAmbito.tsx` y no bajo `app/informes/` justamente
+por eso: que las dos pantallas compartan el control es parte del punto, porque el ámbito
+significa lo mismo en las dos.
+
+Las tres tarjetas del Resumen se comportan en consecuencia: en Conjunto la hipoteca a
+nombre propio desaparece de "Deuda pendiente" y la cartera desaparece de "Inversión", en
+vez de sumarse a un patrimonio compartido al que no pertenecen. Las cifras cuadran entre
+vistas — Personal 14.088,57 € + Conjunto 686,85 € = Todo 14.775,42 € de liquidez.
+
+Dentro de un ámbito concreto el selector de cuentas no se muestra (no decidiría nada) y la
+selección no se arrastra en la URL, para que al volver a "Todo" no aparezca filtrado por las
+cuentas del ámbito anterior.
 
 ### Neteo por categoría — `netoPorCategoria` y `separarGastosEIngresos`
 

@@ -38,7 +38,7 @@ import {
 import { obtenerConfiguracion, obtenerOpcionesMesFinanciero } from "@/lib/configuracion";
 import { mesDe, inicioMesFinanciero, finMesFinanciero, descripcionMes } from "@/lib/mesFinanciero";
 import { rentabilidadPonderada } from "@/lib/inversiones";
-import { SelectorAmbito, type Ambito } from "./SelectorAmbito";
+import { SelectorAmbito, type Ambito } from "@/components/SelectorAmbito";
 import { SelectorCuentas } from "@/components/SelectorCuentas";
 import { InformesClient, type MesFlujo, type CategoriaMedia, type SerieCategoria, type FilaComparativa } from "./InformesClient";
 
