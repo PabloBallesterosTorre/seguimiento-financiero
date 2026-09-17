@@ -6,6 +6,7 @@ import { MediaPorCategoria } from "./MediaPorCategoria";
 import { EvolucionPorCategoria } from "./EvolucionPorCategoria";
 import { PrevistoVsReal } from "./PrevistoVsReal";
 import { PatrimonioYDeuda } from "./PatrimonioYDeuda";
+import { EnQueSeVa, type FilaCategoria } from "./EnQueSeVa";
 
 export type MesFlujo = { label: string; esReal: boolean; ingresos: number; gastos: number; neto: number };
 export type CategoriaMedia = { nombre: string; media: number };
@@ -28,6 +29,9 @@ export function InformesClient({
   comparativa,
   etiquetaMesCerrado,
   patrimonioYDeuda,
+  gastosNetos,
+  ingresosNetos,
+  etiquetaPeriodo,
 }: {
   moneda: string;
   patrimonioHoy: number;
@@ -42,11 +46,15 @@ export function InformesClient({
   comparativa: FilaComparativa[];
   etiquetaMesCerrado: string;
   patrimonioYDeuda: MesPatrimonio[];
+  gastosNetos: FilaCategoria[];
+  ingresosNetos: FilaCategoria[];
+  etiquetaPeriodo: string;
 }) {
   return (
     <div className="space-y-6">
       <KpiDineroDisponible moneda={moneda} valor={patrimonioHoy} variacion={variacion} miniSerie={miniSerie} />
       <FlujoMensual moneda={moneda} datos={flujoPorMes} />
+      <EnQueSeVa gastos={gastosNetos} ingresos={ingresosNetos} moneda={moneda} etiquetaPeriodo={etiquetaPeriodo} />
       <MediaPorCategoria
         moneda={moneda}
         gasto={mediaGasto}

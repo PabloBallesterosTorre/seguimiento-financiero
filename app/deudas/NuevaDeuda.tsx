@@ -109,6 +109,14 @@ export function NuevaDeuda({ action }: { action: (formData: FormData) => void })
           )}
         </div>
         <div>
+          <label className={labelClass}>Ámbito</label>
+          <select name="ambito" defaultValue="personal" className={inputClass}>
+            <option value="personal">Personal</option>
+            <option value="conjunto">Conjunto</option>
+          </select>
+          <p className="mt-1.5 text-xs text-ink-tertiary">Una deuda solo es conjunta si figuráis los dos como titulares.</p>
+        </div>
+        <div>
           <label className={labelClass}>Modalidad</label>
           <select name="modalidad_interes" className={inputClass}>
             <option value="fijo">Fijo</option>

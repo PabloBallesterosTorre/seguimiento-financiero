@@ -7,6 +7,7 @@ type Cuenta = {
   banco_nombre: string;
   nombre: string;
   tipo: string;
+  ambito?: string;
   saldo_actual: number;
   iban: string | null;
   es_remunerada: boolean;
@@ -54,11 +55,23 @@ export function CuentaForm({
       </div>
       <div>
         <label className={labelClass}>Tipo</label>
-        <select name="tipo" defaultValue={cuenta?.tipo ?? "corriente"} className={inputClass}>
+        {/* "Conjunta" ya no es un tipo: de quién es el dinero se dice en Ámbito, que es un
+            eje aparte. Así una cuenta puede ser de ahorro Y compartida a la vez, que antes
+            era imposible (tanda 12). */}
+        <select name="tipo" defaultValue={cuenta?.tipo === "conjunta" ? "corriente" : cuenta?.tipo ?? "corriente"} className={inputClass}>
           <option value="corriente">Corriente</option>
           <option value="ahorro">Ahorro</option>
-          <option value="conjunta">Conjunta</option>
         </select>
+      </div>
+      <div>
+        <label className={labelClass}>Ámbito</label>
+        <select name="ambito" defaultValue={cuenta?.ambito ?? "personal"} className={inputClass}>
+          <option value="personal">Personal</option>
+          <option value="conjunto">Conjunto</option>
+        </select>
+        <p className="mt-1.5 text-xs text-ink-tertiary">
+          Informes puede separar lo personal de lo compartido usando este campo.
+        </p>
       </div>
       {/* El saldo solo se fija al crear la cuenta. Al editar no se muestra a propósito:
           reescribirlo a mano lo desacopla de los movimientos sin dejar rastro, que es

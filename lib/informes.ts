@@ -144,3 +144,91 @@ export function ahorroDelMes(
 ): number {
   return incluirInversionEnAhorro ? flujoNeto + aportacionInversionDelMes : flujoNeto;
 }
+
+// ============================================================================
+// Tanda 12: neto por categoría
+// ============================================================================
+
+// Id ficticio bajo el que se agrupan los movimientos que no tienen categoría. No se
+// descartan: si desaparecieran, las dos mitades de "en qué se va y de dónde viene" no
+// cuadrarían con el flujo mensual y el usuario no tendría forma de saber por qué faltan.
+// Verlo también sirve de recordatorio de lo que queda por categorizar.
+export const SIN_CATEGORIA = "__sin_categoria__";
+
+export type NetoCategoria = {
+  categoriaId: string;
+  // Lo que salió y lo que entró en esa categoría, ambos en positivo.
+  salidas: number;
+  entradas: number;
+  // salidas − entradas. Positivo = gasto neto; negativo = ingreso neto.
+  neto: number;
+  // Cuántos movimientos van en contra del signo dominante. Sirve para distinguir un
+  // reembolso puntual de una categoría que de verdad va en los dos sentidos.
+  movimientosContrarios: number;
+};
+
+// Agrupa por categoría padre NETEANDO entradas contra salidas, en vez de tratarlas como
+// dos cosas distintas.
+//
+// Sin netear, los datos reales mienten: la categoría "Restaurantes" tiene 2.371,60 € de
+// gastos y 1.016,64 € de "ingresos", que no son ingresos sino los Bizums de la gente
+// cuando paga uno la cena. En un gráfico de "de dónde vienen mis ingresos", Restaurantes
+// aparecía como la segunda fuente de ingresos del usuario. Neteado, es lo que es: 1.354,96 €
+// de gasto real.
+//
+// Los traspasos ya vienen resueltos de `filtrarMovimientosPorCuentasSeleccionadas` (o
+// eliminados, o convertidos en ingreso/gasto según el lado que esté en la selección), así
+// que aquí se tratan como cualquier otro movimiento.
+export function netoPorCategoria(
+  movimientos: MovimientoParaInforme[],
+  categoriaEfectiva: (categoriaId: string) => string
+): NetoCategoria[] {
+  const acumulado = new Map<string, { salidas: number; entradas: number }>();
+
+  for (const m of movimientos) {
+    const categoriaId = m.categoria_id ? categoriaEfectiva(m.categoria_id) : SIN_CATEGORIA;
+    if (!acumulado.has(categoriaId)) acumulado.set(categoriaId, { salidas: 0, entradas: 0 });
+
+    const acc = acumulado.get(categoriaId)!;
+    const importe = Number(m.importe);
+    if (importe < 0) acc.salidas += -importe;
+    else acc.entradas += importe;
+  }
+
+  const filas: NetoCategoria[] = [];
+  for (const [categoriaId, { salidas, entradas }] of acumulado) {
+    const neto = salidas - entradas;
+    // Los contrarios son los del signo que NO domina: si la categoría es gasto neto, los
+    // contrarios son las entradas, y al revés.
+    const movimientosContrarios = movimientos.filter((m) => {
+      const suya = m.categoria_id ? categoriaEfectiva(m.categoria_id) : SIN_CATEGORIA;
+      if (suya !== categoriaId) return false;
+      return neto >= 0 ? Number(m.importe) > 0 : Number(m.importe) < 0;
+    }).length;
+
+    filas.push({ categoriaId, salidas, entradas, neto, movimientosContrarios });
+  }
+
+  return filas;
+}
+
+// Separa el resultado anterior en las dos mitades que pide la pantalla: en qué se va el
+// dinero y de dónde viene. Una categoría cae en un lado u otro según su NETO, nunca en los
+// dos: si de "Restaurantes" salen 2.371 € y entran 1.016 €, es un gasto, no las dos cosas.
+//
+// Se descartan las categorías cuyo neto redondea a cero: normalmente son traspasos mal
+// clasificados o reembolsos exactos, y añaden una barra de 0,00 € que no dice nada.
+export function separarGastosEIngresos(filas: NetoCategoria[]): {
+  gastos: NetoCategoria[];
+  ingresos: NetoCategoria[];
+} {
+  const significativas = filas.filter((f) => Math.abs(f.neto) >= 0.005);
+
+  return {
+    gastos: significativas.filter((f) => f.neto > 0).sort((a, b) => b.neto - a.neto),
+    ingresos: significativas
+      .filter((f) => f.neto < 0)
+      .map((f) => ({ ...f, neto: -f.neto }))
+      .sort((a, b) => b.neto - a.neto),
+  };
+}

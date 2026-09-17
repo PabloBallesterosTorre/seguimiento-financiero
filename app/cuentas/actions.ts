@@ -21,6 +21,7 @@ function leerCamposCuenta(formData: FormData) {
     banco_nombre: formData.get("banco") as string,
     nombre: formData.get("nombre") as string,
     tipo: formData.get("tipo") as string,
+    ambito: (formData.get("ambito") as string) || "personal",
     iban: ibanRaw ? ibanRaw.replace(/\s+/g, "").toUpperCase() : null,
     es_remunerada,
     tipo_interes: es_remunerada && tipoInteresRaw ? Number(tipoInteresRaw) : null,

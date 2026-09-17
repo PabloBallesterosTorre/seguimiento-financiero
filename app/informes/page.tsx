@@ -31,9 +31,13 @@ import {
   filtrarMovimientosPorCuentasSeleccionadas,
   resolverCuentasSeleccionadas,
   type MovimientoParaInforme,
+  netoPorCategoria,
+  separarGastosEIngresos,
+  SIN_CATEGORIA,
 } from "@/lib/informes";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { rentabilidadPonderada } from "@/lib/inversiones";
+import { SelectorAmbito, type Ambito } from "./SelectorAmbito";
 import { SelectorCuentas } from "@/components/SelectorCuentas";
 import { InformesClient, type MesFlujo, type CategoriaMedia, type SerieCategoria, type FilaComparativa } from "./InformesClient";
 
@@ -43,9 +47,10 @@ type Rango = (typeof RANGOS)[number];
 export default async function InformesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ rango?: string; cuentas?: string }>;
+  searchParams: Promise<{ rango?: string; cuentas?: string; ambito?: string }>;
 }) {
-  const { rango: rangoParam, cuentas: cuentasParam } = await searchParams;
+  const { rango: rangoParam, cuentas: cuentasParam, ambito: ambitoParam } = await searchParams;
+  const ambito: Ambito = ambitoParam === "personal" || ambitoParam === "conjunto" ? ambitoParam : "todo";
   const supabase = await createClient();
   const rango: Rango = RANGOS.includes(rangoParam as Rango) ? (rangoParam as Rango) : "12";
 
@@ -73,12 +78,12 @@ export default async function InformesPage({
   ] = await Promise.all([
     supabase
       .from("cuentas")
-      .select("id, nombre, banco_nombre, saldo_actual, es_remunerada, tipo_interes")
+      .select("id, nombre, banco_nombre, saldo_actual, es_remunerada, tipo_interes, ambito")
       .eq("activa", true),
-    supabase.from("inversiones").select("valor_actual, rentabilidad_anual_asumida"),
+    supabase.from("inversiones").select("valor_actual, rentabilidad_anual_asumida, cuenta_id"),
     supabase
       .from("deudas")
-      .select("id, capital_inicial, capital_pendiente, cuota, tipo_interes, valor_residual, fecha_inicio"),
+      .select("id, capital_inicial, capital_pendiente, cuota, tipo_interes, valor_residual, fecha_inicio, ambito"),
     supabase
       .from("amortizaciones_extra")
       .select("deuda_id, fecha, importe, tipo_reduccion")
@@ -99,23 +104,47 @@ export default async function InformesPage({
   const moneda = config?.moneda_base ?? "EUR";
 
   const idsCuentasActivas = (cuentas ?? []).map((c) => c.id);
-  const cuentasSeleccionadas = resolverCuentasSeleccionadas(
-    idsCuentasActivas,
-    cuentasParam,
-    config?.cuentas_excluidas_informes ?? []
-  );
+
+  // Al elegir un ámbito concreto manda el ámbito y se ignora la preferencia de cuentas
+  // excluidas: si pides ver el conjunto, quieres el conjunto entero, no el conjunto menos
+  // lo que habías escondido del resumen global. En "Todo" se respeta la preferencia.
+  const idsDelAmbito = (cuentas ?? []).filter((c) => (c.ambito ?? "personal") === ambito).map((c) => c.id);
+  const cuentasSeleccionadas =
+    ambito === "todo"
+      ? resolverCuentasSeleccionadas(
+          idsCuentasActivas,
+          cuentasParam,
+          config?.cuentas_excluidas_informes ?? []
+        )
+      : new Set(idsDelAmbito);
   const cuentasFiltradas = (cuentas ?? []).filter((c) => cuentasSeleccionadas.has(c.id));
 
+  // La inversión hereda el ámbito de la cuenta donde está custodiada; sin cuenta asignada
+  // se considera personal. Sin esto, la vista de Conjunto sumaba la cartera entera —que es
+  // personal— a las cuentas compartidas, y el "dinero disponible" salía inflado.
+  const ambitoDeCuenta = new Map((cuentas ?? []).map((c) => [c.id, (c.ambito ?? "personal") as Ambito]));
+  const inversionesDelAmbito = (inversiones ?? []).filter((i) => {
+    if (ambito === "todo") return true;
+    const suyo = i.cuenta_id ? ambitoDeCuenta.get(i.cuenta_id) ?? "personal" : "personal";
+    return suyo === ambito;
+  });
+
   const saldoLiquidoInicial = cuentasFiltradas.reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
-  const valorInversionInicial = (inversiones ?? []).reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
+  const valorInversionInicial = inversionesDelAmbito.reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
   const rentabilidadAsumida = rentabilidadPonderada(
-    (inversiones ?? []).map((i) => ({
+    inversionesDelAmbito.map((i) => ({
       valor_actual: Number(i.valor_actual ?? 0),
       rentabilidad_anual_asumida: i.rentabilidad_anual_asumida !== null ? Number(i.rentabilidad_anual_asumida) : null,
     }))
   );
 
-  const deudasHistorico: DeudaParaHistorico[] = (deudasRaw ?? []).map((d) => ({
+  // La deuda, como la inversión, solo cuenta en su ámbito: en la vista de Conjunto la
+  // hipoteca a nombre propio no es deuda compartida.
+  const deudasDelAmbito = (deudasRaw ?? []).filter(
+    (d) => ambito === "todo" || (d.ambito ?? "personal") === ambito
+  );
+
+  const deudasHistorico: DeudaParaHistorico[] = deudasDelAmbito.map((d) => ({
     id: d.id,
     capital_inicial: Number(d.capital_inicial),
     capital_pendiente: Number(d.capital_pendiente),
@@ -124,7 +153,7 @@ export default async function InformesPage({
     tipo_interes: d.tipo_interes === null ? null : Number(d.tipo_interes),
     valor_residual: Number(d.valor_residual ?? 0),
   }));
-  const deudasFuturo: DeudaParaProyeccion[] = (deudasRaw ?? []).map((d) => ({
+  const deudasFuturo: DeudaParaProyeccion[] = deudasDelAmbito.map((d) => ({
     id: d.id,
     capital_pendiente: Number(d.capital_pendiente),
     cuota: Number(d.cuota),
@@ -170,6 +199,19 @@ export default async function InformesPage({
   );
   const historicoParaMedia = historicoCompleto as unknown as MovimientoHistorico[];
   const mediaPorCategoria = mapaMediaPorCategoria(historicoParaMedia, categoriaEfectiva);
+
+  // "En qué se va y de dónde viene": una sola pasada neteada sobre el mismo histórico ya
+  // filtrado, en vez de dos agregaciones separadas por signo.
+  const { gastos: gastosNetos, ingresos: ingresosNetos } = separarGastosEIngresos(
+    netoPorCategoria(historicoCompleto as unknown as MovimientoParaInforme[], categoriaEfectiva)
+  );
+  const conNombre = (f: { categoriaId: string; neto: number; salidas: number; entradas: number; movimientosContrarios: number }) => ({
+    nombre: f.categoriaId === SIN_CATEGORIA ? "Sin categorizar" : nombreCategoria.get(f.categoriaId) ?? "Sin categoría",
+    neto: f.neto,
+    salidas: f.salidas,
+    entradas: f.entradas,
+    movimientosContrarios: f.movimientosContrarios,
+  });
 
   const periodosConciliados = construirPeriodosConciliados(conciliacionesRaw ?? []);
 
@@ -346,7 +388,10 @@ export default async function InformesPage({
   // Se añade a los enlaces internos de la página (pestañas de rango) para que cambiar
   // de rango no pierda una selección de cuentas hecha vía URL en esta misma carga.
   const cuentasQS =
-    cuentasSeleccionadas.size === idsCuentasActivas.length ? "" : `&cuentas=${Array.from(cuentasSeleccionadas).join(",")}`;
+    ambito !== "todo" || cuentasSeleccionadas.size === idsCuentasActivas.length
+      ? ""
+      : `&cuentas=${Array.from(cuentasSeleccionadas).join(",")}`;
+  const ambitoQS = ambito === "todo" ? "" : `&ambito=${ambito}`;
 
   // ---- 8.6: patrimonio neto y deuda pendiente ----
   const patrimonioYDeuda = puntos.map((p) => ({
@@ -367,16 +412,20 @@ export default async function InformesPage({
           </Link>
         </div>
 
-        <SelectorCuentas
-          cuentas={(cuentas ?? []).map((c) => ({ id: c.id, nombre: c.nombre, banco_nombre: c.banco_nombre }))}
-          seleccionadas={Array.from(cuentasSeleccionadas)}
-        />
+        <SelectorAmbito actual={ambito} queryBase={`&rango=${rango}`} />
+
+        {ambito === "todo" && (
+          <SelectorCuentas
+            cuentas={(cuentas ?? []).map((c) => ({ id: c.id, nombre: c.nombre, banco_nombre: c.banco_nombre }))}
+            seleccionadas={Array.from(cuentasSeleccionadas)}
+          />
+        )}
 
         <div className="flex w-fit rounded-full bg-chip p-1 text-sm">
           {RANGOS.map((r) => (
             <Link
               key={r}
-              href={`/informes?rango=${r}${cuentasQS}`}
+              href={`/informes?rango=${r}${ambitoQS}${cuentasQS}`}
               className={`rounded-full px-[18px] py-2.5 text-sm font-semibold transition-colors ${
                 rango === r ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
               }`}
@@ -400,6 +449,9 @@ export default async function InformesPage({
           comparativa={comparativa}
           etiquetaMesCerrado={etiquetaMesCerrado}
           patrimonioYDeuda={patrimonioYDeuda}
+          gastosNetos={gastosNetos.map(conNombre)}
+          ingresosNetos={ingresosNetos.map(conNombre)}
+          etiquetaPeriodo={rango === "todos" ? "Todo el histórico" : `Últimos ${rango} meses`}
         />
       </main>
     </>

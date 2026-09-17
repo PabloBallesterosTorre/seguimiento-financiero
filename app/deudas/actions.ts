@@ -48,6 +48,7 @@ export async function crearDeuda(formData: FormData) {
       cuota,
       tipo_interes,
       modalidad_interes,
+      ambito: (formData.get("ambito") as string) || "personal",
       fecha_inicio,
       fecha_fin,
       valor_residual,

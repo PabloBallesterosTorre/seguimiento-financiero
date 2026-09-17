@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  netoPorCategoria,
+  separarGastosEIngresos,
+  SIN_CATEGORIA,
   agruparPorCategoriaPadreYMes,
   mediaPorCategoriaEnRango,
   previstoVsRealPorCategoria,
@@ -143,5 +146,88 @@ describe("ahorroDelMes", () => {
 
   it("si la inversión no cuenta como ahorro, el ahorro es directamente el flujo neto", () => {
     expect(ahorroDelMes(200, 100, false)).toBe(200);
+  });
+});
+
+describe("netoPorCategoria", () => {
+  const idem = (id: string) => id;
+
+  it("netea los reembolsos contra el gasto en vez de contarlos como ingreso", () => {
+    // El caso real: se paga la cena y los amigos devuelven por Bizum.
+    const filas = netoPorCategoria(
+      [
+        { categoria_id: "restaurantes", tipo: "gasto", importe: -140, fecha: "2026-08-03" },
+        { categoria_id: "restaurantes", tipo: "gasto", importe: -60, fecha: "2026-08-05" },
+        { categoria_id: "restaurantes", tipo: "ingreso", importe: 70, fecha: "2026-08-06" },
+      ],
+      idem
+    );
+
+    expect(filas).toHaveLength(1);
+    expect(filas[0].salidas).toBe(200);
+    expect(filas[0].entradas).toBe(70);
+    expect(filas[0].neto).toBe(130);
+    expect(filas[0].movimientosContrarios).toBe(1);
+  });
+
+  it("agrupa las subcategorías en su padre", () => {
+    const aPadre = (id: string) => (id === "restaurantes" ? "ocio" : id);
+    const filas = netoPorCategoria(
+      [
+        { categoria_id: "restaurantes", tipo: "gasto", importe: -50, fecha: "2026-08-01" },
+        { categoria_id: "ocio", tipo: "gasto", importe: -30, fecha: "2026-08-02" },
+      ],
+      aPadre
+    );
+
+    expect(filas).toHaveLength(1);
+    expect(filas[0].categoriaId).toBe("ocio");
+    expect(filas[0].neto).toBe(80);
+  });
+
+  it("agrupa los movimientos sin categoría en vez de tirarlos", () => {
+    // Si desaparecieran, las dos mitades no cuadrarían con el flujo mensual y no habría
+    // forma de saber por qué faltan.
+    const filas = netoPorCategoria(
+      [
+        { categoria_id: null, tipo: "gasto", importe: -50, fecha: "2026-08-01" },
+        { categoria_id: null, tipo: "ingreso", importe: 1050.13, fecha: "2026-08-02" },
+      ],
+      idem
+    );
+
+    expect(filas).toHaveLength(1);
+    expect(filas[0].categoriaId).toBe(SIN_CATEGORIA);
+    expect(filas[0].neto).toBeCloseTo(-1000.13, 2);
+  });
+});
+
+describe("separarGastosEIngresos", () => {
+  it("cada categoría cae en un solo lado, según su neto", () => {
+    const { gastos, ingresos } = separarGastosEIngresos([
+      { categoriaId: "restaurantes", salidas: 2371.6, entradas: 1016.64, neto: 1354.96, movimientosContrarios: 23 },
+      { categoriaId: "nomina", salidas: 0, entradas: 2168.36, neto: -2168.36, movimientosContrarios: 0 },
+    ]);
+
+    expect(gastos.map((g) => g.categoriaId)).toEqual(["restaurantes"]);
+    expect(ingresos.map((i) => i.categoriaId)).toEqual(["nomina"]);
+    // Los ingresos se devuelven en positivo, para pintarlos sin pelearse con el signo.
+    expect(ingresos[0].neto).toBeCloseTo(2168.36, 2);
+  });
+
+  it("descarta las categorías que se anulan solas", () => {
+    const { gastos, ingresos } = separarGastosEIngresos([
+      { categoriaId: "traspaso-mal-puesto", salidas: 500, entradas: 500, neto: 0, movimientosContrarios: 1 },
+    ]);
+    expect(gastos).toHaveLength(0);
+    expect(ingresos).toHaveLength(0);
+  });
+
+  it("ordena de mayor a menor", () => {
+    const { gastos } = separarGastosEIngresos([
+      { categoriaId: "pequeno", salidas: 10, entradas: 0, neto: 10, movimientosContrarios: 0 },
+      { categoriaId: "grande", salidas: 900, entradas: 0, neto: 900, movimientosContrarios: 0 },
+    ]);
+    expect(gastos.map((g) => g.categoriaId)).toEqual(["grande", "pequeno"]);
   });
 });

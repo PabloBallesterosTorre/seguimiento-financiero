@@ -12,6 +12,7 @@ type Cuenta = {
   banco_nombre: string;
   nombre: string;
   tipo: string;
+  ambito?: string;
   saldo_actual: number;
   iban: string | null;
   es_remunerada: boolean;
