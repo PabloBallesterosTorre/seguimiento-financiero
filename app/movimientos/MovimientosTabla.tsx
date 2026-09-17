@@ -204,16 +204,17 @@ function FilaMovimiento({
           />
         )}
       </td>
-      {/* El color deja de marcar el signo: con decenas de intereses de 0,02 € en verde, el
-          verde acababa significando "hay una fila aquí" en vez de "esto es bueno". El signo
-          lo lleva el propio número y el peso lo da la tipografía (auditoría, tanda 11). El
-          acento se reserva para los traspasos, que sí son una categoría aparte. */}
+      {/* Se probó a quitar el color del signo (auditoría de diseño, tanda 11) para que un
+          interés de 0,02 € no gritara lo mismo que una nómina, pero en uso se echaba de
+          menos: distinguir de un vistazo lo que entra de lo que sale es lo primero que se
+          hace al escanear un extracto, y el color lo resuelve mejor que el signo. Vuelve.
+          Lo que sí se queda de aquel cambio es la tipografía: `tabular-nums` para que las
+          columnas cuadren y algo más de cuerpo, que era la otra mitad del problema. */}
       <td
         className={`whitespace-nowrap px-4 py-3.5 text-right text-[15px] font-semibold tabular-nums ${
-          esTraspaso ? "text-accent" : "text-ink"
+          esTraspaso ? "text-accent" : Number(mov.importe) < 0 ? "text-ink" : "text-success"
         }`}
       >
-        {Number(mov.importe) > 0 && !esTraspaso ? "+" : ""}
         {formatEUR(Number(mov.importe))}
       </td>
       {/* Siempre visible en móvil, donde no hay ratón con el que señalar; en escritorio

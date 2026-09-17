@@ -289,6 +289,22 @@ Medido a 1920 px de ventana:
 
 Comprobado que el extremo estrecho sigue bien: a 961 px ninguna ruta desborda.
 
+## Revertido tras probarlo: el color en Movimientos
+
+Del punto 13 se aplicaron dos cosas: la tipografía (importes con más cuerpo, `tabular-nums`,
+resto de columnas atenuado) y quitarle al color el papel de marcar el signo, dejando los
+importes en tinta con `+` / `−` explícito.
+
+Lo segundo **no sobrevivió al uso**. Sobre el papel el argumento era bueno —con decenas de
+intereses de 0,02 € en verde, el verde acaba significando "aquí hay una fila" en vez de
+"esto es bueno"—, pero al escanear un extracto de verdad lo primero que se busca es
+distinguir lo que entra de lo que sale, y para eso el color gana al signo.
+
+Vuelve el verde en los ingresos y la tinta en los gastos. Se queda la tipografía, que era la
+otra mitad del problema y esa sí funciona: con `tabular-nums` las columnas cuadran de verdad.
+
+Queda anotado para que no se vuelva a intentar sin motivo nuevo.
+
 ## La hipoteca, cerrada (17/09/2026)
 
 Pablo pasó las capturas del detalle del préstamo en Ibercaja. El capital inicial real es
