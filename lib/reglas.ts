@@ -1,4 +1,4 @@
-import { normalizarDescripcion } from "@/lib/categorizacion";
+import { mereceRegla, normalizarDescripcion } from "@/lib/categorizacion";
 import type { createClient } from "@/lib/supabase/server";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -12,6 +12,11 @@ export async function reforzarRegla(
 ) {
   const patron = normalizarDescripcion(descripcion);
   if (!patron) return;
+
+  // Una descripción irrepetible o genérica no produce conocimiento, produce ruido: la regla
+  // o no volverá a coincidir con nada, o coincidirá con demasiadas cosas distintas. Ver
+  // `mereceRegla` para el detalle de por qué.
+  if (!mereceRegla(patron)) return;
 
   const { data: reglaExistente } = await supabase
     .from("reglas_categorizacion")
