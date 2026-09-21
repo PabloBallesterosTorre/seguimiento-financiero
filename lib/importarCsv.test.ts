@@ -7,6 +7,8 @@ import {
   parseFechaImportada,
   parseImporteImportado,
   comisionDeLaFila,
+  adivinarColumnasDescripcion,
+  combinarDescripcion,
 } from "./importarCsv";
 
 describe("parseFechaImportada", () => {
@@ -197,5 +199,44 @@ describe("comisionDeLaFila", () => {
     expect(comisionDeLaFila(undefined, ",")).toBe(0);
     expect(comisionDeLaFila("", ",")).toBe(0);
     expect(comisionDeLaFila("n/a", ",")).toBe(0);
+  });
+});
+
+describe("adivinarColumnasDescripcion", () => {
+  it("separa concepto y descripcion en el extracto de Ibercaja", () => {
+    const cab = ["Nº Orden", "Fecha Operacion", "Fecha Valor", "Concepto", "Descripción", "Referencia", "Importe", "Saldo"];
+    expect(adivinarColumnasDescripcion(cab)).toEqual({ principal: "Concepto", extra: "Descripción" });
+  });
+
+  it("deja extra vacio cuando el extracto trae una sola columna (Revolut)", () => {
+    const cab = ["Tipo", "Producto", "Fecha de inicio", "Descripción", "Importe", "Comisión", "Divisa", "Saldo"];
+    expect(adivinarColumnasDescripcion(cab)).toEqual({ principal: "Descripción", extra: "" });
+  });
+
+  it("no confunde payment_reference con una segunda descripcion (Trade Republic)", () => {
+    const cab = ["datetime", "type", "amount", "description", "transaction_id", "payment_reference"];
+    expect(adivinarColumnasDescripcion(cab)).toEqual({ principal: "description", extra: "" });
+  });
+
+  it("devuelve vacio cuando ninguna cabecera describe el movimiento", () => {
+    expect(adivinarColumnasDescripcion(["fecha", "importe"])).toEqual({ principal: "", extra: "" });
+  });
+});
+
+describe("combinarDescripcion", () => {
+  it("junta el tipo de operacion y el comercio", () => {
+    expect(combinarDescripcion("TARJETA VISA", "MOVILIDAD MMD")).toBe("TARJETA VISA — MOVILIDAD MMD");
+  });
+
+  it("no inventa separador cuando solo hay una parte", () => {
+    expect(combinarDescripcion("RECIBO", "")).toBe("RECIBO");
+    expect(combinarDescripcion("", "UPGYMS IBERIA S.L.")).toBe("UPGYMS IBERIA S.L.");
+    expect(combinarDescripcion("  ", "  ")).toBe("");
+  });
+
+  it("no repite la misma informacion dos veces", () => {
+    expect(combinarDescripcion("RECIBO", "recibo")).toBe("RECIBO");
+    expect(combinarDescripcion("TARJETA VISA APPLE.COM", "APPLE.COM")).toBe("TARJETA VISA APPLE.COM");
+    expect(combinarDescripcion("APPLE.COM", "TARJETA VISA APPLE.COM")).toBe("TARJETA VISA APPLE.COM");
   });
 });

@@ -175,3 +175,47 @@ export function detectarSeparadorDecimal(muestras: string[]): "," | "." {
   if (limpias.some((v) => v.includes("."))) return ".";
   return ".";
 }
+
+// Palabras con las que los bancos titulan la columna que describe el movimiento.
+const PALABRAS_DESCRIPCION = ["concepto", "descrip", "detalle", "movimiento"];
+// De esas, las que titulan la columna específica (el comercio o el emisor del recibo)
+// frente a la genérica (el tipo de operación).
+const PALABRAS_DESCRIPCION_ESPECIFICA = ["descrip", "detalle"];
+
+// Algunos extractos reparten la descripción en DOS columnas: una con el tipo de
+// operación y otra con quién cobra. Ibercaja es el caso claro —`Concepto` dice
+// "TARJETA VISA" o "RECIBO", y `Descripción` dice "MOVILIDAD MMD" o "UPGYMS
+// IBERIA S.L."—, y como la importación solo leía una, se quedaba con la genérica y
+// tiraba justo el dato que identifica el gasto: 32 movimientos acabaron siendo
+// indistinguibles entre sí y sin categorizar posible. Revolut y Trade Republic traen
+// una sola columna y ahí `extra` sale vacío.
+export function adivinarColumnasDescripcion(cabeceras: string[]): {
+  principal: string;
+  extra: string;
+} {
+  const coincide = (cabecera: string, palabras: string[]) => {
+    const texto = cabecera.toLowerCase();
+    return palabras.includes(texto) || palabras.some((p) => texto.includes(p));
+  };
+
+  const principal = cabeceras.find((c) => coincide(c, PALABRAS_DESCRIPCION)) ?? "";
+  const extra =
+    cabeceras.find((c) => c !== principal && coincide(c, PALABRAS_DESCRIPCION_ESPECIFICA)) ?? "";
+
+  return { principal, extra };
+}
+
+// Junta las dos columnas conservando ambas partes: el tipo de operación sigue siendo
+// visible y el comercio pasa a formar parte de la descripción, que es lo que el motor
+// de categorización necesita para aprender una regla que sirva de algo.
+export function combinarDescripcion(principal: string, extra: string): string {
+  const a = principal.trim();
+  const b = extra.trim();
+  if (!b) return a;
+  if (!a) return b;
+  if (a.toLowerCase() === b.toLowerCase()) return a;
+  // Cuando una ya contiene a la otra, repetirla solo alarga la descripción.
+  if (a.toLowerCase().includes(b.toLowerCase())) return a;
+  if (b.toLowerCase().includes(a.toLowerCase())) return b;
+  return `${a} — ${b}`;
+}

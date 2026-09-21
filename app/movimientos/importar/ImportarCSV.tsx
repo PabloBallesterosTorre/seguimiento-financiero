@@ -12,6 +12,8 @@ import {
   detectarFormatoFecha,
   detectarSeparadorDecimal,
   diaSiguienteISO,
+  adivinarColumnasDescripcion,
+  combinarDescripcion,
   type FormatoFecha,
 } from "@/lib/importarCsv";
 import { sugerirCategoria, type ReglaCategorizacion } from "@/lib/categorizacion";
@@ -134,6 +136,9 @@ export function ImportarCSV({
 
   const [colFecha, setColFecha] = useState("");
   const [colDescripcion, setColDescripcion] = useState("");
+  // Segunda columna de descripción, para los extractos que reparten el dato en dos
+  // (ver `adivinarColumnasDescripcion`). Vacía en la mayoría de bancos.
+  const [colDescripcionExtra, setColDescripcionExtra] = useState("");
   const [modoImporte, setModoImporte] = useState<"unico" | "cargoAbono">("unico");
   const [colImporte, setColImporte] = useState("");
   const [colCargo, setColCargo] = useState("");
@@ -204,7 +209,9 @@ export function ImportarCSV({
     ]);
 
     setColFecha(colFechaDetectada);
-    setColDescripcion(adivinarColumna(cab, ["concepto", "descrip", "detalle", "movimiento"]));
+    const descripciones = adivinarColumnasDescripcion(cab);
+    setColDescripcion(descripciones.principal);
+    setColDescripcionExtra(descripciones.extra);
     setColImporte(colImporteDetectada);
     setColCargo(colCargoDetectada);
     setColAbono(colAbonoDetectada);
@@ -327,6 +334,7 @@ export function ImportarCSV({
   function calcularPreview() {
     const idxFecha = cabeceras.indexOf(colFecha);
     const idxDescripcion = cabeceras.indexOf(colDescripcion);
+    const idxDescripcionExtra = cabeceras.indexOf(colDescripcionExtra);
     const idxImporte = cabeceras.indexOf(colImporte);
     const idxCargo = cabeceras.indexOf(colCargo);
     const idxAbono = cabeceras.indexOf(colAbono);
@@ -344,7 +352,10 @@ export function ImportarCSV({
 
     const filas: FilaPrevia[] = filasDatosFiltradas.map((fila) => {
       const fecha = idxFecha >= 0 ? parseFechaImportada(fila[idxFecha] ?? "", formatoFecha) : null;
-      const descripcion = (idxDescripcion >= 0 ? fila[idxDescripcion] : "") ?? "";
+      const descripcion = combinarDescripcion(
+        (idxDescripcion >= 0 ? fila[idxDescripcion] : "") ?? "",
+        (idxDescripcionExtra >= 0 ? fila[idxDescripcionExtra] : "") ?? ""
+      );
 
       let importe: number | null = null;
       if (modoImporte === "unico") {
@@ -762,6 +773,29 @@ export function ImportarCSV({
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">
+                Segunda columna descripción (opcional)
+              </label>
+              <select
+                value={colDescripcionExtra}
+                onChange={(e) => setColDescripcionExtra(e.target.value)}
+                className="mt-1 w-full rounded-btn border border-border-strong bg-field px-3 py-2.5 text-sm text-ink"
+              >
+                <option value="">— Ninguna —</option>
+                {cabeceras
+                  .filter((c) => c !== colDescripcion)
+                  .map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+              </select>
+              <p className="mt-1.5 text-xs text-ink-tertiary">
+                Algunos bancos parten la descripción en dos: una columna con el tipo de operación
+                («TARJETA VISA») y otra con quién cobra («MOVILIDAD MMD»). Si la eliges, se juntan.
+              </p>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold text-ink-secondary">Separador decimal</label>
