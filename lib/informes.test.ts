@@ -360,3 +360,23 @@ describe("traspasoNecesitaCategoria", () => {
     expect(traspasoNecesitaCategoria("personal", ["personal"], excluidas)).toBe(false);
   });
 });
+
+describe("traspasoNecesitaCategoria y el filtro de ámbito", () => {
+  const ambitos = new Map([
+    ["personal", "personal"],
+    ["tr", "personal"],
+    ["comun", "conjunto"],
+  ]);
+
+  it("la pide cuando la contrapartida es de otro ámbito aunque no haya exclusiones", () => {
+    expect(traspasoNecesitaCategoria("personal", ["personal", "comun"], new Set(), ambitos)).toBe(true);
+  });
+
+  it("no la pide entre dos cuentas del mismo ámbito", () => {
+    expect(traspasoNecesitaCategoria("personal", ["personal", "tr"], new Set(), ambitos)).toBe(false);
+  });
+
+  it("sigue sin pedirla si no se le pasan los ámbitos", () => {
+    expect(traspasoNecesitaCategoria("personal", ["personal", "comun"], new Set())).toBe(false);
+  });
+});

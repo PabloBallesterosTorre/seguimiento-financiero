@@ -327,14 +327,21 @@ export function comoVaElMes(params: {
 // Sin esta distinción la pantalla de Movimientos escondía todos los traspasos de la lista
 // de pendientes, y el 2026-09-21 daba por terminada la categorización mientras cinco
 // reposiciones de la cuenta común (355 €) salían en informes como ingreso sin categoría.
+// Una contrapartida queda fuera de la selección de dos formas: porque la cuenta esté
+// excluida de informes, o porque sea de otro ámbito (mirando "Personal", una cuenta
+// conjunta no está). Las dos cuentan.
 export function traspasoNecesitaCategoria(
   cuentaDeLaPata: string,
   cuentasDelGrupo: readonly string[],
-  cuentasExcluidasDeInformes: ReadonlySet<string>
+  cuentasExcluidasDeInformes: ReadonlySet<string>,
+  ambitoPorCuenta?: ReadonlyMap<string, string>
 ): boolean {
   // La pata que vive en una cuenta excluida no se mira en informes, así que da igual.
   if (cuentasExcluidasDeInformes.has(cuentaDeLaPata)) return false;
-  return cuentasDelGrupo.some(
-    (cuenta) => cuenta !== cuentaDeLaPata && cuentasExcluidasDeInformes.has(cuenta)
-  );
+  const ambitoPropio = ambitoPorCuenta?.get(cuentaDeLaPata);
+  return cuentasDelGrupo.some((cuenta) => {
+    if (cuenta === cuentaDeLaPata) return false;
+    if (cuentasExcluidasDeInformes.has(cuenta)) return true;
+    return ambitoPropio !== undefined && ambitoPorCuenta?.get(cuenta) !== ambitoPropio;
+  });
 }

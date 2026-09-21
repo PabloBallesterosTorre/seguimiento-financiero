@@ -70,7 +70,7 @@ export default async function MovimientosPage() {
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1000),
-    supabase.from("cuentas").select("id, nombre, banco_nombre").eq("activa", true).order("nombre"),
+    supabase.from("cuentas").select("id, nombre, banco_nombre, ambito").eq("activa", true).order("nombre"),
     supabase
       .from("categorias")
       .select("id, nombre, categoria_padre_id, es_categoria_inversion")
@@ -117,6 +117,9 @@ export default async function MovimientosPage() {
     cuentasPorGrupo.set(grupo, [...(cuentasPorGrupo.get(grupo) ?? []), pata.cuenta_id as string]);
   }
   const excluidasDeInformes = new Set(config?.cuentas_excluidas_informes ?? []);
+  const ambitoPorCuenta = new Map(
+    (cuentas ?? []).map((c) => [c.id, ((c as { ambito?: string }).ambito ?? "personal") as string])
+  );
 
   const sinCategorizar = pendientesCrudos.filter((m) => {
     if (m.tipo !== "traspaso") return true;
@@ -124,7 +127,8 @@ export default async function MovimientosPage() {
     return traspasoNecesitaCategoria(
       m.cuenta_id,
       cuentasPorGrupo.get(m.traspaso_grupo_id) ?? [],
-      excluidasDeInformes
+      excluidasDeInformes,
+      ambitoPorCuenta
     );
   });
 
