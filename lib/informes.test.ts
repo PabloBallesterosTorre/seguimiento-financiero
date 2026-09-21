@@ -8,6 +8,7 @@ import {
   previstoVsRealPorCategoria,
   ahorroDelMes,
   filtrarMovimientosPorCuentasSeleccionadas,
+  traspasoNecesitaCategoria,
   resolverCuentasSeleccionadas,
   comoVaElMes,
   type MovimientoParaInforme,
@@ -331,5 +332,31 @@ describe("comoVaElMes", () => {
     expect(r.acumulado).toBe(100);
     expect(r.mismoPuntoMesAnterior).toBeNull();
     expect(r.cierreMesAnterior).toBeNull();
+  });
+});
+
+describe("traspasoNecesitaCategoria", () => {
+  const excluidas = new Set(["comun", "hucha"]);
+
+  it("no la necesita cuando las dos cuentas están dentro de informes", () => {
+    expect(traspasoNecesitaCategoria("ibercaja", ["ibercaja", "tr"], excluidas)).toBe(false);
+  });
+
+  it("sí la necesita cuando la contrapartida está fuera de informes", () => {
+    expect(traspasoNecesitaCategoria("personal", ["personal", "comun"], excluidas)).toBe(true);
+  });
+
+  it("no la pide en la pata que vive en la cuenta excluida", () => {
+    expect(traspasoNecesitaCategoria("comun", ["personal", "comun"], excluidas)).toBe(false);
+  });
+
+  it("no la pide cuando no hay ninguna cuenta excluida", () => {
+    expect(traspasoNecesitaCategoria("a", ["a", "b"], new Set())).toBe(false);
+  });
+
+  it("ignora la propia cuenta al buscar la contrapartida excluida", () => {
+    // Un grupo con una sola pata (la pareja se borró) no convierte nada en pendiente.
+    expect(traspasoNecesitaCategoria("comun", ["comun"], excluidas)).toBe(false);
+    expect(traspasoNecesitaCategoria("personal", ["personal"], excluidas)).toBe(false);
   });
 });

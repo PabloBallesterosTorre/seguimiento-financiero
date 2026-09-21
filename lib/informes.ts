@@ -315,3 +315,26 @@ export function comoVaElMes(params: {
     cierreMesAnterior: sumaEntre(movimientos, inicioMesAnterior, finMesAnterior),
   };
 }
+
+// ¿Necesita categoría esta pata de un traspaso?
+//
+// Si las dos cuentas del traspaso están dentro de informes, al mirarlas juntas el
+// movimiento se anula (ver `filtrarMovimientosPorCuentasSeleccionadas`) y su categoría
+// no se usa nunca: pedirla sería ruido. Pero si la contrapartida está FUERA de informes,
+// esta pata se reclasifica a ingreso o gasto real, y sin categoría aparece como
+// "Sin categorizar" en el desglose.
+//
+// Sin esta distinción la pantalla de Movimientos escondía todos los traspasos de la lista
+// de pendientes, y el 2026-09-21 daba por terminada la categorización mientras cinco
+// reposiciones de la cuenta común (355 €) salían en informes como ingreso sin categoría.
+export function traspasoNecesitaCategoria(
+  cuentaDeLaPata: string,
+  cuentasDelGrupo: readonly string[],
+  cuentasExcluidasDeInformes: ReadonlySet<string>
+): boolean {
+  // La pata que vive en una cuenta excluida no se mira en informes, así que da igual.
+  if (cuentasExcluidasDeInformes.has(cuentaDeLaPata)) return false;
+  return cuentasDelGrupo.some(
+    (cuenta) => cuenta !== cuentaDeLaPata && cuentasExcluidasDeInformes.has(cuenta)
+  );
+}

@@ -20,7 +20,25 @@ export async function actualizarCategoriaMovimiento(formData: FormData) {
   const descripcion = formData.get("descripcion") as string;
   const categoria_id = (formData.get("categoria_id") as string) || null;
 
-  await supabase.from("movimientos").update({ categoria_id }).eq("id", id).throwOnError();
+  // Las dos patas de un traspaso son el mismo hecho económico, así que llevan la misma
+  // categoría: si la común te repone una cena, es Restaurantes por los dos lados. Cuando
+  // se categorizaban por separado acababan descuadradas (el 2026-09-21 había dos pares
+  // con categorías distintas en cada pata, una en `Ocio > Restaurantes` y otra en `Ocio`).
+  const { data: movimiento } = await supabase
+    .from("movimientos")
+    .select("tipo, traspaso_grupo_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (movimiento?.tipo === "traspaso" && movimiento.traspaso_grupo_id) {
+    await supabase
+      .from("movimientos")
+      .update({ categoria_id })
+      .eq("traspaso_grupo_id", movimiento.traspaso_grupo_id)
+      .throwOnError();
+  } else {
+    await supabase.from("movimientos").update({ categoria_id }).eq("id", id).throwOnError();
+  }
 
   // El aprendizaje de la regla es una mejora, no parte del contrato de este cambio:
   // la categoría del movimiento ya se ha guardado arriba, así que un fallo aquí se

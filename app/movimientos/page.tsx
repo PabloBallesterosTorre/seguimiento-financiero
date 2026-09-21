@@ -16,6 +16,7 @@ import { MovimientosTabla, type MovimientoFila } from "./MovimientosTabla";
 import { ordenarCategoriasJerarquia } from "@/lib/categorias";
 import { sugerirCategoria, type ReglaCategorizacion } from "@/lib/categorizacion";
 import { obtenerConfiguracion } from "@/lib/configuracion";
+import { traspasoNecesitaCategoria } from "@/lib/informes";
 import { obtenerOrdenTabla } from "@/lib/ordenTabla";
 import { encontrarCandidatosTraspaso, type CandidatoTraspaso } from "@/lib/traspasos";
 
@@ -66,7 +67,6 @@ export default async function MovimientosPage() {
       .from("movimientos")
       .select("*, cuentas(nombre, banco_nombre), categorias!categoria_id(nombre)")
       .is("categoria_id", null)
-      .neq("tipo", "traspaso")
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1000),
@@ -90,8 +90,43 @@ export default async function MovimientosPage() {
   const reglasCategorizacion = (reglas ?? []) as ReglaCategorizacion[];
 
   const recientes = (movimientos ?? []) as unknown as Movimiento[];
-  const sinCategorizar = (pendientes ?? []) as unknown as Movimiento[];
+  const pendientesCrudos = (pendientes ?? []) as unknown as Movimiento[];
   const categorizados = recientes.filter((m) => m.tipo === "traspaso" || m.categoria_id);
+
+  // De los traspasos sin categoría solo son "pendientes" los que de verdad la necesitan:
+  // aquellos cuya contrapartida está fuera de informes (ver `traspasoNecesitaCategoria`).
+  // Para saberlo hace falta conocer todas las cuentas de cada grupo, y la pata de enfrente
+  // puede estar ya categorizada y por tanto fuera de esta consulta.
+  const gruposPendientes = Array.from(
+    new Set(
+      pendientesCrudos
+        .filter((m) => m.tipo === "traspaso" && m.traspaso_grupo_id)
+        .map((m) => m.traspaso_grupo_id as string)
+    )
+  );
+  const { data: patasDeGrupos } = gruposPendientes.length
+    ? await supabase
+        .from("movimientos")
+        .select("traspaso_grupo_id, cuenta_id")
+        .in("traspaso_grupo_id", gruposPendientes)
+    : { data: [] as { traspaso_grupo_id: string; cuenta_id: string }[] };
+
+  const cuentasPorGrupo = new Map<string, string[]>();
+  for (const pata of patasDeGrupos ?? []) {
+    const grupo = pata.traspaso_grupo_id as string;
+    cuentasPorGrupo.set(grupo, [...(cuentasPorGrupo.get(grupo) ?? []), pata.cuenta_id as string]);
+  }
+  const excluidasDeInformes = new Set(config?.cuentas_excluidas_informes ?? []);
+
+  const sinCategorizar = pendientesCrudos.filter((m) => {
+    if (m.tipo !== "traspaso") return true;
+    if (!m.traspaso_grupo_id || !m.cuenta_id) return false;
+    return traspasoNecesitaCategoria(
+      m.cuenta_id,
+      cuentasPorGrupo.get(m.traspaso_grupo_id) ?? [],
+      excluidasDeInformes
+    );
+  });
 
   // Para buscar la pareja de un traspaso hacen falta las dos listas juntas, sin repetir
   // los movimientos que aparecen en ambas.
