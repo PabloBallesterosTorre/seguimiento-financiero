@@ -42,6 +42,7 @@ export default async function MovimientosPage() {
 
   const [
     { data: movimientos },
+    { data: pendientes },
     { data: cuentas },
     { data: categorias },
     { data: reglas },
@@ -57,6 +58,18 @@ export default async function MovimientosPage() {
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(200),
+    // Los pendientes de categorizar se piden aparte y sin el recorte de 200: son la lista
+    // de trabajo de esta pantalla, y con el límite quedaban escondidos justo los que más
+    // falta hacía repasar. El 2026-09-21 había 110 sin categorizar y la pantalla mostraba
+    // CERO, porque todos eran anteriores al movimiento nº 200 (25/08).
+    supabase
+      .from("movimientos")
+      .select("*, cuentas(nombre, banco_nombre), categorias!categoria_id(nombre)")
+      .is("categoria_id", null)
+      .neq("tipo", "traspaso")
+      .order("fecha", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1000),
     supabase.from("cuentas").select("id, nombre, banco_nombre").eq("activa", true).order("nombre"),
     supabase
       .from("categorias")
@@ -76,9 +89,14 @@ export default async function MovimientosPage() {
   const moneda = config?.moneda_base ?? "EUR";
   const reglasCategorizacion = (reglas ?? []) as ReglaCategorizacion[];
 
-  const todos = (movimientos ?? []) as unknown as Movimiento[];
-  const sinCategorizar = todos.filter((m) => m.tipo !== "traspaso" && !m.categoria_id);
-  const categorizados = todos.filter((m) => m.tipo === "traspaso" || m.categoria_id);
+  const recientes = (movimientos ?? []) as unknown as Movimiento[];
+  const sinCategorizar = (pendientes ?? []) as unknown as Movimiento[];
+  const categorizados = recientes.filter((m) => m.tipo === "traspaso" || m.categoria_id);
+
+  // Para buscar la pareja de un traspaso hacen falta las dos listas juntas, sin repetir
+  // los movimientos que aparecen en ambas.
+  const idsRecientes = new Set(recientes.map((m) => m.id));
+  const todos = [...recientes, ...sinCategorizar.filter((m) => !idsRecientes.has(m.id))];
 
   // Vínculo movimiento -> inversión, para ofrecer "¿es una aportación?" solo donde tiene
   // sentido: movimientos de una categoría marcada como inversión que todavía no tienen
