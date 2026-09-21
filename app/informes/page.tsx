@@ -8,7 +8,6 @@ import {
   generarMesesHaciaAtras,
   ocurrenciasPendientesEnMes,
   importeEfectivoPrevisto,
-  construirDiagnosticoPrevision,
   type MovimientoPrevisto,
   type CategoriaInfo,
 } from "@/lib/prevision";
@@ -24,9 +23,6 @@ import {
   type MovimientoParaHistorico,
 } from "@/lib/planificador";
 import {
-  agruparPorCategoriaPadreYMes,
-  mediaPorCategoriaEnRango,
-  previstoVsRealPorCategoria,
   filtrarMovimientosPorCuentasSeleccionadas,
   resolverCuentasSeleccionadas,
   type MovimientoParaInforme,
@@ -39,7 +35,7 @@ import { mesDe, inicioMesFinanciero, finMesFinanciero, descripcionMes } from "@/
 import { rentabilidadPonderada } from "@/lib/inversiones";
 import { SelectorAmbito, type Ambito } from "@/components/SelectorAmbito";
 import { SelectorCuentas } from "@/components/SelectorCuentas";
-import { InformesClient, type MesFlujo, type CategoriaMedia, type SerieCategoria, type FilaComparativa } from "./InformesClient";
+import { InformesClient, type MesFlujo } from "./InformesClient";
 
 const RANGOS = ["6", "12", "todos"] as const;
 type Rango = (typeof RANGOS)[number];
@@ -403,25 +399,6 @@ export default async function InformesPage({
     netoPorCategoria(historicoDelDesglose as unknown as MovimientoParaInforme[], categoriaEfectiva)
   );
 
-  const gastoPorCategoriaYMes = agruparPorCategoriaPadreYMes(historicoEnRango, "gasto", categoriaEfectiva, mesDeFecha);
-  const ingresoPorCategoriaYMes = agruparPorCategoriaPadreYMes(historicoEnRango, "ingreso", categoriaEfectiva, mesDeFecha);
-
-  const mediaGasto: CategoriaMedia[] = mediaPorCategoriaEnRango(gastoPorCategoriaYMes, mesesParaCategoria.length).map(
-    (m) => ({ nombre: nombreCategoria.get(m.categoriaId) ?? "Sin categoría", media: m.media })
-  );
-  const mediaIngreso: CategoriaMedia[] = mediaPorCategoriaEnRango(ingresoPorCategoriaYMes, mesesParaCategoria.length).map(
-    (m) => ({ nombre: nombreCategoria.get(m.categoriaId) ?? "Sin categoría", media: m.media })
-  );
-  // La media ya se divide entre mesesParaCategoria.length (meses reales con datos, no el
-  // rango nominal elegido) — se expone aquí solo para que la interfaz lo comunique.
-  const mesesUsadosParaMedia = mesesParaCategoria.length;
-
-  const etiquetasMeses = mesesParaCategoria.map((m) => `${m.year}-${String(m.month).padStart(2, "0")}`);
-  const seriesGasto: SerieCategoria[] = Array.from(gastoPorCategoriaYMes.entries()).map(([categoriaId, porMes]) => ({
-    nombre: nombreCategoria.get(categoriaId) ?? "Sin categoría",
-    valores: etiquetasMeses.map((mesKey) => porMes.get(mesKey) ?? 0),
-  }));
-
   // Meses que puede elegir el desglose: los mismos que ya se conocen del histórico, del más
   // reciente al más antiguo, porque lo habitual es mirar el mes en curso o el anterior.
   const mesesDelDesglose = [...mesesParaCategoria]
@@ -433,29 +410,6 @@ export default async function InformesPage({
       return { clave, etiqueta: nombre.charAt(0).toUpperCase() + nombre.slice(1) };
     });
 
-  // ---- 8.5: previsto vs. real, último mes cerrado (el anterior al actual) ----
-  const ultimoMesCerrado = mesesPasadosDisponibles.at(-1) ?? null;
-  let comparativa: FilaComparativa[] = [];
-  let etiquetaMesCerrado = "";
-  if (ultimoMesCerrado) {
-    etiquetaMesCerrado = ultimoMesCerrado.label;
-    const filasDiagnostico = construirDiagnosticoPrevision(previstos, [ultimoMesCerrado], categorias, new Map(), mediaPorCategoria);
-    const previstoPorCategoria = new Map(
-      filasDiagnostico.filter((f) => f.importesPorMes[0] < 0).map((f) => [f.categoriaId, Math.abs(f.importesPorMes[0])])
-    );
-    const mesLabelCerrado = `${ultimoMesCerrado.year}-${String(ultimoMesCerrado.month).padStart(2, "0")}`;
-    const realDelMes = historicoCompleto.filter((m) => mesDeFecha(m.fecha) === mesLabelCerrado);
-    const realPorCategoria = new Map(
-      Array.from(agruparPorCategoriaPadreYMes(realDelMes, "gasto", categoriaEfectiva, mesDeFecha).entries()).map(([id, porMes]) => [
-        id,
-        Array.from(porMes.values()).reduce((s, v) => s + v, 0),
-      ])
-    );
-    comparativa = previstoVsRealPorCategoria(previstoPorCategoria, realPorCategoria)
-      .map((f) => ({ nombre: nombreCategoria.get(f.categoriaId) ?? "Categoría eliminada", previsto: f.previsto, real: f.real }))
-      .sort((a, b) => b.real - a.real);
-  }
-
   // Se añade a los enlaces internos de la página (pestañas de rango) para que cambiar
   // de rango no pierda una selección de cuentas hecha vía URL en esta misma carga.
   const cuentasQS =
@@ -463,14 +417,6 @@ export default async function InformesPage({
       ? ""
       : `&cuentas=${Array.from(cuentasSeleccionadas).join(",")}`;
   const ambitoQS = ambito === "todo" ? "" : `&ambito=${ambito}`;
-
-  // ---- 8.6: patrimonio neto y deuda pendiente ----
-  const patrimonioYDeuda = puntos.map((p) => ({
-    label: p.label,
-    esReal: p.esReal,
-    patrimonio: p.patrimonioConDeuda,
-    deuda: p.deudaPendiente,
-  }));
 
   return (
     <>
@@ -512,14 +458,6 @@ export default async function InformesPage({
           variacion={variacion}
           miniSerie={miniSerie}
           flujoPorMes={flujoPorMes}
-          mediaGasto={mediaGasto}
-          mediaIngreso={mediaIngreso}
-          mesesUsadosParaMedia={mesesUsadosParaMedia}
-          seriesGastoPorCategoria={seriesGasto}
-          etiquetasMeses={mesesParaCategoria.map((m) => m.label || "Hoy")}
-          comparativa={comparativa}
-          etiquetaMesCerrado={etiquetaMesCerrado}
-          patrimonioYDeuda={patrimonioYDeuda}
           gastosNetos={gastosNetos.map(conNombre)}
           ingresosNetos={ingresosNetos.map(conNombre)}
           etiquetaRango={rango === "todos" ? "Todo el histórico" : `Últimos ${rango} meses`}

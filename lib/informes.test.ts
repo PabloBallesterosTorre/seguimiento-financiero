@@ -3,9 +3,6 @@ import {
   netoPorCategoria,
   separarGastosEIngresos,
   SIN_CATEGORIA,
-  agruparPorCategoriaPadreYMes,
-  mediaPorCategoriaEnRango,
-  previstoVsRealPorCategoria,
   ahorroDelMes,
   filtrarMovimientosPorCuentasSeleccionadas,
   traspasoNecesitaCategoria,
@@ -16,58 +13,6 @@ import {
 import { mesDe } from "./mesFinanciero";
 
 const categoriaEfectiva = (id: string) => (id === "restaurantes" || id === "cine" ? "ocio" : id);
-
-describe("agruparPorCategoriaPadreYMes", () => {
-  it("agrega subcategorías bajo su categoría padre, por mes", () => {
-    const movimientos: MovimientoParaInforme[] = [
-      { categoria_id: "restaurantes", tipo: "gasto", importe: -40, fecha: "2026-01-15" },
-      { categoria_id: "cine", tipo: "gasto", importe: -20, fecha: "2026-01-20" },
-      { categoria_id: "restaurantes", tipo: "gasto", importe: -30, fecha: "2026-02-10" },
-    ];
-
-    const resultado = agruparPorCategoriaPadreYMes(movimientos, "gasto", categoriaEfectiva);
-
-    expect(resultado.get("ocio")?.get("2026-01")).toBe(60);
-    expect(resultado.get("ocio")?.get("2026-02")).toBe(30);
-  });
-
-  it("ignora movimientos sin categoría y del tipo contrario", () => {
-    const movimientos: MovimientoParaInforme[] = [
-      { categoria_id: null, tipo: "gasto", importe: -10, fecha: "2026-01-01" },
-      { categoria_id: "ocio", tipo: "ingreso", importe: 10, fecha: "2026-01-01" },
-    ];
-    expect(agruparPorCategoriaPadreYMes(movimientos, "gasto", categoriaEfectiva).size).toBe(0);
-  });
-});
-
-describe("mediaPorCategoriaEnRango", () => {
-  it("divide el total entre los meses del rango, no entre los meses con datos", () => {
-    const porCategoriaYMes = new Map([["ocio", new Map([["2026-01", 90]])]]);
-    const resultado = mediaPorCategoriaEnRango(porCategoriaYMes, 3);
-    expect(resultado).toEqual([{ categoriaId: "ocio", total: 90, media: 30 }]);
-  });
-
-  it("ordena de mayor a menor media", () => {
-    const porCategoriaYMes = new Map([
-      ["a", new Map([["2026-01", 30]])],
-      ["b", new Map([["2026-01", 90]])],
-    ]);
-    const resultado = mediaPorCategoriaEnRango(porCategoriaYMes, 1);
-    expect(resultado.map((r) => r.categoriaId)).toEqual(["b", "a"]);
-  });
-});
-
-describe("previstoVsRealPorCategoria", () => {
-  it("incluye categorías que solo tienen previsto o solo tienen real", () => {
-    const previsto = new Map([["hipoteca", 800]]);
-    const real = new Map([["ocio", 150]]);
-    const resultado = previstoVsRealPorCategoria(previsto, real);
-
-    expect(resultado).toHaveLength(2);
-    expect(resultado.find((r) => r.categoriaId === "hipoteca")).toEqual({ categoriaId: "hipoteca", previsto: 800, real: 0 });
-    expect(resultado.find((r) => r.categoriaId === "ocio")).toEqual({ categoriaId: "ocio", previsto: 0, real: 150 });
-  });
-});
 
 describe("filtrarMovimientosPorCuentasSeleccionadas", () => {
   it("traspaso con ambas cuentas seleccionadas: neto cero, no cuenta como gasto ni ingreso", () => {
@@ -237,39 +182,6 @@ describe("separarGastosEIngresos", () => {
 
 // ---------------------------------------------------------------------------
 // Tanda 12: agrupación por mes financiero
-// ---------------------------------------------------------------------------
-
-describe("agruparPorCategoriaPadreYMes con mes financiero", () => {
-  const mismaCategoria = (id: string) => id;
-
-  // El caso real: la nómina del 28 de agosto es el ingreso con el que se vive septiembre.
-  const movimientos = [
-    { categoria_id: "nomina", tipo: "ingreso", importe: 2139.89, fecha: "2026-08-28" },
-    { categoria_id: "nomina", tipo: "ingreso", importe: 2175.27, fecha: "2026-07-30" },
-  ];
-
-  it("por mes natural, agosto cobra dos veces y septiembre ninguna", () => {
-    const porMes = agruparPorCategoriaPadreYMes(movimientos, "ingreso", mismaCategoria).get("nomina")!;
-    expect(porMes.get("2026-08")).toBeCloseTo(2139.89, 2);
-    expect(porMes.get("2026-09")).toBeUndefined();
-  });
-
-  it("con el mes financiero, cada nómina cae en el mes que financia", () => {
-    const opciones = { activo: true, diaCorte: 25, anclas: ["2026-07-30", "2026-08-28"] };
-    const porMes = agruparPorCategoriaPadreYMes(
-      movimientos,
-      "ingreso",
-      mismaCategoria,
-      (f) => mesDe(f, opciones)
-    ).get("nomina")!;
-
-    expect(porMes.get("2026-09")).toBeCloseTo(2139.89, 2);
-    expect(porMes.get("2026-08")).toBeCloseTo(2175.27, 2);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Tanda 12: cómo va el mes en curso
 // ---------------------------------------------------------------------------
 
 describe("comoVaElMes", () => {
