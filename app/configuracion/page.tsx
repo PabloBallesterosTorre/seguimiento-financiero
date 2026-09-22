@@ -4,7 +4,6 @@ import { obtenerConfiguracion, obtenerOpcionesMesFinanciero } from "@/lib/config
 import { descripcionMes } from "@/lib/mesFinanciero";
 import { guardarConfiguracionGeneral, guardarObjetivoAhorroGlobal, guardarMesFinanciero } from "./actions";
 import { ConfiguracionTabs } from "./ConfiguracionTabs";
-import { Invitaciones } from "./Invitaciones";
 import { crearInvitacion, listarInvitaciones, revocarInvitacion } from "./accionesInvitaciones";
 import { esAdminActual } from "@/lib/admin";
 
@@ -65,13 +64,9 @@ export default async function ConfiguracionPage() {
           guardarObjetivoAhorroGlobal={guardarObjetivoAhorroGlobal}
           guardarMesFinanciero={guardarMesFinanciero}
           puedeInvitar={puedeInvitar}
-          slotInvitaciones={
-            <Invitaciones
-              invitaciones={invitaciones}
-              crearInvitacion={crearInvitacion}
-              revocarInvitacion={revocarInvitacion}
-            />
-          }
+          invitaciones={invitaciones}
+          crearInvitacion={crearInvitacion}
+          revocarInvitacion={revocarInvitacion}
         />
       </main>
     </>

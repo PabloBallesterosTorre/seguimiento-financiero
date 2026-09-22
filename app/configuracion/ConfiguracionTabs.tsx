@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
+import { Invitaciones } from "./Invitaciones";
+import type { Invitacion } from "@/lib/invitaciones";
 import { inputClass, labelClass, btnPrimaryClass, cardClass } from "@/components/formStyles";
 
 const MONEDAS = [
@@ -25,7 +27,9 @@ export function ConfiguracionTabs({
   guardarObjetivoAhorroGlobal,
   guardarMesFinanciero,
   puedeInvitar,
-  slotInvitaciones,
+  invitaciones,
+  crearInvitacion,
+  revocarInvitacion,
 }: {
   email: string;
   nombre: string | null;
@@ -42,9 +46,14 @@ export function ConfiguracionTabs({
   guardarObjetivoAhorroGlobal: (formData: FormData) => void;
   guardarMesFinanciero: (formData: FormData) => void;
   // La pestaña de invitaciones solo existe para quien administra la app (ver lib/admin.ts).
-  // El contenido llega ya montado desde el servidor, que es quien puede leer la tabla.
+  // Llegan los datos, no el elemento ya montado: un elemento creado en el Server Component
+  // y pasado como prop pierde la clave posicional al serializarse, y React avisaba por
+  // consola de que faltaba una `key`. Además así se pasa igual que el resto de esta
+  // pantalla, que ya recibe sus server actions por props.
   puedeInvitar: boolean;
-  slotInvitaciones: ReactNode;
+  invitaciones: Invitacion[];
+  crearInvitacion: (formData: FormData) => void;
+  revocarInvitacion: (formData: FormData) => void;
 }) {
   const [tab, setTab] = useState<"general" | "ahorro" | "meses" | "invitaciones">("general");
   // El resto del formulario se apaga visualmente cuando el mes financiero está
@@ -248,7 +257,13 @@ export function ConfiguracionTabs({
         </form>
       )}
 
-      {tab === "invitaciones" && puedeInvitar && slotInvitaciones}
+      {tab === "invitaciones" && puedeInvitar && (
+        <Invitaciones
+          invitaciones={invitaciones}
+          crearInvitacion={crearInvitacion}
+          revocarInvitacion={revocarInvitacion}
+        />
+      )}
     </div>
   );
 }
