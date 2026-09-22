@@ -30,8 +30,12 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // `/registro` es pública porque quien llega a ella todavía no tiene cuenta. No es un
+  // agujero: la pantalla no da acceso a nada, y el alta exige un código de invitación
+  // que se comprueba en el servidor (ver app/registro/actions.ts).
   const isPublicRoute =
     request.nextUrl.pathname.startsWith("/login") ||
+    request.nextUrl.pathname.startsWith("/registro") ||
     request.nextUrl.pathname.startsWith("/auth");
 
   if (!user && !isPublicRoute) {

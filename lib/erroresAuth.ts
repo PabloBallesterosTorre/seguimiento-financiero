@@ -30,6 +30,10 @@ const TRADUCCIONES: { patron: RegExp; mensaje: string }[] = [
     mensaje: "Demasiados intentos seguidos. Espera un minuto y vuelve a probar.",
   },
   { patron: /user not found/i, mensaje: "No hay ninguna cuenta con ese email." },
+  {
+    patron: /already registered|already been registered|email_exists|user already exists/i,
+    mensaje: "Ya existe una cuenta con ese email. Entra con tu contraseña o recupérala desde el acceso.",
+  },
   { patron: /signups? not allowed|signup_disabled/i, mensaje: "El alta de usuarios está cerrada." },
   { patron: /network|fetch failed/i, mensaje: "No se ha podido conectar. Comprueba tu conexión." },
 ];

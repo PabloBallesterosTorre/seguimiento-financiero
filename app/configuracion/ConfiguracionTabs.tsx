@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { inputClass, labelClass, btnPrimaryClass, cardClass } from "@/components/formStyles";
 
 const MONEDAS = [
@@ -24,6 +24,8 @@ export function ConfiguracionTabs({
   guardarConfiguracionGeneral,
   guardarObjetivoAhorroGlobal,
   guardarMesFinanciero,
+  puedeInvitar,
+  slotInvitaciones,
 }: {
   email: string;
   nombre: string | null;
@@ -39,8 +41,12 @@ export function ConfiguracionTabs({
   guardarConfiguracionGeneral: (formData: FormData) => void;
   guardarObjetivoAhorroGlobal: (formData: FormData) => void;
   guardarMesFinanciero: (formData: FormData) => void;
+  // La pestaña de invitaciones solo existe para quien administra la app (ver lib/admin.ts).
+  // El contenido llega ya montado desde el servidor, que es quien puede leer la tabla.
+  puedeInvitar: boolean;
+  slotInvitaciones: ReactNode;
 }) {
-  const [tab, setTab] = useState<"general" | "ahorro" | "meses">("general");
+  const [tab, setTab] = useState<"general" | "ahorro" | "meses" | "invitaciones">("general");
   // El resto del formulario se apaga visualmente cuando el mes financiero está
   // desactivado, para que no parezca que la categoría o el día hacen algo.
   const [activo, setActivo] = useState(mesFinanciero);
@@ -75,6 +81,17 @@ export function ConfiguracionTabs({
         >
           Meses
         </button>
+        {puedeInvitar && (
+          <button
+            type="button"
+            onClick={() => setTab("invitaciones")}
+            className={`rounded-full px-[18px] py-2.5 text-sm font-semibold transition-colors ${
+              tab === "invitaciones" ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
+            }`}
+          >
+            Invitaciones
+          </button>
+        )}
       </div>
 
       {tab === "general" && (
@@ -230,6 +247,8 @@ export function ConfiguracionTabs({
           </button>
         </form>
       )}
+
+      {tab === "invitaciones" && puedeInvitar && slotInvitaciones}
     </div>
   );
 }

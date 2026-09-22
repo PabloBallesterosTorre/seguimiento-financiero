@@ -4,6 +4,9 @@ import { obtenerConfiguracion, obtenerOpcionesMesFinanciero } from "@/lib/config
 import { descripcionMes } from "@/lib/mesFinanciero";
 import { guardarConfiguracionGeneral, guardarObjetivoAhorroGlobal, guardarMesFinanciero } from "./actions";
 import { ConfiguracionTabs } from "./ConfiguracionTabs";
+import { Invitaciones } from "./Invitaciones";
+import { crearInvitacion, listarInvitaciones, revocarInvitacion } from "./accionesInvitaciones";
+import { esAdminActual } from "@/lib/admin";
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient();
@@ -13,6 +16,11 @@ export default async function ConfiguracionPage() {
   } = await supabase.auth.getUser();
 
   const config = user ? await obtenerConfiguracion(supabase, user.id) : null;
+
+  // Solo quien administra la app ve (y puede usar) la pestaña de invitaciones. La server
+  // action lo vuelve a comprobar por su cuenta: esconder el botón no protege nada.
+  const puedeInvitar = esAdminActual(user?.email);
+  const invitaciones = puedeInvitar ? await listarInvitaciones() : [];
 
   const { data: categoriasRaw } = await supabase
     .from("categorias")
@@ -56,6 +64,14 @@ export default async function ConfiguracionPage() {
           guardarConfiguracionGeneral={guardarConfiguracionGeneral}
           guardarObjetivoAhorroGlobal={guardarObjetivoAhorroGlobal}
           guardarMesFinanciero={guardarMesFinanciero}
+          puedeInvitar={puedeInvitar}
+          slotInvitaciones={
+            <Invitaciones
+              invitaciones={invitaciones}
+              crearInvitacion={crearInvitacion}
+              revocarInvitacion={revocarInvitacion}
+            />
+          }
         />
       </main>
     </>

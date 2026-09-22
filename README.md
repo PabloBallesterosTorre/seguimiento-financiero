@@ -9,8 +9,34 @@ en el proyecto de Claude "Seguimiento Financiero".
 Stack: Next.js 16 (App Router) + TypeScript + Tailwind + Supabase (Postgres + Auth con RLS),
 monitorización de errores con Sentry.
 
-App de un único usuario: el alta pública está cerrada (sin botón de registro); el usuario se crea
-directamente en el Dashboard de Supabase (Authentication → Users → Add user).
+## Registro por invitación
+
+El alta pública de Supabase Auth está **desactivada** y debe seguir así. No es un detalle de
+configuración: la anon key viaja en el bundle del navegador, así que con el alta pública abierta
+cualquiera podría llamar al endpoint de Auth y crearse una cuenta saltándose la invitación. Con
+ella cerrada, la única forma de crear un usuario es `auth.admin.createUser`, que exige la
+service-role key — y esa clave solo existe en el servidor.
+
+Cómo funciona:
+
+1. Un administrador (un email de `ADMIN_EMAILS`) entra en **Configuración → Invitaciones**, escribe
+   el email de la persona y pulsa *Crear invitación*.
+2. Copia el enlace (`/registro?codigo=…`) y se lo envía.
+3. La persona abre el enlace, elige contraseña y entra directamente: el email ya viene fijado por
+   la invitación, así que no hay paso de confirmación por correo.
+
+Cada invitación vale para **un solo email**, **una sola vez** y **caduca a los 30 días**. Se puede
+revocar mientras no se haya canjeado; revocar una ya usada solo borra el registro, no la cuenta.
+
+Variables necesarias (en `.env.local` y en Vercel, ver `.env.local.example`):
+
+- `SUPABASE_SERVICE_ROLE_KEY` — Supabase → Project Settings → API → `service_role`. **Sin prefijo
+  `NEXT_PUBLIC_`**: salta todas las políticas RLS y no debe llegar nunca al navegador.
+- `ADMIN_EMAILS` — emails que pueden invitar, separados por comas. Si está vacía, nadie es
+  administrador y la pestaña no aparece: falla cerrado a propósito.
+
+El primer usuario (el administrador) sigue creándose a mano en el Dashboard de Supabase
+(Authentication → Users → Add user), porque no hay nadie que pueda invitarle.
 
 ## Separación local / producción
 
@@ -64,7 +90,9 @@ npx supabase db push --project-ref ctyqpyznqhcauufoiqam   # producción
      igual, solo que Sentry no recibe nada.
 
 4. Crea tu usuario en el Dashboard del proyecto **dev** → Authentication → Users → Add user (con
-   email y contraseña) — no hay pantalla de alta en la app.
+   email y contraseña). El alta pública sigue cerrada: a partir de ahí, los demás usuarios entran
+   por invitación (ver «Registro por invitación»). Pon tu email en `ADMIN_EMAILS` para que te
+   aparezca la pestaña.
 
 5. Arranca el servidor de desarrollo:
 
