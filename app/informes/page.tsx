@@ -6,18 +6,21 @@ import {
   contarConciliacionesPorMes,
   generarMeses,
   generarMesesHaciaAtras,
-  ocurrenciasPendientesEnMes,
-  importeEfectivoPrevisto,
   type MovimientoPrevisto,
   type CategoriaInfo,
 } from "@/lib/prevision";
+import {
+  apuntesPendientesDelMes,
+  repartir,
+  resolverBloques,
+  sumarRepartos,
+  type CategoriaConBloque,
+} from "@/lib/regla503020";
 import { calcularInteresesPrevistos } from "@/lib/intereses";
 import { mapaMediaPorCategoria, type MovimientoHistorico } from "@/lib/deteccionPatrones";
 import {
   construirHistoricoPatrimonio,
-  construirProyeccionPatrimonio,
   type DeudaParaHistorico,
-  type DeudaParaProyeccion,
   type AmortizacionProgramadaDeuda,
   type PuntoProyeccion,
   type MovimientoParaHistorico,
@@ -32,10 +35,9 @@ import {
 } from "@/lib/informes";
 import { obtenerConfiguracion, obtenerOpcionesMesFinanciero } from "@/lib/configuracion";
 import { mesDe, inicioMesFinanciero, finMesFinanciero, descripcionMes } from "@/lib/mesFinanciero";
-import { rentabilidadPonderada } from "@/lib/inversiones";
 import { SelectorAmbito, type Ambito } from "@/components/SelectorAmbito";
 import { SelectorCuentas } from "@/components/SelectorCuentas";
-import { InformesClient, type MesFlujo } from "./InformesClient";
+import { InformesClient } from "./InformesClient";
 
 const RANGOS = ["6", "12", "todos"] as const;
 type Rango = (typeof RANGOS)[number];
@@ -63,7 +65,6 @@ export default async function InformesPage({
     { data: cuentas },
     { data: inversiones },
     { data: deudasRaw },
-    { data: amortizacionesFuturasRaw },
     { data: amortizacionesAplicadasRaw },
     { data: previstosRaw },
     { data: categoriasRaw },
@@ -77,18 +78,13 @@ export default async function InformesPage({
       .from("cuentas")
       .select("id, nombre, banco_nombre, saldo_actual, es_remunerada, tipo_interes, ambito")
       .eq("activa", true),
-    supabase.from("inversiones").select("valor_actual, rentabilidad_anual_asumida, cuenta_id"),
+    supabase.from("inversiones").select("valor_actual, cuenta_id"),
     supabase
       .from("deudas")
       .select("id, capital_inicial, capital_pendiente, cuota, tipo_interes, valor_residual, fecha_inicio, ambito"),
-    supabase
-      .from("amortizaciones_extra")
-      .select("deuda_id, fecha, importe, tipo_reduccion")
-      .eq("aplicado", false)
-      .gt("fecha", hoy),
     supabase.from("amortizaciones_extra").select("deuda_id, fecha, importe, tipo_reduccion").eq("aplicado", true),
     supabase.from("movimientos_previstos").select("*"),
-    supabase.from("categorias").select("id, nombre, categoria_padre_id, es_categoria_inversion"),
+    supabase.from("categorias").select("id, nombre, categoria_padre_id, es_categoria_inversion, bloque"),
     supabase
       .from("movimientos")
       .select("id, cuenta_id, categoria_id, tipo, importe, fecha, descripcion, traspaso_grupo_id"),
@@ -144,12 +140,6 @@ export default async function InformesPage({
 
   const saldoLiquidoInicial = cuentasFiltradas.reduce((sum, c) => sum + Number(c.saldo_actual ?? 0), 0);
   const valorInversionInicial = inversionesDelAmbito.reduce((sum, i) => sum + Number(i.valor_actual ?? 0), 0);
-  const rentabilidadAsumida = rentabilidadPonderada(
-    inversionesDelAmbito.map((i) => ({
-      valor_actual: Number(i.valor_actual ?? 0),
-      rentabilidad_anual_asumida: i.rentabilidad_anual_asumida !== null ? Number(i.rentabilidad_anual_asumida) : null,
-    }))
-  );
 
   // La deuda, como la inversión, solo cuenta en su ámbito: en la vista de Conjunto la
   // hipoteca a nombre propio no es deuda compartida.
@@ -166,21 +156,6 @@ export default async function InformesPage({
     tipo_interes: d.tipo_interes === null ? null : Number(d.tipo_interes),
     valor_residual: Number(d.valor_residual ?? 0),
   }));
-  const deudasFuturo: DeudaParaProyeccion[] = deudasDelAmbito.map((d) => ({
-    id: d.id,
-    capital_pendiente: Number(d.capital_pendiente),
-    cuota: Number(d.cuota),
-    tipo_interes: d.tipo_interes === null ? null : Number(d.tipo_interes),
-    valor_residual: Number(d.valor_residual ?? 0),
-  }));
-
-  const amortizacionesProgramadas = (amortizacionesFuturasRaw ?? []).map((a) => ({
-    deuda_id: a.deuda_id,
-    fecha: a.fecha,
-    importe: Number(a.importe),
-    tipoReduccion: a.tipo_reduccion as "reducir_cuota" | "reducir_plazo",
-  }));
-
   const amortizacionesAplicadasPorDeuda = new Map<string, AmortizacionProgramadaDeuda[]>();
   for (const a of amortizacionesAplicadasRaw ?? []) {
     const fila = {
@@ -198,7 +173,7 @@ export default async function InformesPage({
     .map((c) => ({ id: c.id, saldo_actual: Number(c.saldo_actual), tipo_interes: Number(c.tipo_interes) }));
 
   const previstos = (previstosRaw ?? []) as unknown as MovimientoPrevisto[];
-  const categorias = (categoriasRaw ?? []) as (CategoriaInfo & { es_categoria_inversion: boolean })[];
+  const categorias = (categoriasRaw ?? []) as (CategoriaInfo & CategoriaConBloque)[];
   const nombreCategoria = new Map(categorias.map((c) => [c.id, c.nombre]));
   const categoriaPadreId = new Map(categorias.map((c) => [c.id, c.categoria_padre_id]));
   const categoriaEfectiva = (id: string) => categoriaPadreId.get(id) ?? id;
@@ -289,24 +264,6 @@ export default async function InformesPage({
         })
       : [];
 
-  const puntosFuturos = construirProyeccionPatrimonio({
-    meses: mesesFuturos,
-    fechaInicio: hoy,
-    saldoLiquidoInicial,
-    valorInversionInicial,
-    previstos,
-    interesesPorMes,
-    deudas: deudasFuturo,
-    amortizacionesProgramadas,
-    esCategoriaInversion,
-    mediaPorCategoria,
-    conciliacionesPorMes,
-    categoriasConMovimiento,
-    rentabilidadAnualAsumidaInversion: rentabilidadAsumida,
-  });
-
-  const puntos = [...puntosHistoricos, ...puntosFuturos];
-
   // ---- 8.1 KPI dinero disponible ----
   // Principio transversal (tanda 6, mejora 5): sin un mes anterior real con el que
   // comparar, no se inventa una variación de 0% — se comunica explícitamente que no
@@ -330,42 +287,28 @@ export default async function InformesPage({
     { label: "Hoy", valor: patrimonioHoy },
   ];
 
-  // ---- Desglose ingreso/gasto mes a mes (8.2) ----
-  function desgloseMesHistorico(mesLabel: string) {
-    let ingresos = 0;
-    let gastos = 0;
-    for (const m of historicoCompleto) {
-      if (mesDeFecha(m.fecha) !== mesLabel || m.tipo === "traspaso") continue;
-      const importe = Number(m.importe);
-      if (m.tipo === "ingreso") ingresos += importe;
-      else gastos += importe;
-    }
-    return { ingresos, gastos };
-  }
-
-  function desgloseMesPrevisto(year: number, month: number) {
-    let ingresos = 0;
-    let gastos = 0;
-    for (const p of previstos) {
-      if (p.tipo === "traspaso") continue;
-      const ocurrencias = ocurrenciasPendientesEnMes(p, year, month, {
+  // ---- 8.2 Regla 50/30/20 del mes en curso: lo real hasta hoy y la previsión al cierre,
+  // con la misma regla para lo pendiente que la proyección (ver Resumen). ----
+  const bloqueDe = resolverBloques(categorias);
+  const repartoHastaHoy = repartir(
+    historicoCompleto.filter((m) => mesDeFecha(m.fecha) === mesActualLabel && m.fecha <= hoy),
+    bloqueDe
+  );
+  const repartoCierre = sumarRepartos(
+    repartoHastaHoy,
+    repartir(
+      apuntesPendientesDelMes(previstos, mesActualYear, mesActualMonth, {
         conciliacionesPorMes,
         categoriasConMovimiento,
-      });
-      if (ocurrencias === 0) continue;
-      const importe = importeEfectivoPrevisto(p, mediaPorCategoria) * ocurrencias;
-      if (p.tipo === "ingreso") ingresos += importe;
-      else gastos += -importe;
-    }
-    ingresos += interesesPorMes.get(`${year}-${month}`) ?? 0;
-    return { ingresos, gastos };
-  }
-
-  const flujoPorMes: MesFlujo[] = puntos.map((p) => {
-    const mesLabel = `${p.year}-${String(p.month).padStart(2, "0")}`;
-    const desglose = p.esReal ? desgloseMesHistorico(mesLabel) : desgloseMesPrevisto(p.year, p.month);
-    return { label: p.label, esReal: p.esReal, ingresos: desglose.ingresos, gastos: desglose.gastos, neto: p.flujoNeto };
-  });
+        mediaPorCategoria,
+      }),
+      bloqueDe,
+      interesesPorMes.get(`${mesActualYear}-${mesActualMonth}`) ?? 0
+    )
+  );
+  const nombreMesActual = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(
+    new Date(mesActualYear, mesActualMonth - 1, 1)
+  );
 
   // ---- 8.3 y 8.4: agregaciones por categoría, solo histórico real (incluye el mes en curso hasta hoy) ----
   // Se rellena hasta el mes en curso en vez de añadirlo suelto: si no, podría quedar un
@@ -457,7 +400,13 @@ export default async function InformesPage({
           patrimonioHoy={patrimonioHoy}
           variacion={variacion}
           miniSerie={miniSerie}
-          flujoPorMes={flujoPorMes}
+          regla503020={{
+            etiquetaMes: nombreMesActual.charAt(0).toUpperCase() + nombreMesActual.slice(1),
+            hastaHoy: repartoHastaHoy,
+            cierre: repartoCierre,
+            objetivo: config?.objetivo_ahorro_mensual ?? null,
+            incluirInversionEnAhorro: config?.incluir_inversion_en_ahorro ?? true,
+          }}
           gastosNetos={gastosNetos.map(conNombre)}
           ingresosNetos={ingresosNetos.map(conNombre)}
           etiquetaRango={rango === "todos" ? "Todo el histórico" : `Últimos ${rango} meses`}

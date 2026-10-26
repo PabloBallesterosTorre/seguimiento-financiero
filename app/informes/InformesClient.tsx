@@ -1,18 +1,26 @@
 "use client";
 
 import { KpiDineroDisponible } from "./KpiDineroDisponible";
-import { FlujoMensual } from "./FlujoMensual";
 import { EnQueSeVa, type FilaCategoria } from "./EnQueSeVa";
+import { Regla503020 } from "@/components/Regla503020";
+import type { Reparto } from "@/lib/regla503020";
 
-export type MesFlujo = { label: string; esReal: boolean; ingresos: number; gastos: number; neto: number };
 export type PuntoMini = { label: string; valor: number };
+
+export type DatosRegla503020 = {
+  etiquetaMes: string;
+  hastaHoy: Reparto;
+  cierre: Reparto;
+  objetivo: number | null;
+  incluirInversionEnAhorro: boolean;
+};
 
 export function InformesClient({
   moneda,
   patrimonioHoy,
   variacion,
   miniSerie,
-  flujoPorMes,
+  regla503020,
   gastosNetos,
   ingresosNetos,
   etiquetaRango,
@@ -26,7 +34,7 @@ export function InformesClient({
   patrimonioHoy: number;
   variacion: { abs: number; pct: number } | null;
   miniSerie: PuntoMini[];
-  flujoPorMes: MesFlujo[];
+  regla503020: DatosRegla503020;
   gastosNetos: FilaCategoria[];
   ingresosNetos: FilaCategoria[];
   etiquetaRango: string;
@@ -45,7 +53,7 @@ export function InformesClient({
         miniSerie={miniSerie}
         fechaCierreAnterior={fechaCierreAnterior}
       />
-      <FlujoMensual moneda={moneda} datos={flujoPorMes} notaMes={notaMes} />
+      <Regla503020 moneda={moneda} descripcionMes={notaMes} {...regla503020} />
       <EnQueSeVa
         gastos={gastosNetos}
         ingresos={ingresosNetos}

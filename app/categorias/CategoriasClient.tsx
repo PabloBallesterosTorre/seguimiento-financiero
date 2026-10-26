@@ -5,12 +5,21 @@ import { CategoriaForm } from "./CategoriaForm";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { formatMoneda } from "@/lib/formato";
 import { btnPrimaryClass, btnSecondaryClass, cardClass, tableWrapClass, rowLinkClass, rowDelClass } from "@/components/formStyles";
+import type { Bloque } from "@/lib/regla503020";
 
 type Categoria = {
   id: string;
   nombre: string;
   categoria_padre_id: string | null;
   es_categoria_inversion: boolean;
+  bloque: Bloque | null;
+};
+
+const NOMBRE_BLOQUE: Record<Bloque, string> = { ingreso: "Ingreso", necesario: "Necesario", capricho: "Capricho" };
+const COLOR_BLOQUE: Record<Bloque, string> = {
+  ingreso: "bg-chip text-ink-secondary",
+  necesario: "bg-accent-soft text-accent",
+  capricho: "bg-[#fdf1d6] text-[#a36f00]",
 };
 
 type MovimientoAsociado = {
@@ -177,6 +186,7 @@ export function CategoriasClient({
                     <Fragment key={sub.id}>
                       <FilaCategoria
                         categoria={sub}
+                        bloquePadre={cat.bloque}
                         indentada
                         abierto={abierto}
                         setAbierto={setAbierto}
@@ -220,6 +230,7 @@ export function CategoriasClient({
 
 function FilaCategoria({
   categoria,
+  bloquePadre = null,
   indentada,
   abierto,
   setAbierto,
@@ -227,21 +238,37 @@ function FilaCategoria({
   usos,
 }: {
   categoria: Categoria;
+  bloquePadre?: Bloque | null;
   indentada: boolean;
   abierto: "nueva" | string | null;
   setAbierto: (v: "nueva" | string | null) => void;
   eliminarCategoria: (formData: FormData) => void;
   usos: number;
 }) {
+  // Bloque con el que cuenta en la regla 50/30/20: el suyo, o el del padre si no tiene.
+  const bloque = categoria.bloque ?? bloquePadre;
+  const heredado = categoria.bloque === null && bloquePadre !== null;
   return (
     <tr className="border-t border-border first:border-t-0">
       <td className={`px-5 py-3.5 ${indentada ? "pl-10 text-[13px] text-ink-tertiary" : "text-sm text-ink"}`}>
         {categoria.nombre}
       </td>
       <td className="whitespace-nowrap px-5 py-3.5">
-        {categoria.es_categoria_inversion && (
+        {categoria.es_categoria_inversion ? (
           <span className="mr-2 rounded-full bg-accent-soft px-2.5 py-0.5 text-[11px] font-semibold text-accent">
-            Inversión
+            Inversión · Ahorro
+          </span>
+        ) : bloque ? (
+          <span
+            className={`mr-2 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${COLOR_BLOQUE[bloque]} ${heredado ? "opacity-60" : ""}`}
+            title={heredado ? "Heredado de la categoría padre" : undefined}
+          >
+            {NOMBRE_BLOQUE[bloque]}
+            {heredado && " (heredado)"}
+          </span>
+        ) : (
+          <span className="mr-2 rounded-full border border-border-strong px-2.5 py-0.5 text-[11px] font-semibold text-ink-tertiary">
+            Sin bloque
           </span>
         )}
         {usos === 0 ? (

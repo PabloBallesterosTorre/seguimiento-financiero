@@ -18,7 +18,7 @@ export default async function CategoriasPage() {
   } = await supabase.auth.getUser();
 
   const [{ data: categorias }, config, { data: movimientos }] = await Promise.all([
-    supabase.from("categorias").select("id, nombre, categoria_padre_id, es_categoria_inversion").order("nombre"),
+    supabase.from("categorias").select("id, nombre, categoria_padre_id, es_categoria_inversion, bloque").order("nombre"),
     user ? obtenerConfiguracion(supabase, user.id) : null,
     supabase.from("movimientos").select("categoria_id, subcategoria_id"),
   ]);
