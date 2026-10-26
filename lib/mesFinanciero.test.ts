@@ -113,6 +113,37 @@ describe("mesDe", () => {
   });
 });
 
+describe("esperando la nómina (con `hoy`)", () => {
+  // 26 de septiembre: ya pasó el día de corte (25) y la nómina de finales de septiembre
+  // no ha entrado. Es el caso real del 26 de octubre de 2026, un mes antes.
+  const esperando: OpcionesMesFinanciero = { ...OPC, hoy: "2026-09-26" };
+
+  it("el mes en curso no cambia por pasar el día de corte", () => {
+    expect(mesDe("2026-09-26", esperando)).toBe("2026-09");
+    expect(finMesFinanciero(2026, 9, esperando)).toBe("2026-09-26");
+    expect(inicioMesFinanciero(2026, 10, esperando)).toBe("2026-09-27");
+  });
+
+  it("en cuanto entra la nómina, el mes cambia ese día", () => {
+    const cobrada = { ...OPC, anclas: [...NOMINAS, "2026-09-29"], hoy: "2026-09-29" };
+    expect(inicioMesFinanciero(2026, 10, cobrada)).toBe("2026-09-29");
+    expect(mesDe("2026-09-29", cobrada)).toBe("2026-10");
+    expect(mesDe("2026-09-28", cobrada)).toBe("2026-09");
+  });
+
+  it("antes del día de corte no cambia nada", () => {
+    expect(inicioMesFinanciero(2026, 10, { ...OPC, hoy: "2026-09-20" })).toBe("2026-09-25");
+  });
+
+  it("un mes ya pasado que nunca tuvo nómina sigue usando el día de corte", () => {
+    expect(inicioMesFinanciero(2026, 10, { ...OPC, hoy: "2026-12-01" })).toBe("2026-09-25");
+  });
+
+  it("la descripción no se inventa una fecha de fin", () => {
+    expect(descripcionMes(2026, 9, esperando)).toBe("del 28 de agosto hasta que entre la próxima nómina");
+  });
+});
+
 describe("descripcionMes", () => {
   it("explica el desfase en palabras", () => {
     expect(descripcionMes(2026, 8, OPC)).toBe("del 30 de julio al 27 de agosto");

@@ -94,5 +94,8 @@ export async function obtenerOpcionesMesFinanciero(
     activo: true,
     diaCorte: config.dia_corte_mes,
     anclas: (data ?? []).map((m) => m.fecha as string),
+    // Con la fecha de hoy, el mes en curso no se da por terminado hasta que entra la
+    // nómina, aunque ya haya pasado el día de corte (ver lib/mesFinanciero).
+    hoy: new Date().toISOString().slice(0, 10),
   };
 }

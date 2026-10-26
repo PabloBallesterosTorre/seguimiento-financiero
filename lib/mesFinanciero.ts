@@ -16,6 +16,12 @@
 // Es lo que impide que la paga extra estropee la frontera: en junio de 2026 hay dos
 // nóminas, la extra el día 15 y la ordinaria el 29. La del 15 queda fuera de la ventana
 // y no mueve nada; la extra sigue contando como ingreso del mes en el que se cobró.
+//
+// Mientras se ESPERA la nómina el mes no cambia. El día de corte es un respaldo para los
+// meses en los que nunca hubo nómina, no un calendario: el 26 de octubre de 2026, con la
+// nómina por llegar el 29, el respaldo del día 25 daba noviembre por empezado, y la
+// pantalla enseñaba un mes de dos días sin ingresos. Con `hoy` en las opciones, si el
+// respaldo ya pasó pero la nómina no ha entrado, el mes en curso sigue abierto hasta hoy.
 
 export type OpcionesMesFinanciero = {
   // Con `activo: false` todo se comporta como antes: meses naturales del 1 al 31. Es el
@@ -25,6 +31,9 @@ export type OpcionesMesFinanciero = {
   diaCorte: number;
   // Fechas ISO (YYYY-MM-DD) de las nóminas cobradas, en cualquier orden.
   anclas: readonly string[];
+  // Hoy (YYYY-MM-DD). Opcional para que las funciones sigan siendo puras en los tests;
+  // sin él, el mes sin nómina empieza siempre en el día de corte.
+  hoy?: string;
 };
 
 export const OPCIONES_MES_NATURAL: OpcionesMesFinanciero = { activo: false, diaCorte: 25, anclas: [] };
@@ -54,6 +63,23 @@ function ultimoDia(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
+function diaSiguiente(fecha: string): string {
+  const d = new Date(`${fecha}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// ¿Está el mes (year, month) todavía sin empezar porque su nómina no ha entrado? Solo
+// puede pasar entre el día de corte y el día 1 natural: antes del corte no hay nada que
+// esperar, y a partir del día 1 un cobro ya no se acepta como ancla de este mes.
+function esperandoNominaDe(
+  respaldo: string,
+  hasta: string,
+  opciones: OpcionesMesFinanciero
+): boolean {
+  return opciones.hoy !== undefined && respaldo <= opciones.hoy && opciones.hoy < hasta;
+}
+
 /**
  * Primer día (inclusive) del mes financiero que lleva la etiqueta (year, month).
  *
@@ -75,7 +101,28 @@ export function inicioMesFinanciero(year: number, month: number, opciones: Opcio
     if (ancla >= desde && ancla < hasta && (mejor === null || ancla > mejor)) mejor = ancla;
   }
 
-  return mejor ?? respaldo;
+  if (mejor) return mejor;
+  // Sin nómina todavía y con el respaldo ya pasado: el mes empezará cuando entre. Hasta
+  // entonces se sitúa su inicio mañana, de modo que hoy siga perteneciendo al anterior.
+  if (esperandoNominaDe(respaldo, hasta, opciones)) return diaSiguiente(opciones.hoy!);
+  return respaldo;
+}
+
+/**
+ * ¿Sigue abierto el mes (year, month) a la espera de la nómina que lo cierra? Sirve para
+ * describirlo como "hasta que entre la nómina" en vez de con una fecha de fin que solo es
+ * la de hoy.
+ */
+export function esperandoNomina(year: number, month: number, opciones: OpcionesMesFinanciero): boolean {
+  if (!opciones.activo) return false;
+  const sig = siguiente(year, month);
+  const prev = { year, month };
+  const corte = Math.min(Math.max(opciones.diaCorte, 1), ultimoDia(prev.year, prev.month));
+  const respaldo = iso(prev.year, prev.month, corte);
+  const desde = iso(prev.year, prev.month, Math.max(corte - MARGEN_DIAS, 1));
+  const hasta = iso(sig.year, sig.month, 1);
+  const hayAncla = opciones.anclas.some((a) => a >= desde && a < hasta);
+  return !hayAncla && esperandoNominaDe(respaldo, hasta, opciones);
 }
 
 /** Último día (inclusive) del mes financiero (year, month). */
@@ -123,5 +170,6 @@ export function descripcionMes(year: number, month: number, opciones: OpcionesMe
     new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long", timeZone: "UTC" }).format(
       new Date(`${f}T00:00:00Z`)
     );
+  if (esperandoNomina(year, month, opciones)) return `del ${fmt(inicio)} hasta que entre la próxima nómina`;
   return `del ${fmt(inicio)} al ${fmt(fin)}`;
 }
