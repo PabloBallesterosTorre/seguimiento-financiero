@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
+import { prorratear } from "@/lib/prorrateo";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerConfiguracion, obtenerOpcionesMesFinanciero } from "@/lib/configuracion";
 import { mesDe, finMesFinanciero, inicioMesFinanciero, descripcionMes } from "@/lib/mesFinanciero";
@@ -89,7 +90,7 @@ export default async function HomePage({
     supabase.from("categorias").select("id, nombre, categoria_padre_id, es_categoria_inversion, bloque"),
     supabase
       .from("movimientos")
-      .select("id, cuenta_id, categoria_id, tipo, importe, fecha, descripcion, traspaso_grupo_id"),
+      .select("id, cuenta_id, categoria_id, tipo, importe, fecha, descripcion, traspaso_grupo_id, prorrateo_meses"),
     supabase.from("inversion_valoraciones").select("inversion_id, fecha, valor"),
     supabase.from("inversion_operaciones").select("movimiento_id").not("movimiento_id", "is", null),
     user ? obtenerConfiguracion(supabase, user.id) : null,
@@ -296,8 +297,10 @@ export default async function HomePage({
   // lo pendiente sale de la misma regla que la proyección de arriba, así que las dos
   // pantallas no pueden contar distinto el mismo previsto. ----
   const bloqueDe = resolverBloques(categorias);
+  // Con los prorrateos repartidos (tanda 16): el seguro anual cuenta su doceava parte en
+  // el mes, no entero el mes en que se pagó.
   const repartoHastaHoy = repartir(
-    historicoCompleto.filter((m) => mesDeFecha(m.fecha) === mesActualLabel && m.fecha <= hoy),
+    prorratear(historicoCompleto).filter((m) => mesDeFecha(m.fecha) === mesActualLabel && m.fecha <= hoy),
     bloqueDe
   );
   const repartoCierre = sumarRepartos(

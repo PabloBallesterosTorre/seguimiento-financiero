@@ -8,11 +8,36 @@ import {
   eliminarMovimiento,
   eliminarTraspaso,
   vincularComoTraspaso,
+  actualizarProrrateo,
 } from "./actions";
 import { asignarMovimientoAInversion } from "../inversiones/actions";
 import { alternarEtiquetaMovimiento } from "../etiquetas/actions";
 import { resumenPorEtiqueta } from "@/lib/etiquetas";
 import { formatMoneda } from "@/lib/formato";
+import { VistaCalendario } from "./VistaCalendario";
+
+// Lista o calendario. Enlaces y no un estado de cliente: así la vista elegida se puede
+// guardar, compartir y volver con el botón Atrás.
+function SelectorVista({ vista }: { vista: "lista" | "calendario" }) {
+  const clase = (activa: boolean) =>
+    `rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+      activa ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
+    }`;
+  return (
+    <div className="flex w-fit rounded-full bg-chip p-1" role="group" aria-label="Vista de movimientos">
+      <Link href="/movimientos" className={clase(vista === "lista")} aria-current={vista === "lista" ? "page" : undefined}>
+        Lista
+      </Link>
+      <Link
+        href="/movimientos?vista=calendario"
+        className={clase(vista === "calendario")}
+        aria-current={vista === "calendario" ? "page" : undefined}
+      >
+        Calendario
+      </Link>
+    </div>
+  );
+}
 import { NuevoMovimiento } from "./NuevoMovimiento";
 import { NuevoTraspaso } from "./NuevoTraspaso";
 import { MovimientosTabla, type MovimientoFila } from "./MovimientosTabla";
@@ -43,10 +68,30 @@ const SELECT_MOVIMIENTO = "*, cuentas(nombre, banco_nombre), categorias!categori
 export default async function MovimientosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ etiqueta?: string }>;
+  searchParams: Promise<{ etiqueta?: string; vista?: string; mes?: string }>;
 }) {
-  const { etiqueta: etiquetaParam } = await searchParams;
+  const { etiqueta: etiquetaParam, vista: vistaParam, mes: mesParam } = await searchParams;
   const supabase = await createClient();
+
+  if (vistaParam === "calendario") {
+    const {
+      data: { user: usuario },
+    } = await supabase.auth.getUser();
+    const configuracion = usuario ? await obtenerConfiguracion(supabase, usuario.id) : null;
+    const mes = mesParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(mesParam) ? mesParam : new Date().toISOString().slice(0, 7);
+    return (
+      <>
+        <Nav />
+        <main className="mx-auto max-w-7xl space-y-6 px-5 py-8 sm:px-10">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="font-sora text-[26px] font-bold text-ink">Movimientos</h1>
+            <SelectorVista vista="calendario" />
+          </div>
+          <VistaCalendario mes={mes} moneda={configuracion?.moneda_base ?? "EUR"} />
+        </main>
+      </>
+    );
+  }
 
   const {
     data: { user },
@@ -236,6 +281,7 @@ export default async function MovimientosPage({
     inversiones: inversiones ?? [],
     etiquetas,
     alternarEtiqueta: alternarEtiquetaMovimiento,
+    actualizarProrrateo,
     actualizarCategoriaMovimiento,
     vincularComoTraspaso,
     eliminarTraspaso,
@@ -249,7 +295,10 @@ export default async function MovimientosPage({
       <Nav />
       <main className="mx-auto max-w-7xl space-y-6 px-5 py-8 sm:px-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="font-sora text-[26px] font-bold text-ink">Movimientos</h1>
+          <div className="flex flex-wrap items-center gap-4">
+            <h1 className="font-sora text-[26px] font-bold text-ink">Movimientos</h1>
+            <SelectorVista vista="lista" />
+          </div>
           {/* Las tres acciones juntas y en una sola línea: antes "Nuevo traspaso" e
               "Importar CSV" iban arriba a la derecha y "+ Nuevo movimiento" debajo a la
               izquierda en negro, así que no se leía cuál era la principal. */}

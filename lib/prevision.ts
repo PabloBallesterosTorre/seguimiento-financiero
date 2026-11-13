@@ -488,3 +488,45 @@ export function categoriaCoincideConPrevisto(
   if (categoriaMovimiento === categoriaPrevisto) return true;
   return categoriaEfectiva(categoriaMovimiento) === categoriaPrevisto;
 }
+
+// ============================================================================
+// Tanda 16: fechas concretas de un previsto dentro de un mes, para la vista calendario.
+// ============================================================================
+
+function isoLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Los días (AAAA-MM-DD) en que cae un previsto en el mes (year, month 1-12). Para las
+// periodicidades de "una vez cada N meses" es el mismo día del mes que fecha_inicio,
+// recortado al último día si el mes es más corto (un previsto del 31 cae el 30 en junio y
+// el 28 o 29 en febrero). Semanal da cada 7 días desde fecha_inicio. Única vez, su fecha.
+// El número de fechas coincide siempre con ocurrenciasEnMes.
+export function fechasPrevistoEnMes(p: MovimientoPrevisto, year: number, month: number): string[] {
+  const n = ocurrenciasEnMes(p, year, month);
+  if (n === 0) return [];
+
+  if (p.tipo_recurrencia === "unica_vez") return p.fecha ? [p.fecha] : [];
+  if (!p.fecha_inicio) return [];
+
+  const inicio = new Date(`${p.fecha_inicio}T00:00:00`);
+  const ultimoDia = new Date(year, month, 0).getDate();
+
+  if (p.periodicidad === "semanal") {
+    const primerDiaMes = new Date(year, month - 1, 1);
+    const desde = inicio > primerDiaMes ? inicio : primerDiaMes;
+    const dias = Math.round((desde.getTime() - inicio.getTime()) / 86400000);
+    const resto = ((dias % 7) + 7) % 7;
+    const cursor = new Date(desde);
+    if (resto !== 0) cursor.setDate(cursor.getDate() + (7 - resto));
+    const fechas: string[] = [];
+    while (fechas.length < n) {
+      fechas.push(isoLocal(cursor));
+      cursor.setDate(cursor.getDate() + 7);
+    }
+    return fechas;
+  }
+
+  const dia = Math.min(inicio.getDate(), ultimoDia);
+  return [`${year}-${String(month).padStart(2, "0")}-${String(dia).padStart(2, "0")}`];
+}

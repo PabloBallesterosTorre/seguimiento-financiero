@@ -1,4 +1,5 @@
 import { Nav } from "@/components/Nav";
+import { prorratear } from "@/lib/prorrateo";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import {
@@ -89,7 +90,7 @@ export default async function InformesPage({
     supabase.from("categorias").select("id, nombre, categoria_padre_id, es_categoria_inversion, bloque"),
     supabase
       .from("movimientos")
-      .select("id, cuenta_id, categoria_id, tipo, importe, fecha, descripcion, traspaso_grupo_id"),
+      .select("id, cuenta_id, categoria_id, tipo, importe, fecha, descripcion, traspaso_grupo_id, prorrateo_meses"),
     supabase.from("inversion_valoraciones").select("inversion_id, fecha, valor"),
     supabase.from("inversion_operaciones").select("movimiento_id").not("movimiento_id", "is", null),
     user ? obtenerConfiguracion(supabase, user.id) : null,
@@ -292,8 +293,10 @@ export default async function InformesPage({
   // ---- 8.2 Regla 50/30/20 del mes en curso: lo real hasta hoy y la previsión al cierre,
   // con la misma regla para lo pendiente que la proyección (ver Resumen). ----
   const bloqueDe = resolverBloques(categorias);
+  // Con los prorrateos repartidos (tanda 16): el seguro anual cuenta su doceava parte en
+  // el mes, no entero el mes en que se pagó.
   const repartoHastaHoy = repartir(
-    historicoCompleto.filter((m) => mesDeFecha(m.fecha) === mesActualLabel && m.fecha <= hoy),
+    prorratear(historicoCompleto).filter((m) => mesDeFecha(m.fecha) === mesActualLabel && m.fecha <= hoy),
     bloqueDe
   );
   const repartoCierre = sumarRepartos(
@@ -375,9 +378,12 @@ export default async function InformesPage({
   // Antes usaba el histórico ENTERO mientras el encabezado decía "Últimos 12 meses", así que
   // el rango elegido no cambiaba nada y el rótulo mentía. Ahora respeta el rango y, si se ha
   // elegido un mes concreto, solo ese mes.
+  // Con los prorrateos repartidos por meses (tanda 16). Las etiquetas, más arriba, usan el
+  // histórico sin repartir: allí interesa cuántos movimientos hubo, no su parte del mes.
+  const historicoProrrateado = prorratear(historicoCompleto);
   const historicoDelDesglose = mesDesglose
-    ? historicoCompleto.filter((m) => mesDeFecha(m.fecha) === mesDesglose)
-    : historicoEnRango;
+    ? historicoProrrateado.filter((m) => mesDeFecha(m.fecha) === mesDesglose)
+    : historicoProrrateado.filter((m) => m.fecha >= inicioRango && m.fecha <= finRango);
   const { gastos: gastosNetos, ingresos: ingresosNetos } = separarGastosEIngresos(
     netoPorCategoria(historicoDelDesglose as unknown as MovimientoParaInforme[], categoriaEfectiva)
   );

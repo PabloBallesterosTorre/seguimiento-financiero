@@ -278,3 +278,14 @@ export async function eliminarMovimiento(formData: FormData) {
   revalidatePath("/cuentas");
   revalidatePath("/home");
 }
+
+// Tanda 16: reparte (o deja de repartir) un movimiento entre varios meses en los informes.
+// No toca el saldo ni el movimiento: solo cómo cuenta mes a mes. Ver lib/prorrateo.ts.
+export async function actualizarProrrateo(movimientoId: string, meses: number | null) {
+  const supabase = await createClient();
+  const valor = meses !== null && Number.isInteger(meses) && meses >= 2 && meses <= 36 ? meses : null;
+  await supabase.from("movimientos").update({ prorrateo_meses: valor }).eq("id", movimientoId).throwOnError();
+  revalidatePath("/movimientos");
+  revalidatePath("/informes");
+  revalidatePath("/home");
+}

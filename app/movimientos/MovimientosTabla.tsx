@@ -5,6 +5,7 @@ import { CategoriaCelda } from "./CategoriaCelda";
 import { MarcarComoTraspaso } from "./MarcarComoTraspaso";
 import { AsignarAInversion, type InversionOption } from "./AsignarAInversion";
 import { EtiquetasCelda, type EtiquetaOption } from "./EtiquetasCelda";
+import { RepartirEnMeses } from "./RepartirEnMeses";
 import { formatMonedaTabla } from "@/lib/formato";
 import { ordenarFilas, type OrdenTabla } from "@/lib/ordenTabla";
 import { useOrdenTabla, ThOrdenable } from "@/components/OrdenTabla";
@@ -35,6 +36,8 @@ export type MovimientoFila = {
   inversionAsignada?: string | null;
   // Tanda 15: ids de las etiquetas que lleva.
   etiquetaIds: string[];
+  // Tanda 16: meses en que se reparte en los informes (null: sin repartir).
+  prorrateo_meses?: number | null;
 };
 
 export function MovimientosTabla({
@@ -47,6 +50,7 @@ export function MovimientosTabla({
   inversiones,
   etiquetas,
   alternarEtiqueta,
+  actualizarProrrateo,
   actualizarCategoriaMovimiento,
   vincularComoTraspaso,
   eliminarTraspaso,
@@ -62,6 +66,7 @@ export function MovimientosTabla({
   inversiones: InversionOption[];
   etiquetas: EtiquetaOption[];
   alternarEtiqueta: (movimientoId: string, etiquetaId: string, poner: boolean) => Promise<void>;
+  actualizarProrrateo: (movimientoId: string, meses: number | null) => Promise<void>;
   actualizarCategoriaMovimiento: (formData: FormData) => void;
   vincularComoTraspaso: (formData: FormData) => void;
   eliminarTraspaso: (formData: FormData) => void;
@@ -108,6 +113,7 @@ export function MovimientosTabla({
             inversiones={inversiones}
             etiquetas={etiquetas}
             alternarEtiqueta={alternarEtiqueta}
+            actualizarProrrateo={actualizarProrrateo}
             actualizarCategoriaMovimiento={actualizarCategoriaMovimiento}
             vincularComoTraspaso={vincularComoTraspaso}
             eliminarTraspaso={eliminarTraspaso}
@@ -153,6 +159,7 @@ function FilaMovimiento({
   inversiones,
   etiquetas,
   alternarEtiqueta,
+  actualizarProrrateo,
   actualizarCategoriaMovimiento,
   vincularComoTraspaso,
   eliminarTraspaso,
@@ -165,6 +172,7 @@ function FilaMovimiento({
   inversiones: InversionOption[];
   etiquetas: EtiquetaOption[];
   alternarEtiqueta: (movimientoId: string, etiquetaId: string, poner: boolean) => Promise<void>;
+  actualizarProrrateo: (movimientoId: string, meses: number | null) => Promise<void>;
   actualizarCategoriaMovimiento: (formData: FormData) => void;
   vincularComoTraspaso: (formData: FormData) => void;
   eliminarTraspaso: (formData: FormData) => void;
@@ -212,6 +220,13 @@ function FilaMovimiento({
               label: `${c.cuenta ? `${c.cuenta.banco_nombre} — ${c.cuenta.nombre}` : "?"} · ${c.fecha} · ${formatEUR(c.importe)}`,
             }))}
             action={vincularComoTraspaso}
+          />
+        )}
+        {!esTraspaso && (
+          <RepartirEnMeses
+            movimientoId={mov.id}
+            meses={mov.prorrateo_meses ?? null}
+            action={actualizarProrrateo}
           />
         )}
         {mov.esAporteInversion && (
