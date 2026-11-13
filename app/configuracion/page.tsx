@@ -6,6 +6,7 @@ import { guardarConfiguracionGeneral, guardarObjetivoAhorroGlobal, guardarMesFin
 import { ConfiguracionTabs } from "./ConfiguracionTabs";
 import { crearInvitacion, listarInvitaciones, revocarInvitacion } from "./accionesInvitaciones";
 import { esAdminActual } from "@/lib/admin";
+import { crearClave, listarClaves, revocarClave } from "./accionesClaves";
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient();
@@ -20,6 +21,7 @@ export default async function ConfiguracionPage() {
   // action lo vuelve a comprobar por su cuenta: esconder el botón no protege nada.
   const puedeInvitar = esAdminActual(user?.email);
   const invitaciones = puedeInvitar ? await listarInvitaciones() : [];
+  const claves = await listarClaves();
 
   const { data: categoriasRaw } = await supabase
     .from("categorias")
@@ -67,6 +69,9 @@ export default async function ConfiguracionPage() {
           invitaciones={invitaciones}
           crearInvitacion={crearInvitacion}
           revocarInvitacion={revocarInvitacion}
+          claves={claves}
+          crearClave={crearClave}
+          revocarClave={revocarClave}
         />
       </main>
     </>

@@ -33,7 +33,11 @@ export async function updateSession(request: NextRequest) {
   // `/registro` es pública porque quien llega a ella todavía no tiene cuenta. No es un
   // agujero: la pantalla no da acceso a nada, y el alta exige un código de invitación
   // que se comprueba en el servidor (ver app/registro/actions.ts).
+  // `/api/mcp` tampoco usa la sesión de la web: se autentica con una clave personal en el
+  // encabezado y la valida la base de datos (ver app/api/mcp/route.ts). Redirigirla al
+  // login rompería a cualquier cliente MCP.
   const isPublicRoute =
+    request.nextUrl.pathname === "/api/mcp" ||
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/registro") ||
     request.nextUrl.pathname.startsWith("/auth");

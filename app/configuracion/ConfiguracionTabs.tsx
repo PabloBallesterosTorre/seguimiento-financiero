@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Invitaciones } from "./Invitaciones";
 import type { Invitacion } from "@/lib/invitaciones";
 import { inputClass, labelClass, btnPrimaryClass, cardClass } from "@/components/formStyles";
+import { ClavesApi } from "./ClavesApi";
+import type { ClaveApi } from "./accionesClaves";
 
 const MONEDAS = [
   { value: "EUR", label: "Euro (€)" },
@@ -30,6 +32,9 @@ export function ConfiguracionTabs({
   invitaciones,
   crearInvitacion,
   revocarInvitacion,
+  claves,
+  crearClave,
+  revocarClave,
 }: {
   email: string;
   nombre: string | null;
@@ -54,15 +59,20 @@ export function ConfiguracionTabs({
   invitaciones: Invitacion[];
   crearInvitacion: (formData: FormData) => void;
   revocarInvitacion: (formData: FormData) => void;
+  claves: ClaveApi[];
+  crearClave: (formData: FormData) => Promise<{ ok: boolean; clave?: string; error?: string }>;
+  revocarClave: (formData: FormData) => void;
 }) {
-  const [tab, setTab] = useState<"general" | "ahorro" | "meses" | "invitaciones">("general");
+  const [tab, setTab] = useState<"general" | "ahorro" | "meses" | "claude" | "invitaciones">("general");
   // El resto del formulario se apaga visualmente cuando el mes financiero está
   // desactivado, para que no parezca que la categoría o el día hacen algo.
   const [activo, setActivo] = useState(mesFinanciero);
 
   return (
     <div className="space-y-6">
-      <div className="flex w-fit rounded-full bg-chip p-1">
+      {/* Con cinco pestañas ya no caben en un móvil: se desplazan dentro de la barra en vez
+          de ensanchar la página entera. */}
+      <div className="flex w-fit max-w-full overflow-x-auto whitespace-nowrap rounded-full bg-chip p-1">
         <button
           type="button"
           onClick={() => setTab("general")}
@@ -89,6 +99,15 @@ export function ConfiguracionTabs({
           }`}
         >
           Meses
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("claude")}
+          className={`rounded-full px-[18px] py-2.5 text-sm font-semibold transition-colors ${
+            tab === "claude" ? "bg-ink text-white" : "text-ink-secondary hover:text-ink"
+          }`}
+        >
+          Claude
         </button>
         {puedeInvitar && (
           <button
@@ -256,6 +275,8 @@ export function ConfiguracionTabs({
           </button>
         </form>
       )}
+
+      {tab === "claude" && <ClavesApi claves={claves} crearClave={crearClave} revocarClave={revocarClave} />}
 
       {tab === "invitaciones" && puedeInvitar && (
         <Invitaciones
