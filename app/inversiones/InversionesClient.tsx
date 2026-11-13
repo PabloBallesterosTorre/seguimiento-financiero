@@ -31,6 +31,11 @@ export type InversionEnListado = {
   rentabilidadSimple: number | null;
   peso: number;
   operaciones: number;
+  // Tanda 14: precio por participación deducido del valor, y dividendos de los últimos
+  // 12 meses (neto cobrado) con su rentabilidad por dividendo sobre el bruto.
+  precioActual: number | null;
+  dividendos12m: number;
+  yieldPct: number | null;
 };
 
 function formatFecha(value: string) {
@@ -71,6 +76,7 @@ export function InversionesClient({
   const totalAportado = inversiones.reduce((s, i) => s + (i.operaciones > 0 ? i.aportadoNeto : 0), 0);
   const totalValor = inversiones.reduce((s, i) => s + i.valor_actual, 0);
   const totalGanancia = totalValor - totalAportado;
+  const totalDividendos = inversiones.reduce((s, i) => s + i.dividendos12m, 0);
 
   const formularioEdicion = (inv: InversionEnListado) => (
     <InversionForm
@@ -93,29 +99,49 @@ export function InversionesClient({
     />
   );
 
-  const campoValor = (inv: InversionEnListado) => (
-    <form action={registrarValoracionInversion} className="flex items-center gap-2">
-      <input type="hidden" name="id" value={inv.id} />
-      {/* `min-w-[6.5rem]` además de la anchura: dentro de una tabla el navegador encoge los
-          inputs hasta dejarlos inservibles — este acababa renderizado a 26 px, con el valor
-          dentro pero ilegible (auditoría de diseño, tanda 11). */}
-      <input
-        name="valor_actual"
-        type="number"
-        step="0.01"
-        min="0"
-        aria-label={`Valor actual de ${inv.nombre}`}
-        defaultValue={Number(inv.valor_actual)}
-        className={`${inputClass} w-28 min-w-[6.5rem] py-1.5 text-right tabular-nums`}
-      />
-      <button
-        type="submit"
-        className="rounded-btn border border-border-strong px-2.5 py-1.5 text-xs font-semibold text-ink-secondary hover:bg-chip"
-      >
-        Guardar
-      </button>
-    </form>
-  );
+  // Las posiciones que se miden en participaciones se actualizan tecleando el PRECIO de una
+  // participación, que es el dato que se ve en cualquier web de cotizaciones; el valor de la
+  // posición lo calcula el servidor (precio × participaciones). Las demás —un depósito, un
+  // producto sin participaciones— se siguen actualizando con su valor total.
+  const campoValor = (inv: InversionEnListado) => {
+    const porPrecio = inv.precioActual !== null;
+    return (
+      <form action={registrarValoracionInversion} className="flex items-center gap-2">
+        <input type="hidden" name="id" value={inv.id} />
+        {/* `min-w-[6.5rem]` además de la anchura: dentro de una tabla el navegador encoge los
+            inputs hasta dejarlos inservibles — este acababa renderizado a 26 px, con el valor
+            dentro pero ilegible (auditoría de diseño, tanda 11). */}
+        <input
+          name={porPrecio ? "precio" : "valor_actual"}
+          type="number"
+          step={porPrecio ? "0.0001" : "0.01"}
+          min="0"
+          aria-label={porPrecio ? `Precio actual de ${inv.nombre}` : `Valor actual de ${inv.nombre}`}
+          title={porPrecio ? "Precio de una participación" : "Valor total de la posición"}
+          defaultValue={porPrecio ? Number(inv.precioActual!.toFixed(4)) : Number(inv.valor_actual)}
+          className={`${inputClass} w-28 min-w-[6.5rem] py-1.5 text-right tabular-nums`}
+        />
+        <button
+          type="submit"
+          className="rounded-btn border border-border-strong px-2.5 py-1.5 text-xs font-semibold text-ink-secondary hover:bg-chip"
+        >
+          Guardar
+        </button>
+      </form>
+    );
+  };
+
+  const dividendos = (inv: InversionEnListado) =>
+    inv.dividendos12m > 0 ? (
+      <>
+        <span className="font-semibold text-success">{formatEUR(inv.dividendos12m)}</span>
+        {inv.yieldPct !== null && (
+          <p className="text-[11px] text-ink-tertiary">Yield {formatPorcentaje(inv.yieldPct, { decimales: 1 })}</p>
+        )}
+      </>
+    ) : (
+      <span className="text-ink-tertiary">—</span>
+    );
 
   if (inversiones.length === 0) {
     return (
@@ -162,10 +188,19 @@ export function InversionesClient({
                 <span className="tabular-nums text-ink-tertiary">
                   Aportado {formatEUR(inv.aportadoNeto)}
                 </span>
+                {inv.dividendos12m > 0 && (
+                  <span className="tabular-nums text-ink-tertiary">
+                    Dividendos 12m {formatEUR(inv.dividendos12m)}
+                    {inv.yieldPct !== null && ` · ${formatPorcentaje(inv.yieldPct, { decimales: 1 })}`}
+                  </span>
+                )}
               </div>
             )}
 
-            <div className="mt-3 border-t border-border pt-3">{campoValor(inv)}</div>
+            <div className="mt-3 border-t border-border pt-3">
+              {inv.precioActual !== null && <p className="mb-1.5 text-[11px] text-ink-tertiary">Precio de una participación</p>}
+              {campoValor(inv)}
+            </div>
 
             <div className="mt-3 flex items-center gap-4">
               <button type="button" onClick={() => setEditando(editando === inv.id ? null : inv.id)} className={rowLinkClass}>
@@ -207,12 +242,13 @@ export function InversionesClient({
         <table className="w-full table-fixed text-sm">
           <colgroup>
             <col />
-            <col className="w-[13%]" />
+            <col className="w-[10%]" />
             <col className="w-[11%]" />
+            <col className="w-[10%]" />
+            <col className="w-[19%]" />
             <col className="w-[11%]" />
-            <col className="w-[20%]" />
-            <col className="w-[13%]" />
-            <col className="w-[8%]" />
+            <col className="w-[10%]" />
+            <col className="w-[7%]" />
           </colgroup>
           <thead>
             <tr className="border-b border-border">
@@ -220,8 +256,9 @@ export function InversionesClient({
               <th className="px-4 py-3 text-right text-xs font-semibold text-ink-tertiary">Particip.</th>
               <th className="px-4 py-3 text-right text-xs font-semibold text-ink-tertiary">Precio medio</th>
               <th className="px-4 py-3 text-right text-xs font-semibold text-ink-tertiary">Aportado</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-ink-tertiary">Valor</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-ink-tertiary">Valor · precio actual</th>
               <th className="px-4 py-3 text-right text-xs font-semibold text-ink-tertiary">Ganancia</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-ink-tertiary">Dividendos 12m</th>
               <th className="px-4 py-3 text-right text-xs font-semibold text-ink-tertiary">Peso</th>
             </tr>
           </thead>
@@ -279,7 +316,12 @@ export function InversionesClient({
                   </td>
                   <td className="whitespace-nowrap px-4 py-3">
                     {campoValor(inv)}
-                    <p className="mt-1 text-[11px] text-ink-tertiary">{formatFecha(inv.fecha_actualizacion)}</p>
+                    <p className="mt-1 text-[11px] text-ink-tertiary">
+                      {inv.precioActual !== null && (
+                        <span className="tabular-nums text-ink-secondary">{formatEUR(inv.valor_actual)} · </span>
+                      )}
+                      {formatFecha(inv.fecha_actualizacion)}
+                    </p>
                   </td>
                   <td className={celdaNumero}>
                     {inv.operaciones > 0 ? (
@@ -298,13 +340,14 @@ export function InversionesClient({
                       <span className="text-ink-tertiary">—</span>
                     )}
                   </td>
+                  <td className={celdaNumero}>{dividendos(inv)}</td>
                   <td className={`${celdaNumero} text-ink-tertiary`}>
                     {formatPorcentaje(inv.peso, { decimales: 1 })}
                   </td>
                 </tr>
                 {editando === inv.id && (
                   <tr className="border-t border-border bg-page">
-                    <td colSpan={7} className="px-5 py-5">
+                    <td colSpan={8} className="px-5 py-5">
                       {formularioEdicion(inv)}
                     </td>
                   </tr>
@@ -324,6 +367,9 @@ export function InversionesClient({
               <td className={`${celdaNumero} font-semibold ${totalGanancia >= 0 ? "text-success" : "text-danger"}`}>
                 {totalGanancia >= 0 ? "+" : ""}
                 {formatEUR(totalGanancia)}
+              </td>
+              <td className={`${celdaNumero} font-semibold text-success`}>
+                {totalDividendos > 0 ? formatEUR(totalDividendos) : ""}
               </td>
               <td />
             </tr>

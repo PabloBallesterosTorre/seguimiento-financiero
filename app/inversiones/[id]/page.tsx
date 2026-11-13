@@ -10,6 +10,8 @@ import {
   construirEvolucionInversion,
   calcularPosicion,
   flujosParaTIR,
+  precioActual,
+  resumenDividendos,
   tirAnualizada,
   type OperacionInversion,
 } from "@/lib/inversiones";
@@ -51,7 +53,7 @@ export default async function InversionDetallePage({ params }: { params: Promise
         .order("fecha", { ascending: false }),
       supabase
         .from("inversion_operaciones")
-        .select("id, fecha, tipo, importe, participaciones, precio, comision, nota, origen, movimiento_id")
+        .select("id, fecha, tipo, importe, participaciones, precio, comision, retencion, nota, origen, movimiento_id")
         .eq("inversion_id", id)
         .order("fecha", { ascending: false }),
       inversion.movimiento_previsto_id
@@ -79,6 +81,7 @@ export default async function InversionDetallePage({ params }: { params: Promise
     participaciones: o.participaciones !== null ? Number(o.participaciones) : null,
     precio: o.precio !== null ? Number(o.precio) : null,
     comision: Number(o.comision ?? 0),
+    retencion: Number(o.retencion ?? 0),
     nota: o.nota,
     origen: o.origen,
     movimiento_id: o.movimiento_id,
@@ -95,6 +98,12 @@ export default async function InversionDetallePage({ params }: { params: Promise
   const tir = tirAnualizada(flujosParaTIR(paraCalculo, valorMercado, hoy));
   const hayLibro = operaciones.length > 0;
   const comisiones = operaciones.reduce((suma, o) => suma + o.comision, 0);
+  const precio = precioActual(valorMercado, posicion.participaciones);
+  const dividendos = resumenDividendos(
+    operaciones.map((o) => ({ ...o, tipo: o.tipo as OperacionInversion["tipo"] })),
+    valorMercado,
+    hoy
+  );
 
   const rentabilidad = inversion.rentabilidad_anual_asumida !== null ? Number(inversion.rentabilidad_anual_asumida) : null;
   const evolucion = construirEvolucionInversion(
@@ -166,7 +175,7 @@ export default async function InversionDetallePage({ params }: { params: Promise
           <InfoCard
             label="Precio medio de compra"
             value={posicion.precioMedioCompra !== null ? formatPrecio(posicion.precioMedioCompra, moneda) : "—"}
-            nota="Media ponderada de lo comprado"
+            nota={precio !== null ? `Precio actual ${formatPrecio(precio, moneda)}` : "Media ponderada de lo comprado"}
           />
           <InfoCard
             label="Comisiones pagadas"
@@ -179,6 +188,39 @@ export default async function InversionDetallePage({ params }: { params: Promise
             nota="Supuesto, solo para proyectar"
           />
         </div>
+
+        {dividendos.netoTotal > 0 && (
+          <div className="space-y-3">
+            <h2 className="font-sora text-base font-semibold text-ink">Dividendos</h2>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <InfoCard
+                label="Cobrado en 12 meses"
+                value={formatEUR(dividendos.neto12m)}
+                clase="text-success"
+                nota={`Neto. ${formatEUR(dividendos.netoTotal)} desde el principio`}
+              />
+              <InfoCard
+                label="Retenido en 12 meses"
+                value={formatEUR(dividendos.retencion12m)}
+                nota={`Bruto ${formatEUR(dividendos.bruto12m)}`}
+              />
+              <InfoCard
+                label="Rentabilidad por dividendo"
+                value={dividendos.yieldPct !== null ? formatPorcentaje(dividendos.yieldPct, { decimales: 2 }) : "—"}
+                nota="Bruto de 12 meses sobre el valor de hoy"
+              />
+              <InfoCard
+                label="Previsto próximos 12 meses"
+                value={formatEUR(dividendos.previsto12m)}
+                nota={
+                  dividendos.previstos.length > 0
+                    ? `Próximo hacia el ${formatFecha(dividendos.previstos[0].fecha)}`
+                    : "Sin cobros en el último año"
+                }
+              />
+            </div>
+          </div>
+        )}
 
         {inversion.es_recurrente && (
           <p className="text-[13px] text-ink-secondary">
@@ -197,7 +239,12 @@ export default async function InversionDetallePage({ params }: { params: Promise
         <div className={`${cardClass} space-y-4`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-sora text-base font-semibold text-ink">Evolución</h2>
-            <RegistrarValoracion action={registrarValoracionInversion} inversionId={inversion.id} hoy={hoy} />
+            <RegistrarValoracion
+              action={registrarValoracionInversion}
+              inversionId={inversion.id}
+              hoy={hoy}
+              porPrecio={posicion.participaciones > 0}
+            />
           </div>
           <EvolucionInversionChart puntos={evolucion} moneda={moneda} />
         </div>

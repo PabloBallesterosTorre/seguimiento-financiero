@@ -319,3 +319,200 @@ export function mesesEntre(desde: string, hasta: string): string[] {
 
   return meses;
 }
+
+// ============================================================================
+// Tanda 14: cartera completa — dividendos, flujo de capital, carteras y ranking.
+// ============================================================================
+
+export type OperacionConRetencion = OperacionInversion & { retencion?: number };
+
+// La misma fecha "AAAA-MM-DD" desplazada `años` años. Un 29 de febrero que cae en un año
+// no bisiesto pasa al 28, para que la fecha siga existiendo.
+function desplazarAños(fecha: string, años: number): string {
+  const año = Number(fecha.slice(0, 4)) + años;
+  const resto = fecha.slice(4);
+  if (resto === "-02-29") {
+    const bisiesto = (año % 4 === 0 && año % 100 !== 0) || año % 400 === 0;
+    if (!bisiesto) return `${año}-02-28`;
+  }
+  return `${año}${resto}`;
+}
+
+// Límite inferior (excluido) de "los últimos 12 meses".
+function haceUnAño(hoy: string): string {
+  return desplazarAños(hoy, -1);
+}
+
+function dentroDelAño(fecha: string): string {
+  return desplazarAños(fecha, 1);
+}
+
+export type ResumenDividendos = {
+  // Últimos 12 meses (desde hace un año, excluido, hasta hoy incluido).
+  neto12m: number;
+  retencion12m: number;
+  bruto12m: number;
+  // Rentabilidad por dividendo: lo cobrado BRUTO en 12 meses sobre el valor de mercado de
+  // hoy. Es la convención del "yield" de cualquier bróker: bruto, porque la retención
+  // depende de cada inversor y no del activo. Null si la posición no vale nada.
+  yieldPct: number | null;
+  // Previstos para los próximos 12 meses: cada cobro de los últimos 12 meses, desplazado un
+  // año. Es una estimación por histórico, igual que la de NodoFinx; no sabe nada de
+  // recortes ni de subidas anunciadas.
+  previstos: { fecha: string; neto: number }[];
+  previsto12m: number;
+  // Todo lo cobrado desde siempre, neto.
+  netoTotal: number;
+};
+
+export function resumenDividendos(
+  operaciones: OperacionConRetencion[],
+  valorMercado: number,
+  hoy: string
+): ResumenDividendos {
+  const desde = haceUnAño(hoy);
+  const dividendos = operaciones.filter((o) => o.tipo === "dividendo");
+
+  let neto12m = 0;
+  let retencion12m = 0;
+  let netoTotal = 0;
+  const previstos: { fecha: string; neto: number }[] = [];
+
+  for (const d of dividendos) {
+    // El importe de un dividendo es negativo (sale de la inversión); el cobro es su valor
+    // absoluto.
+    const neto = Math.abs(d.importe);
+    netoTotal += neto;
+    if (d.fecha > desde && d.fecha <= hoy) {
+      neto12m += neto;
+      retencion12m += d.retencion ?? 0;
+      const fechaPrevista = dentroDelAño(d.fecha);
+      if (fechaPrevista > hoy) previstos.push({ fecha: fechaPrevista, neto });
+    }
+  }
+
+  previstos.sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
+  const bruto12m = neto12m + retencion12m;
+
+  return {
+    neto12m,
+    retencion12m,
+    bruto12m,
+    yieldPct: valorMercado > 0 && bruto12m > 0 ? (bruto12m / valorMercado) * 100 : null,
+    previstos,
+    previsto12m: previstos.reduce((s, p) => s + p.neto, 0),
+    netoTotal,
+  };
+}
+
+// Dividendos netos cobrados en cada mes "AAAA-MM" pedido. Meses sin cobro valen 0, para
+// que el gráfico de barras muestre los huecos en vez de saltárselos.
+export function rentasPorMes(operaciones: OperacionInversion[], meses: string[]): { mes: string; importe: number }[] {
+  const porMes = new Map<string, number>();
+  for (const o of operaciones) {
+    if (o.tipo !== "dividendo") continue;
+    const mes = o.fecha.slice(0, 7);
+    porMes.set(mes, (porMes.get(mes) ?? 0) + Math.abs(o.importe));
+  }
+  return meses.map((mes) => ({ mes, importe: porMes.get(mes) ?? 0 }));
+}
+
+// Dinero que el inversor ha metido y sacado cada mes. Las aportaciones son compras y
+// aportaciones; las retiradas, ventas y retiradas. Los dividendos NO cuentan: son
+// rendimiento, no capital que el inversor decide mover, y ya tienen su propio gráfico.
+// Los ajustes tampoco: corrigen el libro, no son dinero real.
+export type FlujoCapitalMes = { mes: string; aportado: number; retirado: number; neto: number };
+
+export function flujoCapitalPorMes(operaciones: OperacionInversion[], meses: string[]): FlujoCapitalMes[] {
+  const aportado = new Map<string, number>();
+  const retirado = new Map<string, number>();
+  for (const o of operaciones) {
+    const mes = o.fecha.slice(0, 7);
+    if (o.tipo === "compra" || o.tipo === "aportacion") {
+      if (o.importe > 0) aportado.set(mes, (aportado.get(mes) ?? 0) + o.importe);
+    } else if (o.tipo === "venta" || o.tipo === "retirada") {
+      if (o.importe < 0) retirado.set(mes, (retirado.get(mes) ?? 0) + Math.abs(o.importe));
+    }
+  }
+  return meses.map((mes) => {
+    const a = aportado.get(mes) ?? 0;
+    const r = retirado.get(mes) ?? 0;
+    return { mes, aportado: a, retirado: r, neto: a - r };
+  });
+}
+
+// Los últimos `n` meses "AAAA-MM" que terminan en el mes de `hoy`, del más antiguo al más
+// reciente.
+export function ultimosMeses(hoy: string, n: number): string[] {
+  let year = Number(hoy.slice(0, 4));
+  let month = Number(hoy.slice(5, 7));
+  const meses: string[] = [];
+  for (let i = 0; i < n; i++) {
+    meses.unshift(`${year}-${String(month).padStart(2, "0")}`);
+    month -= 1;
+    if (month < 1) {
+      month = 12;
+      year -= 1;
+    }
+  }
+  return meses;
+}
+
+// Una "cartera" es la cuenta donde está custodiada cada posición (el bróker, el banco).
+// Las posiciones sin cuenta van juntas a "Sin cartera". El resultado de la cartera es la
+// suma del de sus posiciones, y su porcentaje se calcula sobre lo aportado bruto, con el
+// mismo criterio que rentabilidadSimple.
+export type PosicionParaCartera = {
+  cuentaId: string | null;
+  valor: number;
+  aportadoBruto: number;
+  ganancia: number;
+};
+
+export type ResumenCarteraAgrupada = {
+  cuentaId: string | null;
+  posiciones: number;
+  valor: number;
+  aportadoBruto: number;
+  ganancia: number;
+  rentabilidadPct: number | null;
+};
+
+export function agruparPorCartera(posiciones: PosicionParaCartera[]): ResumenCarteraAgrupada[] {
+  const grupos = new Map<string | null, ResumenCarteraAgrupada>();
+  for (const p of posiciones) {
+    const g = grupos.get(p.cuentaId) ?? {
+      cuentaId: p.cuentaId,
+      posiciones: 0,
+      valor: 0,
+      aportadoBruto: 0,
+      ganancia: 0,
+      rentabilidadPct: null,
+    };
+    g.posiciones += 1;
+    g.valor += p.valor;
+    g.aportadoBruto += p.aportadoBruto;
+    g.ganancia += p.ganancia;
+    grupos.set(p.cuentaId, g);
+  }
+  return [...grupos.values()]
+    .map((g) => ({ ...g, rentabilidadPct: g.aportadoBruto > 0 ? (g.ganancia / g.aportadoBruto) * 100 : null }))
+    .sort((a, b) => b.valor - a.valor);
+}
+
+// Las `n` posiciones que más ganan y las `n` que más pierden, por ganancia en euros. Una
+// posición sin ganancia ni pérdida no está en ninguna de las dos listas.
+export function ganadoresYPerdedores<T extends { ganancia: number }>(
+  posiciones: T[],
+  n: number
+): { ganadores: T[]; perdedores: T[] } {
+  const ganadores = posiciones.filter((p) => p.ganancia > 0).sort((a, b) => b.ganancia - a.ganancia).slice(0, n);
+  const perdedores = posiciones.filter((p) => p.ganancia < 0).sort((a, b) => a.ganancia - b.ganancia).slice(0, n);
+  return { ganadores, perdedores };
+}
+
+// Precio actual de una participación, deducido del valor de mercado. Null cuando la
+// posición no se mide en participaciones o está cerrada.
+export function precioActual(valorMercado: number, participaciones: number): number | null {
+  return participaciones > 0 ? valorMercado / participaciones : null;
+}

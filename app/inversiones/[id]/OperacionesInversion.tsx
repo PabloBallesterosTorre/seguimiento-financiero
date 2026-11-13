@@ -14,6 +14,7 @@ export type OperacionEnTabla = {
   participaciones: number | null;
   precio: number | null;
   comision: number;
+  retencion: number;
   nota: string | null;
   origen: string;
   movimiento_id: string | null;
@@ -113,10 +114,20 @@ export function OperacionesInversion({
             </>
           )}
 
-          <div>
-            <label className={labelClass}>Comisión</label>
-            <input name="comision" type="number" step="0.01" min="0" className={inputClass} />
-          </div>
+          {tipo === "dividendo" ? (
+            <div>
+              <label className={labelClass}>Retención</label>
+              <input name="retencion" type="number" step="0.01" min="0" className={inputClass} />
+              <p className="mt-1.5 text-xs text-ink-tertiary">
+                Lo que se quedó Hacienda. El importe de arriba es el neto que llegó a la cuenta.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className={labelClass}>Comisión</label>
+              <input name="comision" type="number" step="0.01" min="0" className={inputClass} />
+            </div>
+          )}
           <div className="sm:col-span-3">
             <label className={labelClass}>Nota</label>
             <input name="nota" placeholder="Opcional" className={inputClass} />
@@ -172,6 +183,11 @@ export function OperacionesInversion({
                   {op.comision > 0 && (
                     <p className="text-[11px] font-normal text-ink-tertiary">
                       incl. {formatEUR(op.comision)} de comisión
+                    </p>
+                  )}
+                  {op.retencion > 0 && (
+                    <p className="text-[11px] font-normal text-ink-tertiary">
+                      neto · {formatEUR(op.retencion)} retenidos
                     </p>
                   )}
                 </td>

@@ -99,8 +99,26 @@ export async function registrarValoracionInversion(formData: FormData) {
   if (!user) return;
 
   const id = formData.get("id") as string;
-  const valor_actual = Number(formData.get("valor_actual") ?? 0);
   const fechaRaw = formData.get("fecha") as string | null;
+
+  // Tanda 14: si llega el precio de una participación, el valor de la posición se calcula
+  // aquí con las participaciones que tiene, que salen del libro de operaciones (nunca del
+  // formulario, para que no puedan quedar desincronizadas).
+  const precio = numeroOpcional(formData.get("precio"));
+  let valor_actual: number;
+  if (precio !== null) {
+    const { data: inversion } = await supabase
+      .from("inversiones")
+      .select("participaciones")
+      .eq("id", id)
+      .single()
+      .throwOnError();
+    const participaciones = Number(inversion.participaciones ?? 0);
+    if (participaciones <= 0) return;
+    valor_actual = Math.round(precio * participaciones * 100) / 100;
+  } else {
+    valor_actual = Number(formData.get("valor_actual") ?? 0);
+  }
   const fecha = fechaRaw && fechaRaw !== "" ? fechaRaw : new Date().toISOString().slice(0, 10);
 
   await supabase
@@ -204,6 +222,8 @@ export async function registrarOperacion(formData: FormData) {
   const participacionesBrutas = numeroOpcional(formData.get("participaciones"));
   const precio = numeroOpcional(formData.get("precio"));
   const comision = numeroOpcional(formData.get("comision")) ?? 0;
+  // Solo tiene sentido en un dividendo: lo retenido en origen, en positivo.
+  const retencion = tipo === "dividendo" ? Math.abs(numeroOpcional(formData.get("retencion")) ?? 0) : 0;
   const nota = ((formData.get("nota") as string) ?? "").trim() || null;
 
   // El formulario pide importes en positivo y el signo lo pone el tipo de operación:
@@ -226,6 +246,7 @@ export async function registrarOperacion(formData: FormData) {
       participaciones,
       precio,
       comision,
+      retencion,
       nota,
       origen: "manual",
     })

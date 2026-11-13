@@ -6,15 +6,23 @@ import { InversionesClient, type InversionEnListado } from "./InversionesClient"
 import { ResumenCartera } from "./ResumenCartera";
 import { EvolucionCarteraChart } from "./EvolucionCarteraChart";
 import { RepartoPorTipo } from "./RepartoPorTipo";
+import { AnalisisCartera } from "./AnalisisCartera";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { cardClass } from "@/components/formStyles";
 import {
+  agruparPorCartera,
   calcularPosicion,
   construirSerieCartera,
+  flujoCapitalPorMes,
   flujosParaTIR,
+  ganadoresYPerdedores,
   mesesEntre,
+  precioActual,
+  rentasPorMes,
+  resumenDividendos,
   tirAnualizada,
-  type OperacionInversion,
+  ultimosMeses,
+  type OperacionConRetencion,
 } from "@/lib/inversiones";
 import type { PrevistoInversionOption, CuentaOption } from "./InversionForm";
 
@@ -37,7 +45,7 @@ export default async function InversionesPage() {
     supabase.from("inversiones").select("*").order("created_at", { ascending: true }),
     supabase
       .from("inversion_operaciones")
-      .select("inversion_id, fecha, tipo, importe, participaciones, precio, comision")
+      .select("inversion_id, fecha, tipo, importe, participaciones, precio, comision, retencion")
       .order("fecha", { ascending: true }),
     supabase.from("inversion_valoraciones").select("inversion_id, fecha, valor").order("fecha", { ascending: true }),
     supabase.from("categorias").select("id, categoria_padre_id, es_categoria_inversion"),
@@ -54,7 +62,7 @@ export default async function InversionesPage() {
   const hoy = new Date().toISOString().slice(0, 10);
 
   // ---- Operaciones agrupadas por inversión ----
-  const operaciones: (OperacionInversion & { inversionId: string; comision: number })[] = (operacionesRaw ?? []).map((o) => ({
+  const operaciones: (OperacionConRetencion & { inversionId: string; comision: number })[] = (operacionesRaw ?? []).map((o) => ({
     inversionId: o.inversion_id,
     fecha: o.fecha,
     tipo: o.tipo,
@@ -62,9 +70,10 @@ export default async function InversionesPage() {
     participaciones: o.participaciones !== null ? Number(o.participaciones) : null,
     precio: o.precio !== null ? Number(o.precio) : null,
     comision: Number(o.comision ?? 0),
+    retencion: Number(o.retencion ?? 0),
   }));
 
-  const operacionesPorInversion = new Map<string, OperacionInversion[]>();
+  const operacionesPorInversion = new Map<string, OperacionConRetencion[]>();
   for (const op of operaciones) {
     if (!operacionesPorInversion.has(op.inversionId)) operacionesPorInversion.set(op.inversionId, []);
     operacionesPorInversion.get(op.inversionId)!.push(op);
@@ -72,10 +81,11 @@ export default async function InversionesPage() {
 
   const valorTotal = (inversiones ?? []).reduce((suma, i) => suma + Number(i.valor_actual ?? 0), 0);
 
-  const posiciones: InversionEnListado[] = (inversiones ?? []).map((i) => {
+  const posiciones: (InversionEnListado & { aportadoBruto: number; previsto12m: number })[] = (inversiones ?? []).map((i) => {
     const ops = operacionesPorInversion.get(i.id) ?? [];
     const valorMercado = Number(i.valor_actual);
     const posicion = calcularPosicion(ops, valorMercado);
+    const dividendos = resumenDividendos(ops, valorMercado, hoy);
 
     return {
       id: i.id,
@@ -96,6 +106,12 @@ export default async function InversionesPage() {
       rentabilidadSimple: posicion.rentabilidadSimple,
       peso: valorTotal > 0 ? (valorMercado / valorTotal) * 100 : 0,
       operaciones: ops.length,
+      precioActual: precioActual(valorMercado, posicion.participaciones),
+      dividendos12m: dividendos.neto12m,
+      yieldPct: dividendos.yieldPct,
+      // Solo para el análisis de la cartera, no se pinta en la tabla.
+      aportadoBruto: posicion.aportadoBruto,
+      previsto12m: dividendos.previsto12m,
     };
   });
 
@@ -122,6 +138,39 @@ export default async function InversionesPage() {
         mesesEntre(primeraOperacion, hoy)
       )
     : [];
+
+  // ---- Análisis de la cartera (tanda 14) ----
+  const nombreCuenta = new Map((cuentasRaw ?? []).map((c) => [c.id, `${c.banco_nombre} — ${c.nombre}`]));
+  const carteras = agruparPorCartera(
+    posiciones.map((p) => ({
+      cuentaId: p.cuenta_id,
+      valor: p.valor_actual,
+      aportadoBruto: p.aportadoBruto,
+      ganancia: p.operaciones > 0 ? p.ganancia : 0,
+    }))
+  ).map((c) => ({
+    nombre: c.cuentaId ? (nombreCuenta.get(c.cuentaId) ?? "Cuenta sin nombre") : "Sin cartera asignada",
+    posiciones: c.posiciones,
+    valor: c.valor,
+    ganancia: c.ganancia,
+    rentabilidadPct: c.rentabilidadPct,
+  }));
+
+  // Solo cuentan en el ranking las posiciones con libro de operaciones: sin él la
+  // "ganancia" es el valor entero, que no es ganancia de nada.
+  const { ganadores, perdedores } = ganadoresYPerdedores(
+    posiciones
+      .filter((p) => p.operaciones > 0)
+      .map((p) => ({ id: p.id, nombre: p.nombre, ganancia: p.ganancia, rentabilidadPct: p.rentabilidadSimple })),
+    5
+  );
+
+  const meses12 = ultimosMeses(hoy, 12);
+  const rentas = rentasPorMes(operaciones, meses12);
+  const rentas12m = posiciones.reduce((s, p) => s + p.dividendos12m, 0);
+  const previsto12m = posiciones.reduce((s, p) => s + p.previsto12m, 0);
+  const flujo = flujoCapitalPorMes(operaciones, meses12).map((f) => ({ mes: f.mes, importe: f.neto }));
+  const flujoNeto12m = flujo.reduce((s, f) => s + f.importe, 0);
 
   const repartoPorTipo = [...
     (inversiones ?? []).reduce((mapa, i) => {
@@ -189,6 +238,20 @@ export default async function InversionesPage() {
           eliminarInversion={eliminarInversion}
         />
 
+        {operaciones.length > 0 && (
+          <AnalisisCartera
+            carteras={carteras}
+            ganadores={ganadores}
+            perdedores={perdedores}
+            rentas={rentas}
+            rentas12m={rentas12m}
+            previsto12m={previsto12m}
+            flujo={flujo}
+            flujoNeto12m={flujoNeto12m}
+            moneda={moneda}
+          />
+        )}
+
         {repartoPorTipo.length > 0 && (
           <div className={`${cardClass} space-y-4`}>
             <h2 className="font-sora text-base font-semibold text-ink">Reparto por tipo de activo</h2>
@@ -202,7 +265,9 @@ export default async function InversionesPage() {
             registradas con sus participaciones, y el precio de esa operación revaloriza la posición entera a esa
             fecha. Entre dos operaciones no hay dato de mercado real —la sincronización automática con
             bróker/exchange sigue siendo una mejora de fase 2—, así que la línea del detalle de cada inversión es
-            una <span className="font-semibold text-ink">estimación</span> entre puntos reales.
+            una <span className="font-semibold text-ink">estimación</span> entre puntos reales. Para ponerla al
+            día, teclea en la tabla el precio actual de una participación: el valor de la posición se calcula
+            solo.
           </p>
         </div>
       </main>
