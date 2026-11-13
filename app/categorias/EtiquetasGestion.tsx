@@ -95,7 +95,7 @@ export function EtiquetasGestion({
   );
 
   return (
-    <div className={`${cardClass} space-y-4`}>
+    <div id="etiquetas" className={`${cardClass} scroll-mt-6 space-y-4`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-sora text-base font-semibold text-ink">Etiquetas</h2>

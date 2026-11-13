@@ -279,6 +279,17 @@ export default async function MovimientosPage({
           </p>
         )}
 
+        {/* Sin ninguna etiqueta creada no habría nada en esta pantalla que dijera que existen:
+            la sección para crearlas vive al final de Categorías. */}
+        {etiquetas.length === 0 && (
+          <p className="text-[13px] text-ink-tertiary">
+            Etiquetas: todavía no tienes ninguna. Sirven para juntar los gastos de un viaje, una reforma o el coche.{" "}
+            <Link href="/categorias#etiquetas" className="font-semibold text-accent hover:underline">
+              Crear la primera
+            </Link>
+          </p>
+        )}
+
         {etiquetas.length > 0 && (
           <nav aria-label="Filtrar por etiqueta" className="flex flex-wrap items-center gap-1.5 text-[13px]">
             <span className="mr-1 text-ink-tertiary">Etiquetas:</span>
@@ -293,6 +304,9 @@ export default async function MovimientosPage({
                 #{e.nombre}
               </Link>
             ))}
+            <Link href="/categorias#etiquetas" className="ml-1 font-semibold text-accent hover:underline">
+              Gestionar
+            </Link>
           </nav>
         )}
 

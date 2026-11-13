@@ -62,6 +62,15 @@ export default async function CategoriasPage() {
       <main className="mx-auto max-w-7xl space-y-6 px-5 py-8 sm:px-10">
         <h1 className="font-sora text-[26px] font-bold text-ink">Categorías</h1>
 
+        {/* Arriba y no al final: debajo de 50 categorías nadie llegaba a verla. */}
+        <EtiquetasGestion
+          etiquetas={etiquetas}
+          crearEtiqueta={crearEtiqueta}
+          editarEtiqueta={editarEtiqueta}
+          eliminarEtiqueta={eliminarEtiqueta}
+          aplicarEtiquetaAExistentes={aplicarEtiquetaAExistentes}
+        />
+
         <CategoriasClient
           categorias={categorias ?? []}
           crearCategoria={crearCategoria}
@@ -71,14 +80,6 @@ export default async function CategoriasPage() {
           obtenerMovimientosDeCategoria={obtenerMovimientosDeCategoria}
           usos={Object.fromEntries(usos)}
           moneda={config?.moneda_base ?? "EUR"}
-        />
-
-        <EtiquetasGestion
-          etiquetas={etiquetas}
-          crearEtiqueta={crearEtiqueta}
-          editarEtiqueta={editarEtiqueta}
-          eliminarEtiqueta={eliminarEtiqueta}
-          aplicarEtiquetaAExistentes={aplicarEtiquetaAExistentes}
         />
       </main>
     </>
