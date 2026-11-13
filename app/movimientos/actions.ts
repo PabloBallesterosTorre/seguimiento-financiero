@@ -7,6 +7,7 @@ import { reforzarRegla } from "@/lib/reglas";
 import { registrarTraspaso } from "@/lib/traspasos";
 import { reconstruirSaldo } from "@/lib/saldos";
 import { etiquetarPorReglas } from "@/lib/etiquetasServidor";
+import { vincularInmueblesPorCategoria } from "@/lib/inmueblesServidor";
 
 export async function actualizarCategoriaMovimiento(formData: FormData) {
   const supabase = await createClient();
@@ -27,7 +28,7 @@ export async function actualizarCategoriaMovimiento(formData: FormData) {
   // con categorías distintas en cada pata, una en `Ocio > Restaurantes` y otra en `Ocio`).
   const { data: movimiento } = await supabase
     .from("movimientos")
-    .select("tipo, traspaso_grupo_id")
+    .select("tipo, traspaso_grupo_id, inmueble_id")
     .eq("id", id)
     .maybeSingle();
 
@@ -51,6 +52,12 @@ export async function actualizarCategoriaMovimiento(formData: FormData) {
     } catch (e) {
       console.error("actualizarCategoriaMovimiento: reforzarRegla", e);
     }
+    // Tanda 18: si esta categoría ya es de un inmueble, el movimiento se vincula solo.
+    try {
+      await vincularInmueblesPorCategoria(supabase, [{ id, categoria_id, inmueble_id: movimiento?.inmueble_id }]);
+    } catch (e) {
+      console.error("actualizarCategoriaMovimiento: vincularInmueblesPorCategoria", e);
+    }
   }
 
   revalidatePath("/movimientos");
@@ -73,6 +80,13 @@ export async function crearMovimiento(formData: FormData) {
   const importe = tipo === "gasto" ? -Math.abs(importeInput) : Math.abs(importeInput);
 
   let categoria_id = (formData.get("categoria_id") as string) || null;
+  // Tanda 18: inmueble elegido en el formulario. RLS de inmuebles ya impide ver los ajenos,
+  // pero el id llega del cliente: se comprueba que sea uno propio antes de guardarlo.
+  let inmueble_id = (formData.get("inmueble_id") as string) || null;
+  if (inmueble_id) {
+    const { data: propio } = await supabase.from("inmuebles").select("id").eq("id", inmueble_id).maybeSingle();
+    if (!propio) inmueble_id = null;
+  }
 
   const { data: reglas } = await supabase
     .from("reglas_categorizacion")
@@ -93,6 +107,7 @@ export async function crearMovimiento(formData: FormData) {
       importe,
       tipo,
       categoria_id,
+      inmueble_id,
       origen: "manual",
       moneda: "EUR",
     })
@@ -106,6 +121,11 @@ export async function crearMovimiento(formData: FormData) {
     await etiquetarPorReglas(supabase, user.id, [{ id: creado.id, descripcion }]);
   } catch (e) {
     console.error("crearMovimiento: etiquetarPorReglas", e);
+  }
+  try {
+    await vincularInmueblesPorCategoria(supabase, [{ id: creado.id, categoria_id, inmueble_id }]);
+  } catch (e) {
+    console.error("crearMovimiento: vincularInmueblesPorCategoria", e);
   }
 
   // El saldo se reconstruye desde saldo_inicial + movimientos en vez de sumarle el importe
@@ -288,4 +308,18 @@ export async function actualizarProrrateo(movimientoId: string, meses: number | 
   revalidatePath("/movimientos");
   revalidatePath("/informes");
   revalidatePath("/home");
+}
+
+// Tanda 18: vincular un movimiento a un inmueble (o quitarlo, con null). El id llega del
+// cliente, así que se comprueba que el inmueble sea del usuario antes de guardarlo.
+export async function actualizarInmuebleMovimiento(movimientoId: string, inmuebleId: string | null) {
+  const supabase = await createClient();
+  if (inmuebleId) {
+    const { data: propio } = await supabase.from("inmuebles").select("id").eq("id", inmuebleId).maybeSingle();
+    if (!propio) return;
+  }
+  await supabase.from("movimientos").update({ inmueble_id: inmuebleId }).eq("id", movimientoId).throwOnError();
+  revalidatePath("/movimientos");
+  revalidatePath("/inmuebles");
+  if (inmuebleId) revalidatePath(`/inmuebles/${inmuebleId}`);
 }

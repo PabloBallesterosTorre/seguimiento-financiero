@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { reforzarRegla } from "@/lib/reglas";
 import { etiquetarPorReglas } from "@/lib/etiquetasServidor";
+import { vincularInmueblesPorCategoria } from "@/lib/inmueblesServidor";
 
 export type FilaImportar = {
   fecha: string;
@@ -86,13 +87,15 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
   try {
     const { data: nuevos } = await supabase
       .from("movimientos")
-      .select("id, descripcion")
+      .select("id, descripcion, categoria_id, inmueble_id")
       .eq("cuenta_id", cuenta_id)
       .gte("created_at", inicioImportacion)
       .throwOnError();
     await etiquetarPorReglas(supabase, user.id, nuevos ?? []);
+    // Tanda 18: las categorías ya aprendidas de un inmueble lo vinculan solo.
+    await vincularInmueblesPorCategoria(supabase, nuevos ?? []);
   } catch (e) {
-    console.error("importarMovimientos: etiquetarPorReglas", e);
+    console.error("importarMovimientos: etiquetarPorReglas / inmuebles", e);
   }
 
   // El aprendizaje de reglas es una mejora, no parte del contrato de la importación: los

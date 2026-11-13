@@ -14,12 +14,14 @@ export function NuevoMovimiento({
   categorias,
   reglas,
   hoy,
+  inmuebles = [],
 }: {
   action: (formData: FormData) => void;
   cuentas: Cuenta[];
   categorias: CategoriaJerarquica[];
   reglas: ReglaCategorizacion[];
   hoy: string;
+  inmuebles?: { id: string; nombre: string }[];
 }) {
   const [abierto, setAbierto] = useState(false);
 
@@ -48,6 +50,7 @@ export function NuevoMovimiento({
         categorias={categorias}
         reglas={reglas}
         hoy={hoy}
+        inmuebles={inmuebles}
       />
     </div>
   );

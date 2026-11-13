@@ -13,12 +13,14 @@ export function MovimientoForm({
   categorias,
   reglas,
   hoy,
+  inmuebles = [],
 }: {
   action: (formData: FormData) => void;
   cuentas: Cuenta[];
   categorias: CategoriaJerarquica[];
   reglas: ReglaCategorizacion[];
   hoy: string;
+  inmuebles?: { id: string; nombre: string }[];
 }) {
   const categoriaRef = useRef<HTMLSelectElement>(null);
 
@@ -80,6 +82,20 @@ export function MovimientoForm({
           La categoría se sugiere sola si ya has categorizado algo parecido antes.
         </p>
       </div>
+      {/* Tanda 18: solo aparece si hay algún inmueble dado de alta. */}
+      {inmuebles.length > 0 && (
+        <div>
+          <label className={labelClass}>Inmueble</label>
+          <select name="inmueble_id" defaultValue="" className={inputClass}>
+            <option value="">Ninguno</option>
+            {inmuebles.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="sm:col-span-3">
         <button type="submit" className={btnPrimaryClass}>
           Añadir movimiento

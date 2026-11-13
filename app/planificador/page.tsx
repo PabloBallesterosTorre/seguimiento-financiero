@@ -17,6 +17,7 @@ import { obtenerConfiguracion, obtenerOpcionesMesFinanciero } from "@/lib/config
 import { mesDe, finMesFinanciero } from "@/lib/mesFinanciero";
 import { formatMoneda, formatPorcentaje } from "@/lib/formato";
 import { rentabilidadPonderada } from "@/lib/inversiones";
+import { valorInmueblesEnMes, valorTuParte } from "@/lib/inmuebles";
 import { filtrarMovimientosPorCuentasSeleccionadas, resolverCuentasSeleccionadas } from "@/lib/informes";
 import { SelectorCuentas } from "@/components/SelectorCuentas";
 
@@ -57,6 +58,7 @@ export default async function PlanificadorPage({
     { data: historicoCompletoRaw },
     config,
     { data: conciliacionesRaw },
+    { data: inmueblesRaw },
   ] = await Promise.all([
     supabase
       .from("cuentas")
@@ -82,6 +84,7 @@ export default async function PlanificadorPage({
       .in("tipo", ["ingreso", "gasto", "traspaso"]),
     user ? obtenerConfiguracion(supabase, user.id) : null,
     supabase.from("previsto_conciliaciones").select("previsto_id, periodo"),
+    supabase.from("inmuebles").select("valor_actual, porcentaje_propiedad, fecha_compra"),
   ]);
 
   const moneda = config?.moneda_base ?? "EUR";
@@ -255,7 +258,18 @@ export default async function PlanificadorPage({
         })
       : [];
 
-  const puntos = [...puntosHistoricos, ...puntosFuturos];
+  // Tanda 18: los inmuebles suman al patrimonio con deuda (no al "sin deuda", igual que en
+  // la portada). Valor actual sin proyectar revalorización, y solo desde el mes de compra.
+  const inmuebles = (inmueblesRaw ?? []).map((i) => ({
+    valor_actual: i.valor_actual === null ? null : Number(i.valor_actual),
+    porcentaje_propiedad: Number(i.porcentaje_propiedad),
+    fecha_compra: i.fecha_compra as string | null,
+  }));
+  const valorInmueblesHoy = inmuebles.reduce((s, i) => s + valorTuParte(i), 0);
+  const puntos = [...puntosHistoricos, ...puntosFuturos].map((p) => ({
+    ...p,
+    patrimonioConDeuda: p.patrimonioConDeuda + valorInmueblesEnMes(inmuebles, p.year, p.month),
+  }));
   const indiceMesActual = puntosHistoricos.length;
   const filasAnuales = vista === "anual" ? agruparPorAnio(puntos) : [];
 
@@ -328,9 +342,12 @@ export default async function PlanificadorPage({
             </div>
             <div>
               <p className="text-xs text-ink-tertiary">Patrimonio con deuda</p>
-              <p className={`mt-1.5 font-sora text-lg font-bold ${saldoLiquidoInicial + valorInversionInicial - deudaActual < 0 ? "text-danger" : "text-ink"}`}>
-                {formatEUR(saldoLiquidoInicial + valorInversionInicial - deudaActual)}
+              <p className={`mt-1.5 font-sora text-lg font-bold ${saldoLiquidoInicial + valorInversionInicial + valorInmueblesHoy - deudaActual < 0 ? "text-danger" : "text-ink"}`}>
+                {formatEUR(saldoLiquidoInicial + valorInversionInicial + valorInmueblesHoy - deudaActual)}
               </p>
+              {valorInmueblesHoy > 0 && (
+                <p className="mt-0.5 text-[11px] text-ink-tertiary">Incluye {formatEUR(valorInmueblesHoy)} en inmuebles</p>
+              )}
             </div>
             <div>
               <p className="text-xs text-ink-tertiary">Patrimonio sin deuda</p>

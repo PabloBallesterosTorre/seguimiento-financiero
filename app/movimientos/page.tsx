@@ -9,6 +9,7 @@ import {
   eliminarTraspaso,
   vincularComoTraspaso,
   actualizarProrrateo,
+  actualizarInmuebleMovimiento,
 } from "./actions";
 import { asignarMovimientoAInversion } from "../inversiones/actions";
 import { alternarEtiquetaMovimiento } from "../etiquetas/actions";
@@ -61,6 +62,7 @@ type Movimiento = {
   cuentas: { nombre: string; banco_nombre: string } | null;
   categorias: { nombre: string } | null;
   movimiento_etiquetas: { etiqueta_id: string }[] | null;
+  inmueble_id: string | null;
 };
 
 const SELECT_MOVIMIENTO = "*, cuentas(nombre, banco_nombre), categorias!categoria_id(nombre), movimiento_etiquetas(etiqueta_id)";
@@ -109,6 +111,7 @@ export default async function MovimientosPage({
     ordenSinCategorizar,
     ordenCategorizados,
     { data: etiquetasRaw },
+    { data: inmuebles },
   ] = await Promise.all([
     supabase
       .from("movimientos")
@@ -139,6 +142,7 @@ export default async function MovimientosPage({
     user ? obtenerOrdenTabla(supabase, user.id, "movimientos_sin_categorizar") : null,
     user ? obtenerOrdenTabla(supabase, user.id, "movimientos") : null,
     supabase.from("etiquetas").select("id, nombre").order("nombre"),
+    supabase.from("inmuebles").select("id, nombre").order("nombre"),
   ]);
 
   const etiquetas = etiquetasRaw ?? [];
@@ -280,6 +284,8 @@ export default async function MovimientosPage({
     moneda,
     inversiones: inversiones ?? [],
     etiquetas,
+    inmuebles: inmuebles ?? [],
+    actualizarInmueble: actualizarInmuebleMovimiento,
     alternarEtiqueta: alternarEtiquetaMovimiento,
     actualizarProrrateo,
     actualizarCategoriaMovimiento,
@@ -317,6 +323,7 @@ export default async function MovimientosPage({
                 categorias={categoriasOrdenadas}
                 reglas={reglasCategorizacion}
                 hoy={hoy}
+                inmuebles={inmuebles ?? []}
               />
             )}
           </div>

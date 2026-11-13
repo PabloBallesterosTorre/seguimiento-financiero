@@ -45,10 +45,11 @@ const secciones: Seccion[] = [
   {
     href: "/cuentas",
     label: "Patrimonio",
-    rutas: ["/cuentas", "/inversiones", "/deudas"],
+    rutas: ["/cuentas", "/inversiones", "/inmuebles", "/deudas"],
     hijos: [
       { href: "/cuentas", label: "Cuentas" },
       { href: "/inversiones", label: "Inversión" },
+      { href: "/inmuebles", label: "Inmuebles" },
       { href: "/deudas", label: "Deuda" },
     ],
   },

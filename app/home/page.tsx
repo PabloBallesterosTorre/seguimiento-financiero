@@ -40,6 +40,7 @@ import { SelectorCuentas } from "@/components/SelectorCuentas";
 import { SelectorAmbito, type Ambito } from "@/components/SelectorAmbito";
 import { Regla503020 } from "@/components/Regla503020";
 import { ComoVaElMes } from "./ComoVaElMes";
+import { valorTuParte } from "@/lib/inmuebles";
 
 const MESES_PASADOS = 6;
 const MESES_FUTUROS = 6;
@@ -76,6 +77,7 @@ export default async function HomePage({
     { data: operacionesInversionRaw },
     config,
     { data: conciliacionesRaw },
+    { data: inmueblesRaw },
   ] = await Promise.all([
     supabase
       .from("cuentas")
@@ -95,6 +97,7 @@ export default async function HomePage({
     supabase.from("inversion_operaciones").select("movimiento_id").not("movimiento_id", "is", null),
     user ? obtenerConfiguracion(supabase, user.id) : null,
     supabase.from("previsto_conciliaciones").select("previsto_id, periodo"),
+    supabase.from("inmuebles").select("valor_actual, porcentaje_propiedad, ambito"),
   ]);
 
   const moneda = config?.moneda_base ?? "EUR";
@@ -142,7 +145,13 @@ export default async function HomePage({
   const aportadoInversion = inversionesDelAmbito.reduce((sum, i) => sum + Number(i.coste_neto ?? 0), 0);
   const gananciaInversion = totalInversion - aportadoInversion;
   const cuotaMensualDeuda = deudasDelAmbito.reduce((sum, d) => sum + Number(d.cuota ?? 0), 0);
-  const patrimonio = totalCuentas + totalInversion - (conDeuda ? totalDeuda : 0);
+  // Tanda 18: los inmuebles solo suman con deuda. Sin deuda la portada enseña lo líquido y
+  // la inversión; un piso sin restar su hipoteca inflaría ese número con dinero que no es
+  // tuyo todavía. Con deuda sí: el patrimonio neto real es piso menos hipoteca.
+  const totalInmuebles = (inmueblesRaw ?? [])
+    .filter((i) => ambito === "todo" || (i.ambito ?? "personal") === ambito)
+    .reduce((sum, i) => sum + valorTuParte({ valor_actual: i.valor_actual === null ? null : Number(i.valor_actual), porcentaje_propiedad: Number(i.porcentaje_propiedad) }), 0);
+  const patrimonio = totalCuentas + totalInversion + (conDeuda ? totalInmuebles - totalDeuda : 0);
 
   const deudasHistorico: DeudaParaHistorico[] = deudasDelAmbito.map((d) => ({
     id: d.id,
@@ -374,8 +383,12 @@ export default async function HomePage({
           </p>
           <p className="mt-3.5 text-[13px] text-ink-tertiary">
             {conDeuda
-              ? `Líquido más inversión, menos ${formatMoneda(totalDeuda, moneda)} de deuda pendiente.`
-              : `Líquido más inversión. No descuenta ${formatMoneda(totalDeuda, moneda)} de deuda pendiente.`}
+              ? totalInmuebles > 0
+                ? `Líquido, inversión y ${formatMoneda(totalInmuebles, moneda)} en inmuebles, menos ${formatMoneda(totalDeuda, moneda)} de deuda pendiente.`
+                : `Líquido más inversión, menos ${formatMoneda(totalDeuda, moneda)} de deuda pendiente.`
+              : totalInmuebles > 0
+                ? `Líquido más inversión. No cuenta ${formatMoneda(totalInmuebles, moneda)} en inmuebles ni descuenta ${formatMoneda(totalDeuda, moneda)} de deuda.`
+                : `Líquido más inversión. No descuenta ${formatMoneda(totalDeuda, moneda)} de deuda pendiente.`}
           </p>
         </div>
 

@@ -6,6 +6,7 @@ import { MarcarComoTraspaso } from "./MarcarComoTraspaso";
 import { AsignarAInversion, type InversionOption } from "./AsignarAInversion";
 import { EtiquetasCelda, type EtiquetaOption } from "./EtiquetasCelda";
 import { RepartirEnMeses } from "./RepartirEnMeses";
+import { InmuebleCelda, type InmuebleOption } from "./InmuebleCelda";
 import { formatMonedaTabla } from "@/lib/formato";
 import { ordenarFilas, type OrdenTabla } from "@/lib/ordenTabla";
 import { useOrdenTabla, ThOrdenable } from "@/components/OrdenTabla";
@@ -38,6 +39,8 @@ export type MovimientoFila = {
   etiquetaIds: string[];
   // Tanda 16: meses en que se reparte en los informes (null: sin repartir).
   prorrateo_meses?: number | null;
+  // Tanda 18: inmueble al que está vinculado.
+  inmueble_id?: string | null;
 };
 
 export function MovimientosTabla({
@@ -49,6 +52,8 @@ export function MovimientosTabla({
   mensajeVacio,
   inversiones,
   etiquetas,
+  inmuebles,
+  actualizarInmueble,
   alternarEtiqueta,
   actualizarProrrateo,
   actualizarCategoriaMovimiento,
@@ -65,6 +70,8 @@ export function MovimientosTabla({
   mensajeVacio?: string;
   inversiones: InversionOption[];
   etiquetas: EtiquetaOption[];
+  inmuebles: InmuebleOption[];
+  actualizarInmueble: (movimientoId: string, inmuebleId: string | null) => Promise<void>;
   alternarEtiqueta: (movimientoId: string, etiquetaId: string, poner: boolean) => Promise<void>;
   actualizarProrrateo: (movimientoId: string, meses: number | null) => Promise<void>;
   actualizarCategoriaMovimiento: (formData: FormData) => void;
@@ -112,6 +119,8 @@ export function MovimientosTabla({
             formatEUR={formatEUR}
             inversiones={inversiones}
             etiquetas={etiquetas}
+            inmuebles={inmuebles}
+            actualizarInmueble={actualizarInmueble}
             alternarEtiqueta={alternarEtiqueta}
             actualizarProrrateo={actualizarProrrateo}
             actualizarCategoriaMovimiento={actualizarCategoriaMovimiento}
@@ -158,6 +167,8 @@ function FilaMovimiento({
   formatEUR,
   inversiones,
   etiquetas,
+  inmuebles,
+  actualizarInmueble,
   alternarEtiqueta,
   actualizarProrrateo,
   actualizarCategoriaMovimiento,
@@ -171,6 +182,8 @@ function FilaMovimiento({
   formatEUR: (v: number) => string;
   inversiones: InversionOption[];
   etiquetas: EtiquetaOption[];
+  inmuebles: InmuebleOption[];
+  actualizarInmueble: (movimientoId: string, inmuebleId: string | null) => Promise<void>;
   alternarEtiqueta: (movimientoId: string, etiquetaId: string, poner: boolean) => Promise<void>;
   actualizarProrrateo: (movimientoId: string, meses: number | null) => Promise<void>;
   actualizarCategoriaMovimiento: (formData: FormData) => void;
@@ -227,6 +240,14 @@ function FilaMovimiento({
             movimientoId={mov.id}
             meses={mov.prorrateo_meses ?? null}
             action={actualizarProrrateo}
+          />
+        )}
+        {!esTraspaso && (
+          <InmuebleCelda
+            movimientoId={mov.id}
+            inmuebleId={mov.inmueble_id ?? null}
+            inmuebles={inmuebles}
+            action={actualizarInmueble}
           />
         )}
         {mov.esAporteInversion && (
