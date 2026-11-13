@@ -4,6 +4,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { CategoriaCelda } from "./CategoriaCelda";
 import { MarcarComoTraspaso } from "./MarcarComoTraspaso";
 import { AsignarAInversion, type InversionOption } from "./AsignarAInversion";
+import { EtiquetasCelda, type EtiquetaOption } from "./EtiquetasCelda";
 import { formatMonedaTabla } from "@/lib/formato";
 import { ordenarFilas, type OrdenTabla } from "@/lib/ordenTabla";
 import { useOrdenTabla, ThOrdenable } from "@/components/OrdenTabla";
@@ -32,6 +33,8 @@ export type MovimientoFila = {
   // están vinculados, o null si todavía no lo están.
   esAporteInversion?: boolean;
   inversionAsignada?: string | null;
+  // Tanda 15: ids de las etiquetas que lleva.
+  etiquetaIds: string[];
 };
 
 export function MovimientosTabla({
@@ -42,6 +45,8 @@ export function MovimientosTabla({
   ordenInicial = null,
   mensajeVacio,
   inversiones,
+  etiquetas,
+  alternarEtiqueta,
   actualizarCategoriaMovimiento,
   vincularComoTraspaso,
   eliminarTraspaso,
@@ -55,6 +60,8 @@ export function MovimientosTabla({
   ordenInicial?: OrdenTabla;
   mensajeVacio?: string;
   inversiones: InversionOption[];
+  etiquetas: EtiquetaOption[];
+  alternarEtiqueta: (movimientoId: string, etiquetaId: string, poner: boolean) => Promise<void>;
   actualizarCategoriaMovimiento: (formData: FormData) => void;
   vincularComoTraspaso: (formData: FormData) => void;
   eliminarTraspaso: (formData: FormData) => void;
@@ -99,6 +106,8 @@ export function MovimientosTabla({
             categoriasOrdenadas={categoriasOrdenadas}
             formatEUR={formatEUR}
             inversiones={inversiones}
+            etiquetas={etiquetas}
+            alternarEtiqueta={alternarEtiqueta}
             actualizarCategoriaMovimiento={actualizarCategoriaMovimiento}
             vincularComoTraspaso={vincularComoTraspaso}
             eliminarTraspaso={eliminarTraspaso}
@@ -142,6 +151,8 @@ function FilaMovimiento({
   categoriasOrdenadas,
   formatEUR,
   inversiones,
+  etiquetas,
+  alternarEtiqueta,
   actualizarCategoriaMovimiento,
   vincularComoTraspaso,
   eliminarTraspaso,
@@ -152,6 +163,8 @@ function FilaMovimiento({
   categoriasOrdenadas: CategoriaJerarquica[];
   formatEUR: (v: number) => string;
   inversiones: InversionOption[];
+  etiquetas: EtiquetaOption[];
+  alternarEtiqueta: (movimientoId: string, etiquetaId: string, poner: boolean) => Promise<void>;
   actualizarCategoriaMovimiento: (formData: FormData) => void;
   vincularComoTraspaso: (formData: FormData) => void;
   eliminarTraspaso: (formData: FormData) => void;
@@ -173,6 +186,12 @@ function FilaMovimiento({
             Traspaso
           </span>
         )}
+        <EtiquetasCelda
+          movimientoId={mov.id}
+          etiquetaIds={mov.etiquetaIds}
+          etiquetas={etiquetas}
+          alternarEtiqueta={alternarEtiqueta}
+        />
       </td>
       <td className="px-4 py-3.5">
         {/* Un traspaso también lleva categoría: cuando se miran los informes de una sola de

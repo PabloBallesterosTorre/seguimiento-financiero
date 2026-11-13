@@ -38,6 +38,8 @@ import { mesDe, inicioMesFinanciero, finMesFinanciero, descripcionMes } from "@/
 import { SelectorAmbito, type Ambito } from "@/components/SelectorAmbito";
 import { SelectorCuentas } from "@/components/SelectorCuentas";
 import { InformesClient } from "./InformesClient";
+import { PorEtiqueta, type FilaPorEtiqueta } from "./PorEtiqueta";
+import { resumenPorEtiqueta } from "@/lib/etiquetas";
 
 const RANGOS = ["6", "12", "todos"] as const;
 type Rango = (typeof RANGOS)[number];
@@ -329,6 +331,44 @@ export default async function InformesPage({
     : "0000-00-00";
   const historicoEnRango = historicoCompleto.filter((m) => m.fecha >= inicioRango && m.fecha <= finRango);
 
+  // ---- Tanda 15: por etiqueta, con el mismo rango y las mismas cuentas que el resto ----
+  // La tabla de unión se lee por páginas: pasa de las 1000 filas de una consulta enseguida.
+  const { data: etiquetasRaw } = await supabase.from("etiquetas").select("id, nombre");
+  const etiquetasPorMovimiento = new Map<string, string[]>();
+  if ((etiquetasRaw ?? []).length > 0) {
+    for (let desde = 0; ; desde += 1000) {
+      const { data } = await supabase
+        .from("movimiento_etiquetas")
+        .select("movimiento_id, etiqueta_id")
+        .order("movimiento_id")
+        .range(desde, desde + 999);
+      for (const v of data ?? []) {
+        etiquetasPorMovimiento.set(v.movimiento_id, [...(etiquetasPorMovimiento.get(v.movimiento_id) ?? []), v.etiqueta_id]);
+      }
+      if (!data || data.length < 1000) break;
+    }
+  }
+  const nombreEtiqueta = new Map((etiquetasRaw ?? []).map((e) => [e.id, e.nombre as string]));
+  const filasPorEtiqueta: FilaPorEtiqueta[] = resumenPorEtiqueta(
+    historicoEnRango
+      .filter((m) => etiquetasPorMovimiento.has((m as unknown as { id: string }).id))
+      .map((m) => ({
+        importe: Number(m.importe),
+        tipo: m.tipo,
+        fecha: m.fecha,
+        etiquetaIds: etiquetasPorMovimiento.get((m as unknown as { id: string }).id) ?? [],
+      })),
+    [...nombreEtiqueta.keys()]
+  )
+    .filter((r) => r.movimientos > 0)
+    .map((r) => ({
+      id: r.etiquetaId,
+      nombre: nombreEtiqueta.get(r.etiquetaId) ?? "",
+      movimientos: r.movimientos,
+      gastos: r.gastos,
+      ingresos: r.ingresos,
+    }));
+
   // "En qué se va y de dónde viene": una sola pasada neteada, en vez de dos agregaciones
   // separadas por signo.
   //
@@ -420,6 +460,14 @@ export default async function InformesPage({
               : undefined
           }
         />
+
+        {filasPorEtiqueta.length > 0 && (
+          <PorEtiqueta
+            filas={filasPorEtiqueta}
+            etiquetaRango={rango === "todos" ? "Todo el histórico" : `Últimos ${rango} meses`}
+            moneda={moneda}
+          />
+        )}
       </main>
     </>
   );

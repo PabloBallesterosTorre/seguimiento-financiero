@@ -10,6 +10,9 @@ import {
   vincularComoTraspaso,
 } from "./actions";
 import { asignarMovimientoAInversion } from "../inversiones/actions";
+import { alternarEtiquetaMovimiento } from "../etiquetas/actions";
+import { resumenPorEtiqueta } from "@/lib/etiquetas";
+import { formatMoneda } from "@/lib/formato";
 import { NuevoMovimiento } from "./NuevoMovimiento";
 import { NuevoTraspaso } from "./NuevoTraspaso";
 import { MovimientosTabla, type MovimientoFila } from "./MovimientosTabla";
@@ -32,9 +35,17 @@ type Movimiento = {
   tipo_original: string | null;
   cuentas: { nombre: string; banco_nombre: string } | null;
   categorias: { nombre: string } | null;
+  movimiento_etiquetas: { etiqueta_id: string }[] | null;
 };
 
-export default async function MovimientosPage() {
+const SELECT_MOVIMIENTO = "*, cuentas(nombre, banco_nombre), categorias!categoria_id(nombre), movimiento_etiquetas(etiqueta_id)";
+
+export default async function MovimientosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ etiqueta?: string }>;
+}) {
+  const { etiqueta: etiquetaParam } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -52,10 +63,11 @@ export default async function MovimientosPage() {
     config,
     ordenSinCategorizar,
     ordenCategorizados,
+    { data: etiquetasRaw },
   ] = await Promise.all([
     supabase
       .from("movimientos")
-      .select("*, cuentas(nombre, banco_nombre), categorias!categoria_id(nombre)")
+      .select(SELECT_MOVIMIENTO)
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(200),
@@ -65,7 +77,7 @@ export default async function MovimientosPage() {
     // CERO, porque todos eran anteriores al movimiento nº 200 (25/08).
     supabase
       .from("movimientos")
-      .select("*, cuentas(nombre, banco_nombre), categorias!categoria_id(nombre)")
+      .select(SELECT_MOVIMIENTO)
       .is("categoria_id", null)
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false })
@@ -81,7 +93,11 @@ export default async function MovimientosPage() {
     user ? obtenerConfiguracion(supabase, user.id) : null,
     user ? obtenerOrdenTabla(supabase, user.id, "movimientos_sin_categorizar") : null,
     user ? obtenerOrdenTabla(supabase, user.id, "movimientos") : null,
+    supabase.from("etiquetas").select("id, nombre").order("nombre"),
   ]);
+
+  const etiquetas = etiquetasRaw ?? [];
+  const etiquetaFiltro = etiquetas.find((e) => e.id === etiquetaParam) ?? null;
 
   const categoriasOrdenadas = ordenarCategoriasJerarquia(categorias ?? []);
   const hayCuentas = (cuentas ?? []).length > 0;
@@ -163,8 +179,11 @@ export default async function MovimientosPage() {
     todos.filter((m) => m.tipo !== "traspaso").map((m) => [m.id, encontrarCandidatosTraspaso(m, todos)])
   );
 
+  const idsEtiquetas = (m: Movimiento) => (m.movimiento_etiquetas ?? []).map((me) => me.etiqueta_id);
+
   const filasSinCategorizar: MovimientoFila[] = sinCategorizar.map((m) => ({
     ...m,
+    etiquetaIds: idsEtiquetas(m),
     sugeridaId: sugerirCategoria(m.descripcion, reglasCategorizacion),
     candidatosTraspaso: candidatosPorMovimiento.get(m.id) ?? [],
     ...datosInversion(m),
@@ -172,9 +191,58 @@ export default async function MovimientosPage() {
 
   const filasCategorizados: MovimientoFila[] = categorizados.map((m) => ({
     ...m,
+    etiquetaIds: idsEtiquetas(m),
     candidatosTraspaso: candidatosPorMovimiento.get(m.id) ?? [],
     ...datosInversion(m),
   }));
+
+  // ---- Filtro por etiqueta (tanda 15) ----
+  // Con una etiqueta elegida la pantalla responde a "¿cuánto me costó esto?": todos sus
+  // movimientos, sin el recorte de 200 de la vista normal, con el total arriba.
+  let filasEtiqueta: MovimientoFila[] = [];
+  let resumenEtiqueta: ReturnType<typeof resumenPorEtiqueta>[number] | null = null;
+  if (etiquetaFiltro) {
+    // La unión se embebe dos veces: `filtro` (inner) se queda solo con los movimientos que
+    // llevan esta etiqueta, y `movimiento_etiquetas` sigue trayendo TODAS las suyas para
+    // pintarlas. Así no hace falta pasar una lista de ids por la URL, que con un viaje largo
+    // se salía del límite de longitud.
+    const { data: delFiltro } = await supabase
+      .from("movimientos")
+      .select(`${SELECT_MOVIMIENTO}, filtro:movimiento_etiquetas!inner(etiqueta_id)`)
+      .eq("filtro.etiqueta_id", etiquetaFiltro.id)
+      .order("fecha", { ascending: false })
+      .throwOnError();
+    const movimientosFiltro = (delFiltro ?? []) as unknown as Movimiento[];
+    filasEtiqueta = movimientosFiltro.map((m) => ({
+      ...m,
+      etiquetaIds: idsEtiquetas(m),
+      candidatosTraspaso: [],
+      ...datosInversion(m),
+    }));
+    resumenEtiqueta = resumenPorEtiqueta(
+      movimientosFiltro.map((m) => ({
+        importe: Number(m.importe),
+        tipo: m.tipo,
+        fecha: m.fecha,
+        etiquetaIds: idsEtiquetas(m),
+      })),
+      [etiquetaFiltro.id]
+    )[0];
+  }
+
+  const propsTabla = {
+    categoriasOrdenadas,
+    moneda,
+    inversiones: inversiones ?? [],
+    etiquetas,
+    alternarEtiqueta: alternarEtiquetaMovimiento,
+    actualizarCategoriaMovimiento,
+    vincularComoTraspaso,
+    eliminarTraspaso,
+    eliminarMovimiento,
+    asignarMovimientoAInversion,
+  };
+  const formatEUR = (v: number) => formatMoneda(v, moneda);
 
   return (
     <>
@@ -211,50 +279,103 @@ export default async function MovimientosPage() {
           </p>
         )}
 
-        {filasSinCategorizar.length > 0 && (
-          <div className="overflow-hidden rounded-card border border-forecast/30 bg-surface shadow-card">
-            <div className="border-b border-forecast/20 bg-forecast/10 px-4 py-3">
-              <h2 className="text-[13px] font-semibold text-forecast">
-                Sin categorizar ({filasSinCategorizar.length})
-              </h2>
-            </div>
-            <MovimientosTabla
-              tablaKey="movimientos_sin_categorizar"
-              movimientos={filasSinCategorizar}
-              categoriasOrdenadas={categoriasOrdenadas}
-              moneda={moneda}
-              ordenInicial={ordenSinCategorizar}
-              inversiones={inversiones ?? []}
-              actualizarCategoriaMovimiento={actualizarCategoriaMovimiento}
-              vincularComoTraspaso={vincularComoTraspaso}
-              eliminarTraspaso={eliminarTraspaso}
-              eliminarMovimiento={eliminarMovimiento}
-              asignarMovimientoAInversion={asignarMovimientoAInversion}
-            />
-          </div>
+        {etiquetas.length > 0 && (
+          <nav aria-label="Filtrar por etiqueta" className="flex flex-wrap items-center gap-1.5 text-[13px]">
+            <span className="mr-1 text-ink-tertiary">Etiquetas:</span>
+            {etiquetas.map((e) => (
+              <Link
+                key={e.id}
+                href={etiquetaFiltro?.id === e.id ? "/movimientos" : `/movimientos?etiqueta=${e.id}`}
+                className={`rounded-full px-2.5 py-1 font-semibold ${
+                  etiquetaFiltro?.id === e.id ? "bg-ink text-white" : "bg-chip text-ink-secondary hover:bg-border"
+                }`}
+              >
+                #{e.nombre}
+              </Link>
+            ))}
+          </nav>
         )}
 
-        <div className="overflow-hidden rounded-card border border-border bg-surface shadow-card">
-          <div className="border-b border-border px-4 py-3">
-            <h2 className="text-[13px] font-semibold text-ink-secondary">
-              Categorizados ({filasCategorizados.length})
-            </h2>
+        {etiquetaFiltro && resumenEtiqueta ? (
+          <div className="overflow-hidden rounded-card border border-border bg-surface shadow-card">
+            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-4 py-4">
+              <div>
+                <h2 className="font-sora text-base font-semibold text-ink">#{etiquetaFiltro.nombre}</h2>
+                <p className="text-[13px] text-ink-tertiary">
+                  {filasEtiqueta.length} {filasEtiqueta.length === 1 ? "movimiento" : "movimientos"}
+                  {filasEtiqueta.length > resumenEtiqueta.movimientos &&
+                    ` (los traspasos no suman al total)`}
+                  {resumenEtiqueta.primeraFecha &&
+                    resumenEtiqueta.ultimaFecha &&
+                    ` · del ${resumenEtiqueta.primeraFecha.split("-").reverse().join("/")} al ${resumenEtiqueta.ultimaFecha
+                      .split("-")
+                      .reverse()
+                      .join("/")}`}
+                  {" · "}
+                  <Link href="/movimientos" className="font-semibold text-accent hover:underline">
+                    Quitar filtro
+                  </Link>
+                </p>
+              </div>
+              <div className="flex gap-6 text-right">
+                <div>
+                  <p className="text-xs text-ink-secondary">Gastado</p>
+                  <p className="font-sora text-lg font-semibold tabular-nums text-ink">
+                    {formatEUR(resumenEtiqueta.gastos)}
+                  </p>
+                </div>
+                {resumenEtiqueta.ingresos > 0 && (
+                  <div>
+                    <p className="text-xs text-ink-secondary">Ingresado</p>
+                    <p className="font-sora text-lg font-semibold tabular-nums text-success">
+                      {formatEUR(resumenEtiqueta.ingresos)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <MovimientosTabla
+              tablaKey="movimientos_etiqueta"
+              movimientos={filasEtiqueta}
+              ordenInicial={null}
+              mensajeVacio="Ningún movimiento lleva esta etiqueta todavía."
+              {...propsTabla}
+            />
           </div>
-          <MovimientosTabla
-            tablaKey="movimientos"
-            movimientos={filasCategorizados}
-            categoriasOrdenadas={categoriasOrdenadas}
-            moneda={moneda}
-            ordenInicial={ordenCategorizados}
-            mensajeVacio="Todavía no hay movimientos categorizados."
-            inversiones={inversiones ?? []}
-            actualizarCategoriaMovimiento={actualizarCategoriaMovimiento}
-            vincularComoTraspaso={vincularComoTraspaso}
-            eliminarTraspaso={eliminarTraspaso}
-            eliminarMovimiento={eliminarMovimiento}
-            asignarMovimientoAInversion={asignarMovimientoAInversion}
-          />
-        </div>
+        ) : (
+          <>
+            {filasSinCategorizar.length > 0 && (
+              <div className="overflow-hidden rounded-card border border-forecast/30 bg-surface shadow-card">
+                <div className="border-b border-forecast/20 bg-forecast/10 px-4 py-3">
+                  <h2 className="text-[13px] font-semibold text-forecast">
+                    Sin categorizar ({filasSinCategorizar.length})
+                  </h2>
+                </div>
+                <MovimientosTabla
+                  tablaKey="movimientos_sin_categorizar"
+                  movimientos={filasSinCategorizar}
+                  ordenInicial={ordenSinCategorizar}
+                  {...propsTabla}
+                />
+              </div>
+            )}
+
+            <div className="overflow-hidden rounded-card border border-border bg-surface shadow-card">
+              <div className="border-b border-border px-4 py-3">
+                <h2 className="text-[13px] font-semibold text-ink-secondary">
+                  Categorizados ({filasCategorizados.length})
+                </h2>
+              </div>
+              <MovimientosTabla
+                tablaKey="movimientos"
+                movimientos={filasCategorizados}
+                ordenInicial={ordenCategorizados}
+                mensajeVacio="Todavía no hay movimientos categorizados."
+                {...propsTabla}
+              />
+            </div>
+          </>
+        )}
       </main>
     </>
   );

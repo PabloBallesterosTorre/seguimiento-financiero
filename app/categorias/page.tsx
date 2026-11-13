@@ -8,6 +8,13 @@ import {
   crearCategoriasSugeridas,
 } from "./actions";
 import { CategoriasClient } from "./CategoriasClient";
+import { EtiquetasGestion, type EtiquetaEnGestion } from "./EtiquetasGestion";
+import {
+  crearEtiqueta,
+  editarEtiqueta,
+  eliminarEtiqueta,
+  aplicarEtiquetaAExistentes,
+} from "../etiquetas/actions";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 
 export default async function CategoriasPage() {
@@ -17,11 +24,21 @@ export default async function CategoriasPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: categorias }, config, { data: movimientos }] = await Promise.all([
+  const [{ data: categorias }, config, { data: movimientos }, { data: etiquetasRaw }] = await Promise.all([
     supabase.from("categorias").select("id, nombre, categoria_padre_id, es_categoria_inversion, bloque").order("nombre"),
     user ? obtenerConfiguracion(supabase, user.id) : null,
     supabase.from("movimientos").select("categoria_id, subcategoria_id"),
+    // El recuento sale agregado de la base de datos y no contando filas aquí: la tabla de
+    // unión puede pasar de las 1000 filas que devuelve una consulta normal.
+    supabase.from("etiquetas").select("id, nombre, patron, movimiento_etiquetas(count)").order("nombre"),
   ]);
+
+  const etiquetas: EtiquetaEnGestion[] = (etiquetasRaw ?? []).map((e) => ({
+    id: e.id,
+    nombre: e.nombre,
+    patron: e.patron,
+    usos: (e.movimiento_etiquetas as unknown as { count: number }[] | null)?.[0]?.count ?? 0,
+  }));
 
   // Cuántos movimientos usa cada categoría. Con 46 categorías es la diferencia entre poder
   // limpiarlas o no: sin este dato no hay forma de saber cuáles están muertas (auditoría de
@@ -54,6 +71,14 @@ export default async function CategoriasPage() {
           obtenerMovimientosDeCategoria={obtenerMovimientosDeCategoria}
           usos={Object.fromEntries(usos)}
           moneda={config?.moneda_base ?? "EUR"}
+        />
+
+        <EtiquetasGestion
+          etiquetas={etiquetas}
+          crearEtiqueta={crearEtiqueta}
+          editarEtiqueta={editarEtiqueta}
+          eliminarEtiqueta={eliminarEtiqueta}
+          aplicarEtiquetaAExistentes={aplicarEtiquetaAExistentes}
         />
       </main>
     </>

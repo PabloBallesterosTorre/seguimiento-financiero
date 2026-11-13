@@ -6,6 +6,7 @@ import { sugerirCategoria } from "@/lib/categorizacion";
 import { reforzarRegla } from "@/lib/reglas";
 import { registrarTraspaso } from "@/lib/traspasos";
 import { reconstruirSaldo } from "@/lib/saldos";
+import { etiquetarPorReglas } from "@/lib/etiquetasServidor";
 
 export async function actualizarCategoriaMovimiento(formData: FormData) {
   const supabase = await createClient();
@@ -82,7 +83,7 @@ export async function crearMovimiento(formData: FormData) {
     categoria_id = sugerirCategoria(descripcion, reglas ?? []);
   }
 
-  await supabase
+  const { data: creado } = await supabase
     .from("movimientos")
     .insert({
       usuario_id: user.id,
@@ -95,7 +96,17 @@ export async function crearMovimiento(formData: FormData) {
       origen: "manual",
       moneda: "EUR",
     })
+    .select("id")
+    .single()
     .throwOnError();
+
+  // Las etiquetas con patrón, igual que al importar. Como el aprendizaje de reglas de abajo,
+  // es una mejora: si falla, el movimiento ya está guardado.
+  try {
+    await etiquetarPorReglas(supabase, user.id, [{ id: creado.id, descripcion }]);
+  } catch (e) {
+    console.error("crearMovimiento: etiquetarPorReglas", e);
+  }
 
   // El saldo se reconstruye desde saldo_inicial + movimientos en vez de sumarle el importe
   // al valor anterior: si una operación previa dejó la cuenta descuadrada, esta la repara.

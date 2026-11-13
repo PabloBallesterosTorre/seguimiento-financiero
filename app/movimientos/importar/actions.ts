@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { reforzarRegla } from "@/lib/reglas";
+import { etiquetarPorReglas } from "@/lib/etiquetasServidor";
 
 export type FilaImportar = {
   fecha: string;
@@ -44,6 +45,11 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
   // que se ejecuta en una sola transacción: o entran todos los movimientos, sus
   // conciliaciones y el saldo, o no entra nada. Antes eran escrituras sueltas desde aquí y
   // un fallo a mitad dejaba movimientos insertados con el saldo sin actualizar.
+  // Marca de tiempo para encontrar después los movimientos que crea esta importación y
+  // ponerles las etiquetas con patrón. Se toma un segundo antes por si el reloj del servidor
+  // de la base de datos va ligeramente por detrás del de esta función.
+  const inicioImportacion = new Date(Date.now() - 1000).toISOString();
+
   const { data, error } = await supabase.rpc("importar_movimientos", {
     p_cuenta_id: cuenta_id,
     p_filas: filas.map((fila) => ({
@@ -74,6 +80,20 @@ export async function importarMovimientos(cuenta_id: string, filas: FilaImportar
     inversiones_nuevas: number;
     saldo: number;
   };
+
+  // Etiquetas con patrón: solo a lo que acaba de entrar. Misma lógica de "mejora, no
+  // contrato" que el aprendizaje de reglas de abajo.
+  try {
+    const { data: nuevos } = await supabase
+      .from("movimientos")
+      .select("id, descripcion")
+      .eq("cuenta_id", cuenta_id)
+      .gte("created_at", inicioImportacion)
+      .throwOnError();
+    await etiquetarPorReglas(supabase, user.id, nuevos ?? []);
+  } catch (e) {
+    console.error("importarMovimientos: etiquetarPorReglas", e);
+  }
 
   // El aprendizaje de reglas es una mejora, no parte del contrato de la importación: los
   // movimientos ya se han guardado de forma atómica arriba, así que un fallo aquí se
